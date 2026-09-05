@@ -1,0 +1,1 @@
+# [Security] SG 최소 권한 체인

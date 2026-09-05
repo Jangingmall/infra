@@ -1,0 +1,35 @@
+# Terraform
+**/.terraform/*
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# Terraform lock 파일 
+.terraform.lock.hcl
+
+# Terraform variable 파일
+terraform.tfvars
+*.auto.tfvars
+
+# Sensitive 파일
+secrets.tfvars
+*.pem
+*.key
+
+# OS 파일
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.env
+*.env
+
+*.tar.gz
+helm
+kubectl
+linux-amd64/
+tfplan
