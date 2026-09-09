@@ -1,0 +1,22 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+
+metadata:
+  name: jangingmall-postgres
+  namespace: database
+
+spec:
+  instances: 3
+
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.4-system-trixie
+
+  serviceAccountName: cnpg-backup-sa
+
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: kubernetes.io/hostname
+    podAntiAffinityType: preferred
+
+  storage:
+    storageClass: gp3-cnpg
+    size: 20Gi
