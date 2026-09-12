@@ -47,8 +47,9 @@ export AWS_PAGER=""
 
 # ---------- 설정값 (필요하면 여기만 수정) ----------
 REGION="ap-northeast-2"
-BUCKET="jangin-shared-tfstate-midam"     # 🔴 S3 이름은 전 세계에서 유일해야 함
-TABLE="jangin-shared-tfstate-lock"
+# CLAUDE.md 「S3 버킷 5종 + State」 표의 확정값을 따릅니다.
+BUCKET="jangin-infra-s3-tfstate"         # 🔴 S3 이름은 전 세계에서 유일해야 함
+TABLE="jangin-infra-ddb-tfstate-lock"    # 네이밍 규칙 jangin-<env>-<resource> 적용
 PROJECT_TAG="jangin"
 # --------------------------------------------------
 
@@ -96,6 +97,9 @@ aws s3api put-bucket-versioning \
 ok "Enabled"
 
 # ===== 3. 기본 암호화 =====
+# TODO(⑧ KMS 단계): CLAUDE.md는 State 암호화를 SSE-KMS(CMK)로 명시하고 있습니다.
+#   CMK가 아직 없어 지금은 SSE-S3로 둡니다. 버킷을 재생성하지 않고
+#   put-bucket-encryption 재실행만으로 전환 가능합니다.
 say "3. 기본 암호화(SSE-S3) 설정"
 aws s3api put-bucket-encryption \
   --bucket "$BUCKET" \
@@ -117,6 +121,33 @@ aws s3api put-bucket-tagging \
   --bucket "$BUCKET" \
   --tagging "TagSet=[{Key=Project,Value=${PROJECT_TAG}},{Key=Env,Value=shared},{Key=ManagedBy,Value=manual-cli},{Key=Purpose,Value=terraform-state}]"
 ok "Project / Env / ManagedBy / Purpose"
+
+# ===== 5-2. TLS 강제 버킷 정책 (CLAUDE.md 요구) =====
+# HTTP(암호화 안 된 평문)로 오는 요청을 전부 거부합니다.
+# State 파일에는 리소스 ARN·ID가 그대로 들어가므로 전송 구간 보호가 필요합니다.
+# aws:SecureTransport 가 false = HTTPS가 아닌 요청.
+say "5-2. TLS 강제 버킷 정책"
+POLICY=$(cat <<JSON
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DenyInsecureTransport",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": "s3:*",
+      "Resource": [
+        "arn:aws:s3:::${BUCKET}",
+        "arn:aws:s3:::${BUCKET}/*"
+      ],
+      "Condition": { "Bool": { "aws:SecureTransport": "false" } }
+    }
+  ]
+}
+JSON
+)
+aws s3api put-bucket-policy --bucket "$BUCKET" --policy "$POLICY"
+ok "HTTP 요청 Deny (aws:SecureTransport=false)"
 
 # ===== 6. DynamoDB Lock 테이블 =====
 # 두 사람이 동시에 apply 하면 State가 깨집니다. 먼저 온 쪽이 자물쇠를 걸고,
@@ -145,6 +176,8 @@ printf "  Encryption       : "; aws s3api get-bucket-encryption --bucket "$BUCKE
   --query 'ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault.SSEAlgorithm' --output text
 printf "  PublicAccessBlock: "; aws s3api get-public-access-block --bucket "$BUCKET" \
   --query 'PublicAccessBlockConfiguration.[BlockPublicAcls,IgnorePublicAcls,BlockPublicPolicy,RestrictPublicBuckets]' --output text
+printf "  BucketPolicy(TLS): "; aws s3api get-bucket-policy --bucket "$BUCKET" \
+  --query 'Policy' --output text | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d["Statement"][0]["Sid"], d["Statement"][0]["Effect"])'
 printf "  DynamoDB Status  : "; aws dynamodb describe-table --table-name "$TABLE" --region "$REGION" \
   --query 'Table.TableStatus' --output text
 
