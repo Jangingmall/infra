@@ -109,3 +109,21 @@ output "sg_eks_gpu_id" {
   description = "GPU 노드 SG — 8000 인바운드만. sg-db 로 가는 경로 없음"
   value       = aws_security_group.eks_gpu.id
 }
+
+
+# ------------------------------------------------------------
+# VPC Endpoint — ④ endpoints.tf
+# ------------------------------------------------------------
+# 💡 이 값이 나중에 중요한 이유:
+#    ⑨에서 S3 버킷 정책에 조건 aws:SourceVpce = vpce-xxx 를 걸면
+#    "이 VPC의 Endpoint를 통해서만 버킷 접근 허용"이 된다.
+#    (자격증명이 유출돼도 우리 VPC 밖에서는 못 쓴다)
+#    사이버보안팀이 요구할 가능성이 높은 항목이라 미리 꺼내둔다.
+#
+# prefix_list_id 는 내보내지 않는다 — security_group.tf 가 이미
+# data.aws_ec2_managed_prefix_list.s3 로 같은 값을 쓰고 있어 중복이다.
+
+output "s3_vpc_endpoint_id" {
+  description = "S3 Gateway Endpoint ID — rt-app · rt-data 에 연결됨. ⑨ 버킷 정책의 aws:SourceVpce 조건에서 사용"
+  value       = aws_vpc_endpoint.s3.id
+}
