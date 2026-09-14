@@ -71,3 +71,41 @@ output "data_route_table_id" {
   description = "Data 라우팅 테이블 ID — ④ S3 Gateway Endpoint 를 여기에 연결 (0.0.0.0/0 없음)"
   value       = aws_route_table.data.id
 }
+
+
+# ------------------------------------------------------------
+# Security Group — ③ security_group.tf
+# ------------------------------------------------------------
+# 네이티브 과정(박명수) 인계용이자, ⑥⑦⑩ 단계의 입력값이다.
+#
+# 여기서 ID를 꺼내 쓰는 곳:
+#   sg_alb      → ⑩ ALB. Ingress annotation
+#                 alb.ingress.kubernetes.io/security-groups
+#   sg_eks_node → ⑦ System·App 노드그룹의 추가 SG
+#   sg_db       → ⑦ DB 노드그룹의 추가 SG
+#   sg_eks_gpu  → ⑦ GPU-A(g6e)·GPU-B(g4dn) 두 노드그룹이 공용으로 사용
+#
+# ⚠️ EKS 노드그룹에 이 SG를 붙여도, AWS가 자동 생성하는
+#    eks-cluster-sg-* 가 함께 붙는다. 클러스터 내부 통신은 그쪽 담당이다.
+#    → 여기 SG에 노드↔노드 전체 허용을 추가하지 말 것 (최소권한 유지).
+# ------------------------------------------------------------
+
+output "sg_alb_id" {
+  description = "ALB SG — 인터넷 443/80 수신, 8080만 노드로 송신"
+  value       = aws_security_group.alb.id
+}
+
+output "sg_eks_node_id" {
+  description = "EKS 워커 노드 SG — System·App 노드그룹용"
+  value       = aws_security_group.eks_node.id
+}
+
+output "sg_db_id" {
+  description = "CNPG 데이터 계층 SG — 5432 인바운드는 sg-eks-node 에서만"
+  value       = aws_security_group.db.id
+}
+
+output "sg_eks_gpu_id" {
+  description = "GPU 노드 SG — 8000 인바운드만. sg-db 로 가는 경로 없음"
+  value       = aws_security_group.eks_gpu.id
+}
