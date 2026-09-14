@@ -1,0 +1,88 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: backend
+  namespace: app
+  labels:
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/part-of: jangingmall
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: backend
+
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: backend
+        app.kubernetes.io/part-of: jangingmall
+    spec:
+      serviceAccountName: backend-sa
+
+      # Spring Boot graceful shutdown 30s보다 여유 있게 보장한다.
+      terminationGracePeriodSeconds: 45
+
+      containers:
+        - name: backend
+
+          # 실제 ECR image/digest는 환경 Overlay에서 교체한다.
+          image: jangin-app
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+
+            - name: management
+              containerPort: 9090
+              protocol: TCP
+
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: management
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 30
+
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: management
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: management
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+
+          # TODO(BE):
+          # requests 값을 Backend 팀과 확정한 뒤 resources를 추가한다.
+          #
+          # 현재 합의된 limits(cpu: 2, memory: 4Gi)만 먼저 넣으면
+          # Kubernetes가 request도 동일한 값으로 잡을 수 있으므로
+          # requests 확정 전에는 resources 자체를 두지 않는다.
+
+  strategy:
+    blueGreen:
+      activeService: backend-active
+      previewService: backend-preview
+
+      # 새 버전이 Ready가 되어도 자동 운영 전환하지 않는다.
+      # 검증 후 명시적으로 promote한다.
+      autoPromotionEnabled: false
+
+      # Preview는 우선 1개 Pod만 실행해 비용을 줄인다.
+      previewReplicaCount: 1
+
+      # Service 전환 후 기존 ReplicaSet을 바로 죽이지 않는다.
+      scaleDownDelaySeconds: 60

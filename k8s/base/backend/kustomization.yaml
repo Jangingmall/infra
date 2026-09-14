@@ -3,3 +3,6 @@ kind: Kustomization
 
 resources:
   - serviceaccount.yaml
+  - rollout.yaml
+  - service-active.yaml
+  - service-preview.yaml
