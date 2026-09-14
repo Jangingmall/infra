@@ -1,0 +1,53 @@
+# Argo Rollouts Helm values
+#
+# Chart Version: 2.43.1
+# App Version: v1.10.0
+#
+# Backend Rollout 리소스는 k8s/base/backend/에서 관리한다.
+# 이 디렉터리는 Rollout CRD와 Controller 플랫폼 설정만 관리한다.
+
+# Rollout, AnalysisTemplate 등의 CRD를 Helm으로 설치한다.
+installCRDs: true
+
+# Helm release 삭제 시 CRD와 기존 Rollout 리소스를 보호한다.
+keepCRDs: true
+
+# app namespace를 포함하여 클러스터 전체의 Rollout을 감시한다.
+clusterInstall: true
+
+controller:
+  # System NodeGroup이 2대이므로 Controller도 2 replica를 유지한다.
+  replicas: 2
+
+  # 현재 ALB TargetGroup 직접 검증 기능은 사용하지 않는다.
+  # Backend는 우선 Service selector 기반 Blue/Green으로 운영한다.
+  awsVerifyTargetGroup: false
+
+  metrics:
+    # 향후 Prometheus 수집을 위해 metrics Service는 생성한다.
+    enabled: true
+
+    # Prometheus Operator 구성 전까지 ServiceMonitor는 생성하지 않는다.
+    serviceMonitor:
+      enabled: false
+
+# Rollout 상태를 시각적으로 확인하기 위해 Dashboard를 배포한다.
+# 외부에는 공개하지 않고 ClusterIP + port-forward 방식으로 접근한다.
+dashboard:
+  enabled: true
+
+  # 초기에는 조회 전용으로 사용한다.
+  readonly: true
+
+  replicas: 1
+
+  service:
+    type: ClusterIP
+    port: 3100
+    targetPort: 3100
+
+# 현재는 Service selector 기반 Blue/Green만 사용한다.
+# Argo Rollouts가 외부 Traffic Provider를 직접 제어하지 않으므로
+# Provider 전용 RBAC은 비활성화한다.
+providerRBAC:
+  enabled: false
