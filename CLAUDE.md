@@ -2,8 +2,8 @@
 
 > kt cloud TECH UP 2기 3팀 "삼성가고싶어요" 통합프로젝트 · 서비스 **장인몰**
 > Claude Code가 매 세션 자동으로 읽습니다. **결정사항 위주로 짧게 유지하세요.**
-> 기준: **통합프로젝트 Context 2026-09-10** + **팀 컨텍스트 v0.6** + **2.6.1 v0.4** + **비용 보고서 v1.0**
-> 최종 갱신 **2026-09-10** (이전판 09-09)
+> 기준: **통합프로젝트 Context 2026-09-14** + **팀 컨텍스트 v0.8** + **네트워크·계정 설계서 최종본(9/14 파트장)** + **모듈화 전략(9/14 파트장)** + **비용 보고서 v1.0**
+> 최종 갱신 **2026-09-14** (이전판 09-10)
 
 ---
 
@@ -34,6 +34,10 @@
 | 3 | **메일 SMTP 세부** ("google email"만 회신) | BE | 아웃바운드 포트·시크릿 |
 | 4 | **App `requests` 구체값** | BE | 롤링 배포 가능 여부 |
 | 5 | **AI 컨테이너 이미지·모델 배포 경로** | AI | NAT 처리료 $13 |
+| **6** | 🆕 **변수 파일 규칙 A안 vs B안** (인프라 권고 **B안**) | 파트장 | 모듈화 이관 코드 작성 |
+| **7** | 🆕 **staging / prod 운영 방식** (가)순차·(나)staging축소·(다)prod단일 | 파트장 + 그룹장 | **동시 운영은 예산 2배로 불가** |
+| **8** | 🆕 **공용 ECR State 위치** (shared vs 환경별) | 창원 + 파트장 | 환경별 `apply` 시 ECR 영향 범위 |
+| **9** | 🆕 **최종 설계서 ↔ 코드 차이 4건** (아래 「설계서 차이」) | 파트장 | 모듈 이관 전 확정 필요 |
 
 > 위 값이 안 나온 상태에서 **임의값으로 채우지 말 것.** `variable` + `TODO` 주석으로 남기고 진행.
 
@@ -66,7 +70,7 @@
 | **환경 분리** | **staging / prod 별도 클러스터 · 별도 VPC** (Peering 없음) |
 | **NAT** | ✅ **NAT Gateway** (AZ-a 단일 + **EIP 고정**) — ~~NAT Instance~~ 폐기 |
 | LB | **ALB (target-type `ip`)** + **AWS WAF** · Pod Readiness Gate 병행 |
-| **DNS** | apex `midam.store` → Vercel / `api.midam.store` → ALB<br>**`stg.midam.store`** · **`api.stg.midam.store`** |
+| **DNS** | apex `midam.store` → Vercel / `api.midam.store` → ALB<br>🟡 **스테이징 서브도메인 `stg.` vs `staging.` — 파트장 확인 필요**<br>(리소스 **이름 접두사**는 9/14 설계서 최종본에서 `staging` 으로 통일됐으나, **DNS 서브도메인은 별개 축**이라 자동 변경하지 않음) |
 | **DB** | **CloudNativePG** — Primary 1 + Replica 2 |
 | 레지스트리 | ECR — **단일 레포 `jangin-app` + 동일 아티팩트 승격** · **Immutable** |
 | **시크릿** | Parameter Store **`/{env}/{team}/{key}` (3단)** + KMS CMK<br>**CSI Driver → 볼륨 마운트 → Spring `configtree`** (Secret Sync 미사용) |
@@ -101,7 +105,7 @@ S3        : 노드 → S3 Gateway Endpoint (NAT 미경유 · 무료)
 | 환경 | VPC | CIDR |
 |---|---|---|
 | **prod** | `jangin-prod-vpc` | **`10.0.0.0/16`** |
-| **staging** | `jangin-stg-vpc` | **`10.1.0.0/16`** |
+| **staging** | **`jangin-staging-vpc`** 🔄 (구: `jangin-stg-vpc`) | **`10.1.0.0/16`** |
 
 | tier | 서브넷 | prod | staging |
 |---|---|---|---|
@@ -140,8 +144,8 @@ S3        : 노드 → S3 Gateway Endpoint (NAT 미경유 · 무료)
 ### 리소스 네이밍 규칙
 
 ```
-일반:  jangin-<env>-<resource>
-       jangin-prod-vpc / jangin-stg-subnet-public-a / jangin-prod-sg-db
+일반:  jangin-<env>-<resource>          # env = prod | staging  (🔄 09-14: stg → staging 통일)
+       jangin-prod-vpc / jangin-staging-subnet-public-a / jangin-prod-sg-db
 
 ECR:   jangin-app  (환경 구분 없이 단일 레포, 태그로 구분)
 ```
@@ -320,7 +324,10 @@ s3-logs/cloudtrail/   ← 장기보관 (멘토 요구)
 | 11 | **하나의 Commit/PR = 하나의 작업 단위** (CONVENTION.md) |
 | 12 | **과도한 오버엔지니어링 금지** |
 | 13 | **CN 과업(컨테이너화·CI·관찰성·NetworkPolicy)을 인프라 산출물로 흡수하지 않음** |
-| **14** | 🆕 **prod 를 고치면 staging 반영 여부를 PR 본문에 명시** — 폴더 복사 방식이라 자동 반영되지 않음 |
+| **14** | **prod 를 고치면 staging 반영 여부를 PR 본문에 명시** — 🔄 09-14 모듈화 전환 후에는 *"공유 모듈 수정인지 / 환경 tfvars 수정인지"* 를 명시 |
+| **15** | 🆕🔴 **모듈로 리소스를 옮길 때 `moved` 블록을 같은 PR 에 반드시 포함.** `terraform state mv` CLI 사용 금지(코드에 흔적이 안 남아 다른 팀원 `plan` 에서 destroy 재발) |
+| **16** | 🆕🔴 **`plan` 에 `destroy` 가 1개라도 있으면 즉시 중단.** 이관 PR 은 `0 to add, 0 to change, 0 to destroy` 출력을 PR 본문에 첨부 |
+| **17** | 🆕💰 **비용이 발생하는 리소스(⑤NAT·⑥EKS·⑦노드그룹 등)는 9/17 까지 `plan` 까지만.** `apply` 는 **9/18 일괄** (파트장 지시). 구조 변경(모듈 이관)처럼 **과금이 없는 작업은 이 규칙 대상 아님** |
 
 > 📌 **규칙 10 보충 (2026-09-13)**: `NodePool` 값은 `system｜app｜db｜ai` 중 하나여야 Cost Explorer 필터가 의미를 갖습니다.
 > VPC·서브넷·IGW·라우팅·SG·Endpoint 는 **요금이 $0** 이고 저 넷 중 어디에도 속하지 않으므로 **부여하지 않습니다.**
@@ -363,11 +370,14 @@ s3-logs/cloudtrail/   ← 장기보관 (멘토 요구)
 
 | 시점 | 내용 |
 |---|---|
-| **9/10 (목)** | 🔴 **IaC 착수** · Phase2 보완 제출 |
-| 9/11~13 | EKS · 노드그룹 · IRSA · S3 · ALB |
-| **9/14** | **운영환경 가동 시작** (운영 시작일) |
-| 9/15~17 | IAM 한시적 admin 회수 |
-| **9/18** | 🔴 **인프라 전체 가동완료** (멘토 강조) |
+| ✅ **9/12 (토)** | **IaC 착수** — Claude Code 세팅 · **① State 부트스트랩** (PR #3) |
+| ✅ **9/13 (일)** | **② VPC (PR #4) · ③ SG (PR #5) · ④ S3 Endpoint (PR #6)** — **43개 리소스 · $0** |
+| ✅ **9/14 (월)** | 보안팀 검토 요청 · 타 직군 질문 · **파트장 설계서 최종본 수령** · **모듈화 전략 수령** · 로컬 동기화 |
+| 🔴 **9/15 (화)** | **신준한 부재** — 클라우드 그룹 회의 결과 디스코드 공유 요청 |
+| **9/16 (수)** | **모듈 이관 + `moved` (과금 $0 · apply 가능)** · ⑤⑥⑦⑧ 코드 작성 → **`plan` 까지만** |
+| 🔴 **9/17 (목)** | **신준한 부재** · 🔴 **비용 리소스 apply 금지일** |
+| **9/18 (금)** | 🔴 **⑤~⑧ 일괄 `apply`** · **인프라 전체 가동완료** (멘토 강조) |
+| 9/15~17 | IAM 한시적 admin 회수 (박다정) |
 | **9/21~23** | 스테이징 제공(DAST) · FE/BE 개발완료 · QA |
 | 9/22 (화) | 인프라 멘토링 3차 |
 | 9/24~27 | **추석 연휴 + 주말** — 운영 중단 |
@@ -381,19 +391,28 @@ s3-logs/cloudtrail/   ← 장기보관 (멘토 요구)
 ### IaC 착수 순서
 
 ```
-① Terraform State (S3 + DynamoDB Lock)   ← CLI 수동 생성
-② VPC · 서브넷 6개 · 라우팅 · IGW          ← 무료
-③ Security Group 4종 (sg-eks-gpu 포함)     ← 무료
-④ S3 Gateway Endpoint                      ← 무료
-⑤ NAT Gateway + EIP(prevent_destroy)       ← 🔴 유료
-⑥ EKS 클러스터 + OIDC Provider
-⑦ 노드그룹 (System/App/DB/GPU×2 — GPU는 desired=0)
-⑧ KMS CMK + Parameter Store + IRSA 6종
-⑨ S3 버킷 5종 (prefix·lifecycle·CORS)
-⑩ ALB · WAF · Route53 · ACM
+✅ ① Terraform State (S3 + DynamoDB Lock)   ← CLI 수동 생성      PR #3
+✅ ② VPC · 서브넷 6개 · 라우팅 · IGW          ← 무료             PR #4
+✅ ③ Security Group 4종 (sg-eks-gpu 포함)     ← 무료             PR #5
+✅ ④ S3 Gateway Endpoint                      ← 무료             PR #6
+🆕 ④-2 모듈 이관 + moved 블록                 ← 무료 · 9/16
+   ⑤ NAT Gateway + EIP(prevent_destroy)       ← 💰 9/18
+   ⑥ EKS 클러스터 + OIDC Provider              ← 💰 9/18
+   ⑦ 노드그룹 (System/App/DB/GPU×2 — GPU는 desired=0)  ← 💰 9/18
+   ⑧ KMS CMK + Parameter Store + IRSA 6종 + 🔴 EBS CSI Driver 애드온
+   ⑨ S3 버킷 5종 (prefix·lifecycle·CORS)
+   ⑩ ALB · WAF · Route53 · ACM
 ```
 
-> 💡 **②③④는 전부 무료.** 9/14 전에 만들고 지우고 다시 만들어도 $0이라, **여기서 코드를 검증해두면 유료 리소스를 붙일 때 실패 확률이 크게 줄어듭니다.**
+> ✅ **①~④ 완료 (2026-09-13).** 43개 리소스 · 월 **$0** · `terraform plan` = `No changes.` 확인 (9/14)
+> 💰 **⑤ 이후는 과금.** 9/17 까지 `plan` 까지만, **9/18 일괄 `apply`** (규칙 17)
+>
+> 🔴 **⑧ EBS CSI Driver 가 9/18 범위에서 빠지면 안 됩니다.**
+> 박명수님이 `k8s/base/storage/gp3-cnpg-storageclass.yaml` 로 **gp3 StorageClass** 를 이미 올려두셨는데,
+> StorageClass 는 *"디스크를 이렇게 만들어 달라"* 는 **주문서**일 뿐이고 실제로 EBS 를 만드는 **직원(EBS CSI Driver)** 과
+> 그 직원의 **AWS 권한(IRSA `jangin-{env}-irsa-ebs-csi`)** 이 없으면 **PVC 가 `Pending` 에서 영원히 멈춰 CNPG Pod 가 안 뜹니다.**
+> ⚠️ EKS 1.23 부터 in-tree EBS 프로비저너가 제거되어 **StorageClass 만으로는 동작하지 않습니다.**
+> ⚠️ 노드 IAM Role 에 EBS 권한을 통째로 붙이는 우회법은 **그 노드의 모든 Pod 가 EBS 를 조작**할 수 있게 되므로 금지 — 보안팀 검수 지적 대상.
 
 ### Phase3 산출물
 
@@ -418,25 +437,37 @@ s3-logs/cloudtrail/   ← 장기보관 (멘토 요구)
 | 원칙 | **하나의 Commit/PR = 하나의 작업 단위** |
 | 원칙 | **민감정보 커밋 전 반드시 확인** |
 
-### 디렉토리 구조 (2026-09-14 정정)
+### 디렉토리 구조 (🔄 2026-09-14 모듈화 반영)
 
 ```
 infra/
 ├── CLAUDE.md · .claude/settings.json
 ├── .gitignore · CONVENTION.md · README.md
 ├── scripts/bootstrap-tfstate.sh        ← State 백엔드 부트스트랩 (CLI)
+├── k8s/                                🔗 CN(박명수) — base/{namespaces,backend,database,storage}
+├── platform/                           🔗 CN(박명수) — cloudnative-pg / argo-rollouts Helm values
 └── terraform/
-    ├── environments/prod/              ← 평평하게(flat) 작성
-    │   ├── versions.tf · backend.tf · providers.tf
-    │   ├── locals.tf · variables.tf · outputs.tf
-    │   ├── vpc.tf · security_group.tf · endpoints.tf · nat.tf
-    │   ├── .terraform.lock.hcl         ← ✅ 커밋 (3플랫폼 해시)
-    │   └── terraform.tfvars            ← 🔴 커밋 금지
-    ├── environments/staging/           ← prod 복사 + 값만 변경
-    └── modules/                        ← 🗑 사용하지 않음 (빈 껍데기 유지)
+    ├── modules/                        ← ✅ 사용함 (🔄 09-14 파트장 모듈화 전략)
+    │   │                                 🔴 이름은 레포 first commit 스캐폴드를 따른다
+    │   ├── network/    ✅ 이관완료       VPC·Subnet·IGW·RouteTable·NAT      [인프라 ②⑤]
+    │   ├── security/   ✅ 이관완료       SG 4종 + Rule 15개                  [인프라 ③]
+    │   ├── endpoints/  ✅ 신설           S3 Gateway Endpoint                 [인프라 ④]
+    │   ├── eks/        ⬜ 빈 껍데기      Cluster·OIDC·NodeGroup              [인프라 ⑥⑦]
+    │   ├── ecr/        ⬜ 빈 껍데기      ECR 레포·수명주기                    🔗 [이창원]
+    │   └── waf/        ⬜ 빈 껍데기      WAF·ALB 연동                        🔗 [강윤주 ⑩]
+    └── environments/
+        ├── prod/                       ← 🔴 module 호출만. 리소스 직접 선언 금지
+        │   ├── versions.tf · backend.tf · providers.tf
+        │   ├── main.tf                 ← module 블록
+        │   ├── locals.tf · variables.tf · outputs.tf
+        │   ├── moved.tf                ← 🆕 이관용 (10/2 제출까지 유지)
+        │   ├── .terraform.lock.hcl     ← ✅ 커밋 (3플랫폼 해시)
+        │   └── terraform.tfvars        ← 🔴 커밋 금지
+        └── staging/                    ← 동일 구조 · terraform.tfvars 값만 상이
 ```
 
 🔴 **경로는 `environments/` 입니다** — 이전 판의 `envs/` 는 오기였습니다. 레포 실물 기준.
+🔗 **`k8s/` · `platform/` 은 클라우드 네이티브 과정 영역입니다.** 인프라가 임의로 수정하지 않습니다.
 
 ⚠️ **`.terraform.lock.hcl`은 커밋합니다.** provider 버전을 팀원 전원이 동일하게 쓰게 하는 파일이라, 빼면 사람마다 다른 provider로 plan이 갈립니다.
 커밋 전 반드시 멀티 플랫폼 해시를 넣습니다 — `terraform providers lock -platform=darwin_arm64 -platform=darwin_amd64 -platform=linux_amd64`. 안 하면 인텔 맥·GitHub Actions(linux_amd64)에서 깨집니다.
@@ -447,11 +478,13 @@ infra/
 |---|---|
 | 코드 분리 | 🔴 **폴더 분리** — git branch 아님. **각 폴더에서 개별 `apply`** |
 | State 분리 | **같은 버킷 · `key` 경로만 분리** — `prod/terraform.tfstate` / `staging/terraform.tfstate` |
-| 작성 순서 | **prod 완성 → staging으로 복사 → 값만 변경** |
-| 모듈화 | 🔴 **하지 않음** (이전 판의 "모듈화는 staging 만들 때" 폐기) |
-| 목적 | 9/21 보안팀 DAST 검수 기간에 staging 제공 |
+| 작성 순서 | **prod 완성 → 모듈로 추출 → staging 은 `terraform.tfvars` 값만 변경** |
+| **모듈화** | 🔄 **함 — 09-14 파트장 「모듈화 전략」으로 반전.** (이전 판 *"모듈화 하지 않음"* **폐기**) |
+| **변수 파일** | 🟡 **A안(리소스별) vs B안(환경별 통합) 미확정** — 인프라 권고 **B안**(`terraform.tfvars` 1개, 자동 로드) |
+| 목적 | 9/21~23 보안팀 DAST 검수 기간에 staging 제공 |
+| **운영 방식** | 🔴 **미확정** — staging+prod **동시 운영은 예산 2배로 불가**. (가)순차 / (나)staging축소 / (다)prod단일 중 **그룹장 합의 필요**. 인프라 권고는 **(가) 순차** |
 
-**staging 복사 시 바꿀 값 — 이것만 다릅니다**
+**staging 에서 바꿀 값 — 이것만 다릅니다**
 
 | 파일 | 항목 | prod | staging |
 |---|---|---|---|
@@ -459,24 +492,55 @@ infra/
 | `variables.tf` | `env` | `prod` | `staging` |
 | `variables.tf` | `vpc_cidr` | `10.0.0.0/16` | `10.1.0.0/16` |
 | `variables.tf` | `subnet_cidrs` | `10.0.*` | `10.1.*` |
-| `variables.tf` | `cluster_name` | `jangin-prod-eks-cluster` | `jangin-stg-eks-cluster` |
+| `terraform.tfvars` | `cluster_name` | `jangin-prod-eks-cluster` | **`jangin-staging-eks-cluster`** |
 
-> 🔴 **`env` 값과 이름 접두사가 다릅니다.**
-> Parameter Store 경로·State key 는 **`staging`**(IF_04 BE 회신 확정)이고,
-> 리소스 이름 접두사는 **`stg`**(`jangin-stg-vpc` — 네트워크 확정값)입니다.
-> `locals.tf` 에서 분리해야 합니다:
+> ✅ **09-14 정정: `env_short` 는 만들지 않습니다.**
+> 이전 판에는 *"Parameter Store·State key 는 `staging`, 리소스 이름 접두사는 `stg`"* 라며
+> `locals.env_short = var.env == "staging" ? "stg" : var.env` 를 두라고 적혀 있었습니다.
+> **9/14 네트워크·계정 설계서 최종본에서 리소스 이름 접두사도 `staging` 으로 통일**되어 이 분기가 불필요해졌습니다.
 > ```hcl
-> env_short = var.env == "staging" ? "stg" : var.env
-> name      = "${var.project}-${local.env_short}"   # jangin-prod / jangin-stg
+> # 이제 이거면 충분합니다
+> name = "${var.project}-${var.env}"   # jangin-prod / jangin-staging
 > ```
-> 이걸 안 하면 staging 리소스가 `jangin-staging-vpc` 로 생겨 IAM Deny 접두어(`jangin-stg-*`)에서 빠집니다.
+> ⚠️ **IAM Deny 접두어도 `jangin-staging-*` 로 맞춰야 합니다** (박다정 확인 필요).
+> ⚠️ **DNS 서브도메인(`stg.midam.store`)은 별개 축**이라 이 통일에 자동으로 따라가지 않습니다 — 파트장 확인 필요.
 
-> 🔴 **drift(두 환경이 갈리는 것) 주의**
-> 복사 방식이라 **prod를 고치면 staging에 손으로 반영**해야 합니다. 빠뜨리면 보안팀 요구
-> *"prod와 동일한 환경에서 검수해야 의미가 있다"* 가 깨집니다.
-> - prod PR 본문에 **"staging 반영 필요 여부"** 를 체크 항목으로 넣습니다
-> - 동기화 확인: `diff -r -x '.terraform*' terraform/environments/prod terraform/environments/staging`
-> - 기대 diff: 위 표의 5개 항목뿐
+> 🔄 **drift(두 환경이 갈리는 것) — 모듈화로 성격이 바뀝니다**
+> **모듈을 공유하므로 리소스 정의 자체의 drift 는 구조적으로 사라집니다.** 대신 두 가지가 남습니다:
+> 1. **`terraform.tfvars` 값 drift** — 한쪽만 값을 바꾸는 경우
+> 2. **apply 시점 drift** — 모듈을 고쳤는데 한쪽 환경에만 `apply` 한 경우 (🔴 이게 더 위험)
+> - prod PR 본문에 **"staging 반영 필요 여부"** 를 체크 항목으로 유지합니다 (규칙 14)
+> - 동기화 확인: `diff -r -x '.terraform*' -x '*.tfvars' terraform/environments/prod terraform/environments/staging`
+> - 기대 diff: `backend.tf` 의 `key` 한 줄뿐 (나머지 차이는 전부 `terraform.tfvars` 로)
+
+### 🆕 모듈 이관 절차 (9/16 예정) — `moved` 블록
+
+**왜 필요한가**: Terraform 은 리소스를 **주소**로 기억합니다. `aws_vpc.main` → `module.network.aws_vpc.main` 으로 주소가 바뀌면
+Terraform 은 *"원래 주소의 물건이 사라졌고, 처음 보는 주소에 새 물건이 생겼다"* 로 읽고 **destroy + create** 를 계획합니다.
+**VPC 가 destroy 되면 그 안의 서브넷·SG·엔드포인트까지 43개 리소스가 전부 딸려 나갑니다.**
+
+```hcl
+# terraform/environments/prod/moved.tf
+moved {
+  from = aws_vpc.main                    # 옛 주소
+  to   = module.network.aws_vpc.main     # 새 주소
+}
+moved {
+  from = aws_subnet.app                  # for_each 는 리소스 단위로 지정하면 인스턴스 전체가 함께 이동
+  to   = module.network.aws_subnet.app
+}
+# … 이관 대상 34개 리소스 블록 전부에 대해 반복 (network 13 + security 19 + endpoints 2)
+```
+
+| 단계 | 확인 |
+|---|---|
+| 1 | `moved.tf` 작성 → `terraform plan` |
+| 2 | 🔴 **`Plan: 0 to add, 0 to change, 0 to destroy.` + 이동 목록만** 출력되어야 함 |
+| 3 | `destroy` 가 1개라도 있으면 **중단** — `moved` 누락 리소스 확인 |
+| 4 | 통과 시 `apply` (**과금 $0** — State 주소만 변경, AWS 리소스는 그대로) |
+
+> 💡 **모듈 간 연결 원칙**: 모듈 B 가 모듈 A 의 리소스를 참조할 때는 **A 의 `output` → B 의 `variable`** 로 전달합니다.
+> `modules/security-group` 안에서 `aws_vpc.main.id` 를 직접 쓰면 모듈이 재사용 불가능해집니다 — `var.vpc_id` 를 받아야 합니다.
 
 ---
 
@@ -496,11 +560,14 @@ infra/
 | 6 | **`sg-eks-gpu → sg-db`가 없는가** |
 | 7 | **EKS 서브넷 태그 있는가** |
 | 8 | **계정 ID·ARN 하드코딩 없는가** |
-| 9 | **`NodePool` 태그 있는가** |
+| 9 | **`NodePool` 태그** — 🔄 **과금 리소스(EC2·EBS·NAT·EKS)에만.** VPC·서브넷·SG 에는 붙이지 않음 (규칙 10) |
 | 10 | **NAT EIP에 `prevent_destroy` 있는가** |
+| **11** | 🆕 **모듈로 옮긴 리소스마다 `moved` 블록이 있는가** (규칙 15) |
+| **12** | 🆕 **과금 리소스인가?** — 그렇다면 9/18 전에는 `apply` 하지 않음 (규칙 17) |
 
 💡 **plan 출력**: `Plan: N to add, 0 to change, 0 to destroy`
 **`to destroy`가 0이 아니면 절대 apply하지 마세요.**
+💡 **모듈 이관 PR 의 기대 출력**: `Plan: 0 to add, 0 to change, 0 to destroy.` + 이동 목록만
 
 ---
 
@@ -512,12 +579,64 @@ infra/
 
 ---
 
+---
+
+## 🆕 배포 완료 리소스 (2026-09-13 · prod · 월 $0)
+
+> 타 직군 인계·디버깅용. **완성도 30점의 "타 직군 인계 문서" 재료입니다.**
+> 계정 `750240012008` · SSO 프로필 `jangin` · Permission Set `Infra-Admin` · 리전 `ap-northeast-2`
+
+| 리소스 | ID | 비고 |
+|---|---|---|
+| VPC | `vpc-014f8fbb402129243` | `10.0.0.0/16` |
+| subnet app-a / app-c | `subnet-0477c985d2774c627` / `subnet-0164b81d7621a227a` | `/20` |
+| subnet public-a / public-c | `subnet-0b9488cb49e690109` / `subnet-0ed49d8f6b091d3dd` | |
+| subnet data-a / data-c | `subnet-030a80ce750ac287f` / `subnet-06d1edc960f16176f` | **예약 · 미사용** |
+| rt-app / rt-data / rt-public | `rtb-049c264cacebc0d75` / `rtb-0c689f40b1efd953d` / `rtb-00f2bdf237011526f` | rt-data 에 `0.0.0.0/0` 없음 ✅ |
+| IGW | `igw-02dfd2921d685f822` | |
+| sg-alb / sg-eks-node | `sg-034b3c679b9c79e66` / `sg-0584296cf3db0a399` | |
+| sg-db / sg-eks-gpu | `sg-0fba4023d74d29c40` / `sg-0d002ef68d56611cb` | |
+| default SG (잠금) | `sg-0222c36a689b0a94c` | 규칙 0개 |
+| S3 Gateway Endpoint | `vpce-02f0b4007562d1132` | prefix list `pl-78a54011` |
+| State 버킷 / Lock 테이블 | `jangin-infra-s3-tfstate` / `jangin-infra-ddb-tfstate-lock` | TLS 강제 · 버전관리 |
+
+**검증 상태 (2026-09-14)**: `terraform plan` → `No changes. Your infrastructure matches the configuration.`
+
+---
+
+## 🆕 🔴 설계서 ↔ 코드 차이 — 파트장 확인 요청 4건
+
+> 9/14 「네트워크·계정 설계서 최종본」과 배포된 코드를 대조한 결과. **모듈 이관(9/16) 전에 확정되면 한 번에 반영합니다.**
+
+| # | 설계서 | 현재 코드 | 확인 요청 |
+|---|---|---|---|
+| **1** | `sg-eks-node` inbound ← `sg-eks-gpu` **8000** | 해당 규칙 없음 (`sg-eks-gpu` in ← `sg-eks-node` 8000 만 존재) | GPU→App **역방향 요청**이 실제로 있는지. 응답 트래픽은 SG 가 stateful 이라 규칙 없이도 통과 |
+| **2** | `sg-db` / `sg-eks-gpu` egress 를 **443만** 허용 | egress `all` + S3 prefix list 443 | 🔴 **DNS(UDP/TCP 53)가 막혀 Pod 가 도메인 해석 불가.** 53 추가 or 현행 유지 |
+| **3** | `irsa-secrets-csi` 부활 | 미구현 (⑧ 예정) | 🔴 드라이버에 IRSA 를 주면 **모든 Pod 시크릿 조회 가능**. Pod 단위 IRSA 유지 여부 (보안팀 의견 필요) |
+| **4** | `NodePool` 태그를 IAM/SSM/S3 까지 | `default_tags` 에서 제외 (규칙 10) | IAM Role·Policy 는 NodePool 개념이 없고 일부는 태그 미지원. 과금 리소스 한정 여부 |
+
+> 나머지 3건(명명 규칙·태그 키 대소문자·output 이름)은 **코드를 설계서에 맞춰 수정**합니다. 별도 확인 불필요.
+
+---
+
 ## 변경 이력
 
-**09-10 → 09-14**
+**09-14 (2차 · 모듈화·동기화)**
+- 🔄 **모듈화 전략 반전** (파트장) — `modules/` **사용함**. 이전 판 *"모듈화 안 함"* 폐기
+- 🆕 **`moved` 블록 절차 신설** — 없이 이관하면 **43개 리소스 destroy+create**. 작업규칙 **15·16** 신설
+- 🆕 **작업규칙 17 신설** — 과금 리소스 9/17 까지 `plan` only · **9/18 일괄 apply**
+- ✅ **`env_short` 삭제** — 설계서 최종본이 리소스 접두사도 `staging` 으로 통일. `jangin-stg-*` → **`jangin-staging-*`**
+- 🟡 **DNS 서브도메인(`stg.` vs `staging.`) 은 별개 축** — 파트장 확인 대기 (자동 변경하지 않음)
+- 🔴 **⑧ 에 EBS CSI Driver 애드온 명시** — 명수님 gp3 StorageClass 의 선행조건. 빠지면 **CNPG PVC `Pending`**
+- 🆕 **배포 완료 리소스 ID 표** 신설 (인계 문서 재료)
+- 🆕 **설계서 ↔ 코드 차이 4건** 신설 (파트장 확인 요청)
+- 🆕 막힌 항목 **6~9 추가** — 변수파일 A/B · staging·prod 운영 방식 · 공용 ECR State · 설계서 차이
+- 레포에 **`k8s/` · `platform/` 유입** (CN 박명수) — 인프라 수정 금지 영역으로 표기
+- 로컬 동기화 완료 — 브랜치 5개 정리 · `terraform plan` = `No changes.` 검증
+
+**09-10 → 09-14 (1차)**
 - 디렉토리 경로 정정: `envs/` → **`environments/`** (레포 실물 기준)
-- 🆕 **환경 분리 전략 확정** (파트장) — 폴더 분리 · 각 폴더 개별 apply · **모듈화 안 함** · prod 복사 방식
-- 🔴 `env`(=`staging`) 와 이름 접두사(=`stg`) 분리 필요 — `locals.env_short`
+- 🆕 **환경 분리 전략 확정** (파트장) — 폴더 분리 · 각 폴더 개별 apply · prod 기준 작성
 - State 백엔드 확정값: `jangin-infra-s3-tfstate` / `jangin-infra-ddb-tfstate-lock` + TLS 강제 정책
 - `.terraform.lock.hcl` **커밋**으로 전환 (3플랫폼 해시 필수)
 - 작업규칙 **14 신설**(staging 반영 명시) · 규칙 10 보충(`NodePool` 은 과금 리소스에만)
