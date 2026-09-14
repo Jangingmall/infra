@@ -50,7 +50,7 @@
 # S3 Gateway Endpoint 본체
 # ------------------------------------------------------------
 resource "aws_vpc_endpoint" "s3" {
-  vpc_id = aws_vpc.main.id
+  vpc_id = var.vpc_id
 
   # "com.amazonaws.ap-northeast-2.s3"
   # 🔴 리전을 하드코딩하지 않는다 (작업 규칙 4).
@@ -143,10 +143,7 @@ resource "aws_vpc_endpoint_route_table_association" "s3" {
   #      2. public 은 IGW로 직행하는데, 동일 리전 S3행 트래픽은
   #         IGW 경유라도 원래 무료다 → 비용 이득도 0.
   #    → 붙일 이유가 하나도 없다.
-  for_each = {
-    app  = aws_route_table.app.id
-    data = aws_route_table.data.id
-  }
+  for_each = var.route_table_ids
 
   vpc_endpoint_id = aws_vpc_endpoint.s3.id
   route_table_id  = each.value
