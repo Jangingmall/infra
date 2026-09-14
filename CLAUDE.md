@@ -316,10 +316,16 @@ s3-logs/cloudtrail/   ← 장기보관 (멘토 요구)
 | 7 | **`rt-data`에 `0.0.0.0/0` 만들지 않음** |
 | 8 | **`sg-eks-gpu → sg-db` 규칙을 만들지 않음** |
 | 9 | **NAT EIP는 `prevent_destroy`** — 택배사 allowlist용. 재생성 시 배송조회 중단 |
-| 10 | 리소스명은 **`locals`로 조립** · **`NodePool` 태그 필수** |
+| 10 | 리소스명은 **`locals`로 조립** · **`NodePool` 태그는 과금 리소스에만** (아래 참고) |
 | 11 | **하나의 Commit/PR = 하나의 작업 단위** (CONVENTION.md) |
 | 12 | **과도한 오버엔지니어링 금지** |
 | 13 | **CN 과업(컨테이너화·CI·관찰성·NetworkPolicy)을 인프라 산출물로 흡수하지 않음** |
+| **14** | 🆕 **prod 를 고치면 staging 반영 여부를 PR 본문에 명시** — 폴더 복사 방식이라 자동 반영되지 않음 |
+
+> 📌 **규칙 10 보충 (2026-09-13)**: `NodePool` 값은 `system｜app｜db｜ai` 중 하나여야 Cost Explorer 필터가 의미를 갖습니다.
+> VPC·서브넷·IGW·라우팅·SG·Endpoint 는 **요금이 $0** 이고 저 넷 중 어디에도 속하지 않으므로 **부여하지 않습니다.**
+> 억지로 `network` 같은 값을 넣으면 비용 분석 필터만 오염됩니다. **⑦ 노드그룹 단계에서 리소스별로 부여합니다.**
+> (파트장·다정님 확인 요청 중)
 
 ---
 
@@ -412,23 +418,65 @@ s3-logs/cloudtrail/   ← 장기보관 (멘토 요구)
 | 원칙 | **하나의 Commit/PR = 하나의 작업 단위** |
 | 원칙 | **민감정보 커밋 전 반드시 확인** |
 
-### 디렉토리 구조
+### 디렉토리 구조 (2026-09-14 정정)
 
 ```
 infra/
 ├── CLAUDE.md · .claude/settings.json
 ├── .gitignore · CONVENTION.md · README.md
+├── scripts/bootstrap-tfstate.sh        ← State 백엔드 부트스트랩 (CLI)
 └── terraform/
-    ├── envs/prod/    ← 평평하게 작성 (모듈화는 staging 만들 때)
+    ├── environments/prod/              ← 평평하게(flat) 작성
     │   ├── versions.tf · backend.tf · providers.tf
-    │   ├── locals.tf · variables.tf
-    │   ├── vpc.tf · nat.tf · security_group.tf · endpoints.tf
-    │   └── terraform.tfvars   ← 🔴 커밋 금지
-    ├── envs/staging/
-    └── modules/      ← 반복분 추출 후
+    │   ├── locals.tf · variables.tf · outputs.tf
+    │   ├── vpc.tf · security_group.tf · endpoints.tf · nat.tf
+    │   ├── .terraform.lock.hcl         ← ✅ 커밋 (3플랫폼 해시)
+    │   └── terraform.tfvars            ← 🔴 커밋 금지
+    ├── environments/staging/           ← prod 복사 + 값만 변경
+    └── modules/                        ← 🗑 사용하지 않음 (빈 껍데기 유지)
 ```
 
+🔴 **경로는 `environments/` 입니다** — 이전 판의 `envs/` 는 오기였습니다. 레포 실물 기준.
+
 ⚠️ **`.terraform.lock.hcl`은 커밋합니다.** provider 버전을 팀원 전원이 동일하게 쓰게 하는 파일이라, 빼면 사람마다 다른 provider로 plan이 갈립니다.
+커밋 전 반드시 멀티 플랫폼 해시를 넣습니다 — `terraform providers lock -platform=darwin_arm64 -platform=darwin_amd64 -platform=linux_amd64`. 안 하면 인텔 맥·GitHub Actions(linux_amd64)에서 깨집니다.
+
+### 환경 분리 전략 ✅ **확정 (2026-09-14 파트장)**
+
+| 항목 | 방식 |
+|---|---|
+| 코드 분리 | 🔴 **폴더 분리** — git branch 아님. **각 폴더에서 개별 `apply`** |
+| State 분리 | **같은 버킷 · `key` 경로만 분리** — `prod/terraform.tfstate` / `staging/terraform.tfstate` |
+| 작성 순서 | **prod 완성 → staging으로 복사 → 값만 변경** |
+| 모듈화 | 🔴 **하지 않음** (이전 판의 "모듈화는 staging 만들 때" 폐기) |
+| 목적 | 9/21 보안팀 DAST 검수 기간에 staging 제공 |
+
+**staging 복사 시 바꿀 값 — 이것만 다릅니다**
+
+| 파일 | 항목 | prod | staging |
+|---|---|---|---|
+| `backend.tf` | `key` | `prod/terraform.tfstate` | `staging/terraform.tfstate` |
+| `variables.tf` | `env` | `prod` | `staging` |
+| `variables.tf` | `vpc_cidr` | `10.0.0.0/16` | `10.1.0.0/16` |
+| `variables.tf` | `subnet_cidrs` | `10.0.*` | `10.1.*` |
+| `variables.tf` | `cluster_name` | `jangin-prod-eks-cluster` | `jangin-stg-eks-cluster` |
+
+> 🔴 **`env` 값과 이름 접두사가 다릅니다.**
+> Parameter Store 경로·State key 는 **`staging`**(IF_04 BE 회신 확정)이고,
+> 리소스 이름 접두사는 **`stg`**(`jangin-stg-vpc` — 네트워크 확정값)입니다.
+> `locals.tf` 에서 분리해야 합니다:
+> ```hcl
+> env_short = var.env == "staging" ? "stg" : var.env
+> name      = "${var.project}-${local.env_short}"   # jangin-prod / jangin-stg
+> ```
+> 이걸 안 하면 staging 리소스가 `jangin-staging-vpc` 로 생겨 IAM Deny 접두어(`jangin-stg-*`)에서 빠집니다.
+
+> 🔴 **drift(두 환경이 갈리는 것) 주의**
+> 복사 방식이라 **prod를 고치면 staging에 손으로 반영**해야 합니다. 빠뜨리면 보안팀 요구
+> *"prod와 동일한 환경에서 검수해야 의미가 있다"* 가 깨집니다.
+> - prod PR 본문에 **"staging 반영 필요 여부"** 를 체크 항목으로 넣습니다
+> - 동기화 확인: `diff -r -x '.terraform*' terraform/environments/prod terraform/environments/staging`
+> - 기대 diff: 위 표의 5개 항목뿐
 
 ---
 
@@ -465,6 +513,15 @@ infra/
 ---
 
 ## 변경 이력
+
+**09-10 → 09-14**
+- 디렉토리 경로 정정: `envs/` → **`environments/`** (레포 실물 기준)
+- 🆕 **환경 분리 전략 확정** (파트장) — 폴더 분리 · 각 폴더 개별 apply · **모듈화 안 함** · prod 복사 방식
+- 🔴 `env`(=`staging`) 와 이름 접두사(=`stg`) 분리 필요 — `locals.env_short`
+- State 백엔드 확정값: `jangin-infra-s3-tfstate` / `jangin-infra-ddb-tfstate-lock` + TLS 강제 정책
+- `.terraform.lock.hcl` **커밋**으로 전환 (3플랫폼 해시 필수)
+- 작업규칙 **14 신설**(staging 반영 명시) · 규칙 10 보충(`NodePool` 은 과금 리소스에만)
+- IaC ①~④ 완료 — 43개 리소스 · $0 · PR #3~#6
 
 **09-09 → 09-10**
 
