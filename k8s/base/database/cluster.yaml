@@ -12,6 +12,13 @@ spec:
 
   serviceAccountName: cnpg-backup-sa
 
+  bootstrap:
+    initdb:
+      database: jangingmall
+      owner: jangingmall
+      secret:
+        name: jangingmall-postgres-app
+
   affinity:
     enablePodAntiAffinity: true
     topologyKey: kubernetes.io/hostname
