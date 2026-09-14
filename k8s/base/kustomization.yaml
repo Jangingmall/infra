@@ -3,6 +3,7 @@ kind: Kustomization
 
 resources:
   - namespaces
+  - storage
   - backend
   - database
   - ai
