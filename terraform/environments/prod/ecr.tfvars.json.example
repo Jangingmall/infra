@@ -1,0 +1,11 @@
+{
+  "ecr_enabled": false,
+  "ecr_env": "prod",
+  "ecr_repositories": [
+    "jangin-app"
+  ],
+  "ecr_keep_last_images": 10,
+  "ecr_untagged_expire_days": 7,
+  "ecr_kms_key_arn": null,
+  "ecr_tags": {}
+}

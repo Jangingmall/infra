@@ -1,4 +1,4 @@
-variable "enabled" {
+variable "ecr_enabled" {
   description = "공용 ECR의 단일 관리 환경 확정 후 그 환경에서만 true. 두 환경 동시 활성화 금지"
   type        = bool
   default     = false
@@ -7,17 +7,18 @@ variable "enabled" {
 
 # [ECR] 담당 리소스 입력 변수 정의
 
-variable "env" {
+variable "ecr_env" {
   description = "이 ECR을 관리하는 환경의 태그. 리소스 이름은 환경 공용"
+  default     = "prod"
   nullable    = false
   validation {
-    condition     = contains(["prod", "staging"], var.env)
-    error_message = "env는 prod 또는 staging이어야 합니다."
+    condition     = contains(["prod", "staging"], var.ecr_env)
+    error_message = "ecr_env는 prod 또는 staging이어야 합니다."
   }
   type = string
 }
 
-variable "repositories" {
+variable "ecr_repositories" {
   description = <<-EOT
     생성할 ECR 레포 이름 목록.
     팀 확정(CLAUDE.md 09-10): 단일 레포 jangin-app + 동일 아티팩트 승격 · Immutable.
@@ -29,42 +30,42 @@ variable "repositories" {
   default     = ["jangin-app"]
   nullable    = false
   validation {
-    condition = length(distinct(var.repositories)) == length(var.repositories) && alltrue([
-      for name in var.repositories : try(length(name) >= 2 && length(name) <= 256 && can(regex("^[a-z0-9]+(([.]|_|__|-+)[a-z0-9]+)*(/[a-z0-9]+(([.]|_|__|-+)[a-z0-9]+)*)*$", name)), false)
+    condition = length(distinct(var.ecr_repositories)) == length(var.ecr_repositories) && alltrue([
+      for name in var.ecr_repositories : try(length(name) >= 2 && length(name) <= 256 && can(regex("^[a-z0-9]+(([.]|_|__|-+)[a-z0-9]+)*(/[a-z0-9]+(([.]|_|__|-+)[a-z0-9]+)*)*$", name)), false)
     ])
     error_message = "중복 없는 ECR 이름을 입력하세요. 이름은 2~256자이며 AWS repositoryName 패턴을 따라야 합니다."
   }
 }
 
-variable "keep_last_images" {
+variable "ecr_keep_last_images" {
   description = "레포별 보관할 이미지 최대 개수(초과분 오래된 것부터 삭제)"
   type        = number
   default     = 10
   nullable    = false
   validation {
-    condition     = var.keep_last_images >= 1 && floor(var.keep_last_images) == var.keep_last_images
+    condition     = var.ecr_keep_last_images >= 1 && floor(var.ecr_keep_last_images) == var.ecr_keep_last_images
     error_message = "keep_last_images 값은 1 이상의 정수여야 합니다."
   }
 }
 
-variable "untagged_expire_days" {
+variable "ecr_untagged_expire_days" {
   description = "untagged 이미지 만료일(일)"
   type        = number
   default     = 7
   nullable    = false
   validation {
-    condition     = var.untagged_expire_days >= 1 && floor(var.untagged_expire_days) == var.untagged_expire_days
+    condition     = var.ecr_untagged_expire_days >= 1 && floor(var.ecr_untagged_expire_days) == var.ecr_untagged_expire_days
     error_message = "untagged_expire_days 값은 1 이상의 정수여야 합니다."
   }
 }
 
-variable "kms_key_arn" {
+variable "ecr_kms_key_arn" {
   description = "저장 암호화용 KMS CMK ARN. null이면 AES256(기본). CMK는 보안팀 제공"
   type        = string
   default     = null
 }
 
-variable "tags" {
+variable "ecr_tags" {
   description = "추가 공통 태그"
   type        = map(string)
   default     = {}
