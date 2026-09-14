@@ -41,7 +41,7 @@ variable "vpc_cidr" {
   default     = "10.0.0.0/16"
 }
 
-variable "az_suffixes" {
+variable "vpc_az_suffixes" {
   description = <<-EOT
     사용할 가용영역(AZ) 접미사. region 과 합쳐 실제 AZ 이름을 만든다.
     예: region=ap-northeast-2 + "a" => ap-northeast-2a
@@ -54,7 +54,7 @@ variable "az_suffixes" {
   default     = ["a", "c"]
 }
 
-variable "subnet_cidrs" {
+variable "vpc_subnet_cidrs" {
   description = <<-EOT
     tier별 · AZ별 서브넷 CIDR.
 
@@ -93,7 +93,7 @@ variable "subnet_cidrs" {
 # EKS 연동
 # ------------------------------------------------------------
 
-variable "cluster_name" {
+variable "eks_cluster_name" {
   description = <<-EOT
     EKS 클러스터 이름. 서브넷의 kubernetes.io/cluster/<이름> 태그에 쓰인다.
 
