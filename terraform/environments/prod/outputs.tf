@@ -168,3 +168,46 @@ output "nat_alarm_names" {
   description = "NAT CloudWatch 알람 이름 목록 (보안팀 NAT 승인 조건 #3 증빙용)"
   value       = module.nat.alarm_names
 }
+
+# ------------------------------------------------------------
+# ⑥ EKS 클러스터
+# ------------------------------------------------------------
+
+output "eks_cluster_name" {
+  description = "EKS 클러스터 이름"
+  value       = module.eks.cluster_name
+}
+
+output "eks_cluster_version" {
+  description = "실제로 생성된 쿠버네티스 버전"
+  value       = module.eks.cluster_version
+}
+
+output "eks_cluster_endpoint" {
+  description = "컨트롤플레인 API 주소"
+  value       = module.eks.cluster_endpoint
+}
+
+output "eks_cluster_security_group_id" {
+  description = <<-EOT
+    🔑 EKS 자동 생성 클러스터 SG (eks-cluster-sg-<이름>).
+    3-tier 방어 논리의 근거 — 같은 클러스터 노드끼리는 이 SG 로 이미 열려 있으므로
+    계층 격리는 서브넷이 아니라 노드그룹·Taint·SG·NetworkPolicy 축으로 이뤄집니다.
+  EOT
+  value = module.eks.cluster_security_group_id
+}
+
+output "eks_oidc_provider_arn" {
+  description = "🔑 ⑧ IRSA 6종의 신뢰 정책에 들어가는 값"
+  value       = module.eks.oidc_provider_arn
+}
+
+output "eks_oidc_provider_url" {
+  description = "🔑 OIDC 발급자 URL (IRSA 조건 키 생성용)"
+  value       = module.eks.oidc_provider_url
+}
+
+output "eks_kubeconfig_command" {
+  description = "🔑 타 직군 인계용 — 이 명령 하나로 kubectl 접속 설정"
+  value       = module.eks.kubeconfig_command
+}

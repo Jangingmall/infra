@@ -53,6 +53,38 @@ vpc_subnet_cidrs = {
 # ⑥ EKS 생성 단계에서 실제 클러스터 이름과 일치하는지 반드시 대조하세요.
 eks_cluster_name = "jangin-prod-eks-cluster" # staging: jangin-staging-eks-cluster
 
+# ---------- ⑥ EKS 클러스터 (eks_ 접두사)  💰 유료 ----------
+# 🔴 아래 3개는 9/16 회의 확정 대상입니다. 확정 전에는 apply 하지 마세요.
+
+# 🔴 TODO — 잠정값. 되돌릴 수 없는 결정입니다(올릴 수만 있고 내릴 수 없음).
+#    확인: aws eks describe-cluster-versions --region ap-northeast-2 --profile jangin --output table
+#    기준: STANDARD_SUPPORT + AWS 기본(default) 버전. 확장 지원 구간은 추가 요금.
+eks_cluster_version = "1.33"
+
+# 🔴 TODO(박다정님) — 권한 명부 위치. 좁히는 방향으로만 변경 가능.
+#    API_AND_CONFIG_MAP 으로 시작 → 9/21 보안 검수 전 API 로 축소
+eks_authentication_mode = "API_AND_CONFIG_MAP"
+
+# 🔴 생성자 자동 관리자 권한.
+#    ⚠️ 9/15~17 한시적 admin 회수와 충돌 주의 — 회수 후에도 남는 역할로 apply 할 것
+eks_bootstrap_creator_admin = true
+
+# 🟡 TODO(보안팀) — 컨트롤플레인 접근 범위.
+#    "공개"라도 인증 명부에 없으면 401 입니다.
+eks_endpoint_public_access  = true
+eks_endpoint_private_access = true
+eks_public_access_cidrs     = ["0.0.0.0/0"]
+
+# 비워 둡니다 — EKS 가 eks-cluster-sg-<이름> 을 자동 생성합니다.
+eks_additional_security_group_ids = []
+
+# 감사 로그 (보안팀 상쇄 조치 #1). 💰 CloudWatch Logs 요금 발생
+eks_enabled_log_types  = ["api", "audit", "authenticator"]
+eks_log_retention_days = 30
+
+# ⑧ KMS 단계에서 채웁니다. 🔴 생성 후 해제 불가.
+eks_secrets_kms_key_arn = null
+
 # ---------- ⑤ NAT Gateway (nat_ 접두사)  💰 유료 ----------
 # 🔴 apply 는 9/18 일괄 (작업 규칙 17). 그전에는 plan 까지만.
 #
