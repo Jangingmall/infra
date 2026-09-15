@@ -127,3 +127,24 @@ output "s3_vpc_endpoint_id" {
   description = "S3 Gateway Endpoint ID — rt-app · rt-data 에 연결됨. ⑨ 버킷 정책의 aws:SourceVpce 조건에서 사용"
   value       = aws_vpc_endpoint.s3.id
 }
+
+
+# ------------------------------------------------------------
+# ECR
+# ------------------------------------------------------------
+# 루트 output을 통해 CI 및 담당자에게 전달한다.
+# 같은 루트의 다른 모듈은 module.ecr.repository_arns 등을 입력으로 참조한다.
+output "ecr_repository_urls" {
+  description = "레포명 => ECR URL (docker push 대상)"
+  value       = module.ecr.repository_urls
+}
+
+output "ecr_repository_arns" {
+  description = "레포명 => ARN (IAM 정책 Resource 스코프용)"
+  value       = module.ecr.repository_arns
+}
+
+output "ecr_registry_id" {
+  description = "ECR 레지스트리(계정) ID"
+  value       = module.ecr.registry_id
+}
