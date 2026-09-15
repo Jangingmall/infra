@@ -30,4 +30,9 @@ module "network" {
   # 서브넷의 kubernetes.io/cluster/<이름> 태그에 쓰인다.
   # ⑥ EKS 단계에서 실제 생성할 클러스터 이름과 반드시 일치해야 한다.
   cluster_name = var.eks_cluster_name
+
+  # ⑤ NAT Gateway  💰 유료 — 작업 규칙 17에 따라 apply 는 9/18 일괄
+  enable_nat_gateway   = var.nat_enabled
+  nat_gateway_az       = var.nat_gateway_az
+  alarm_sns_topic_arns = var.nat_alarm_sns_topic_arns
 }

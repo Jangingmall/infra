@@ -53,3 +53,36 @@ variable "cluster_name" {
   description = "EKS 클러스터 이름. 서브넷의 kubernetes.io/cluster/<이름> 태그에 쓰인다."
   type        = string
 }
+
+# ------------------------------------------------------------
+# ⑤ NAT Gateway
+# ------------------------------------------------------------
+
+variable "enable_nat_gateway" {
+  description = <<-EOT
+    NAT Gateway 생성 여부.
+    false 로 두면 NAT 와 app 라우팅 경로만 사라지고 EIP 는 남는다.
+    → 10/1~10/4 환경을 내릴 때 값 하나로 비용을 끊되,
+      스마트택배 allowlist 에 등록된 공인 IP 는 유지된다. (작업 규칙 12)
+  EOT
+  type        = bool
+}
+
+variable "nat_gateway_az" {
+  description = <<-EOT
+    NAT Gateway 를 둘 AZ 접미사. az_suffixes 안의 값이어야 한다.
+    MVP 는 AZ-a 단일이며, 이 경우 해당 AZ 장애 시 아웃바운드 전체가 끊긴다
+    (보안팀 NAT 승인 조건 #5 — 문서화 대상).
+    멀티 AZ NAT 로 가려면 app 라우팅 테이블도 AZ 별로 쪼개야 한다.
+  EOT
+  type        = string
+}
+
+variable "alarm_sns_topic_arns" {
+  description = <<-EOT
+    CloudWatch 알람이 알림을 보낼 SNS 토픽 ARN 목록.
+    🟡 Budget 알림 SNS 재사용 여부가 미확정이라 기본은 빈 목록으로 둔다.
+       빈 목록이면 지표·알람 상태는 정상 동작하고 알림만 나가지 않는다.
+  EOT
+  type        = list(string)
+}

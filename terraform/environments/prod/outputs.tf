@@ -132,3 +132,26 @@ output "s3_prefix_list_id" {
   description = "S3 관리형 prefix list ID (pl-xxxx) — SG 규칙·라우팅에서 공통 사용"
   value       = module.security.s3_prefix_list_id
 }
+
+# ------------------------------------------------------------
+# ⑤ NAT Gateway
+# ------------------------------------------------------------
+
+output "nat_public_ip" {
+  description = <<-EOT
+    🔑 NAT Gateway 고정 공인 IP — **스마트택배 allowlist 등록 대상**.
+    이 값이 바뀌면 배송조회가 끊기므로 EIP 에 prevent_destroy 를 걸어 두었다.
+    확인: terraform output nat_public_ip
+  EOT
+  value       = module.network.nat_public_ip
+}
+
+output "nat_gateway_id" {
+  description = "NAT Gateway ID (nat_enabled = false 면 null)"
+  value       = module.network.nat_gateway_id
+}
+
+output "nat_gateway_az" {
+  description = "NAT 가 위치한 AZ. 🔴 이 AZ 장애 시 아웃바운드 전체 중단 (보안팀 조건 #5)"
+  value       = module.network.nat_gateway_az
+}
