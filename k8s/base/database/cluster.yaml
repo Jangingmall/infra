@@ -20,9 +20,16 @@ spec:
         name: jangingmall-postgres-app
 
   affinity:
+    nodeSelector:
+      workload-type: db
+    tolerations:
+      - key: workload
+        operator: Equal
+        value: db
+        effect: NoSchedule
     enablePodAntiAffinity: true
     topologyKey: kubernetes.io/hostname
-    podAntiAffinityType: preferred
+    podAntiAffinityType: required
 
   storage:
     storageClass: gp3-cnpg

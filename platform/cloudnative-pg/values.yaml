@@ -2,8 +2,6 @@
 #
 # Chart Version: 0.29.0
 # App Version: 1.30.0
-#
-# EKS Node Group / Label / Taint 확정 이후
-# nodeSelector, tolerations, resources 등을 추가한다.
-#
-# 현재는 공식 Helm Chart 기본값을 사용한다.
+
+nodeSelector:
+  workload-type: system
