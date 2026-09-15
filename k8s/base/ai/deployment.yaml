@@ -9,6 +9,9 @@ metadata:
 spec:
   replicas: 1
   revisionHistoryLimit: 2
+  # L40S GPU 1개를 기존 Pod가 반환한 뒤 새 Pod를 시작한다.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: ai-worker
@@ -19,6 +22,14 @@ spec:
         app.kubernetes.io/part-of: jangingmall
     spec:
       serviceAccountName: ai-worker-sa
+      nodeSelector:
+        workload-type: gpu
+        gpu-model: l40s
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
       terminationGracePeriodSeconds: 30
       containers:
         - name: ai-worker
@@ -30,23 +41,28 @@ spec:
               containerPort: 8000
               protocol: TCP
           startupProbe:
-            tcpSocket:
+            httpGet:
+              path: /ai/health
               port: http
             periodSeconds: 5
             timeoutSeconds: 2
             failureThreshold: 30
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /ai/health
               port: http
             periodSeconds: 5
             timeoutSeconds: 2
             failureThreshold: 3
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /ai/health
               port: http
             periodSeconds: 10
             timeoutSeconds: 2
             failureThreshold: 3
 
-          # TODO(AI): 실제 모델과 GPU 노드 스펙이 확정되면
-          # cpu/memory/GPU requests·limits와 nodeSelector/tolerations를 추가한다.
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+          # TODO(AI): 모델 실측 후 CPU/Memory requests·limits를 추가한다.
