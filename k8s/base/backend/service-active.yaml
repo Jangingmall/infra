@@ -15,3 +15,7 @@ spec:
       port: 8080
       targetPort: http
       protocol: TCP
+    - name: management
+      port: 9090
+      targetPort: management
+      protocol: TCP

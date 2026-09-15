@@ -1,0 +1,30 @@
+# AWS Secrets Store CSI Driver Provider
+
+# Helm Chart: secrets-store-csi-driver-provider-aws
+# Chart Version: 3.1.3
+
+# AWS Systems Manager Parameter Store의 값을 Kubernetes Pod에 파일 형태로 mount하기 위한 플랫폼 설정이다.
+
+# 실제 SecretProviderClass 및 Application VolumeMount는k8s workload 영역에서 별도로 관리한다.
+
+# Provider가 Kubernetes Secret object를 직접 작성하지 않는다.
+driverWritesSecrets: false
+
+rbac:
+  install: true
+
+# AWS Provider Helm chart의 dependency로 Secrets Store CSI Driver도 함께 설치한다.
+secrets-store-csi-driver:
+  install: true
+
+  # Parameter Store 값을 Kubernetes Secret으로 별도 복제하지 않는다.
+  syncSecret:
+    enabled: false
+
+  # Backend의 Secret reload 정책 확정 전까지 자동 Rotation은 비활성화한다.
+  enableSecretRotation: false
+
+  # IRSA / EKS Pod Identity 인증에 필요한 ServiceAccount Token audience.
+  tokenRequests:
+    - audience: sts.amazonaws.com
+    - audience: pods.eks.amazonaws.com
