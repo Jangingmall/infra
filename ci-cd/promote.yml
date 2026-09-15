@@ -1,4 +1,4 @@
-# 가정: workflow_dispatch는 보호된 main에서 실행하며 staging 검증 기록은 운영자가 설정한다.
+# 가정: workflow_dispatch는 prod Environment 승인 기준으로 실행하며 staging 검증 기록은 운영자가 설정한다.
 # 이미지 후보 결정만 담당한다. Argo Rollouts 수동 promote는 박명수 소관이다.
 name: promote
 
@@ -27,9 +27,8 @@ defaults:
 
 jobs:
   promote:
-    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    # 필수: prod Required reviewers, self-review 방지, main만 허용을 별도 설정.
+    # 필수: prod Required reviewers와 self-review 방지를 별도 설정.
     # environment 이름만으로 승인자가 자동 생성되지는 않는다.
     environment: prod
     permissions:
