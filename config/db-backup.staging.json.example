@@ -1,0 +1,9 @@
+{
+  "environment": "staging",
+  "backup_bucket": null,
+  "backup_prefix": null,
+  "recovery_window_days": 30,
+  "backup_safety_margin_days": 7,
+  "glacier_after_days": null,
+  "expire_after_days": 180
+}

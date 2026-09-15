@@ -84,3 +84,14 @@ kubeconfig
 #    .gitignore 와 CLAUDE.md 가 충돌하던 항목으로, CLAUDE.md 기준에 맞췄습니다.
 #    근거: provider 버전 불일치로 plan/apply 결과가 갈리는 사고 방지.
 # ------------------------------------------------------------
+
+# Local decision values and rendered review artifacts
+/config/*.json
+/generated/
+/.venv/
+**/__pycache__/
+*.auto.tfvars.json
+
+# 새 Markdown은 요청받은 파일만 명시적으로 추가한다.
+# 이미 추적 중인 팀 README/CLAUDE/CONVENTION/PR 템플릿은 그대로 유지한다.
+*.[mM][dD]
