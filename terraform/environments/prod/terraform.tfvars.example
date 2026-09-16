@@ -1,0 +1,113 @@
+# ============================================================
+# terraform.tfvars.example — prod 환경의 실제 값 (예시)
+# ------------------------------------------------------------
+# 사용법:
+#   cp terraform.tfvars.example terraform.tfvars
+#   (terraform.tfvars 는 .gitignore 로 커밋이 막혀 있습니다 — 작업 규칙 3)
+#
+# 왜 파일이 하나인가 (B안 · 2026-09-15 파트장 확정):
+#   Terraform 이 자동으로 읽는 변수 파일은 terraform.tfvars 와
+#   *.auto.tfvars 뿐입니다. vpc.tfvars / ecr.tfvars 처럼 나누면
+#   terraform plan -var-file=... -var-file=... 를 매번 붙여야 하고,
+#   🔴 하나 빠뜨리면 에러가 아니라 variable 의 default 값으로
+#      조용히 넘어갑니다. CI 에서 특히 위험합니다.
+#
+# staging 과 다른 값은 아래 5개뿐입니다 (backend.tf 의 key 포함하면 6개):
+#   env / vpc_cidr / vpc_subnet_cidrs / eks_cluster_name
+# ============================================================
+
+# ---------- 공통 (전 모듈이 씀 · 접두사 없음) ----------
+project = "jangin"
+env     = "prod" # staging 환경에서는 "staging"
+region  = "ap-northeast-2"
+
+# ---------- network 모듈 (vpc_ 접두사) ----------
+vpc_cidr = "10.0.0.0/16" # staging: 10.1.0.0/16
+
+# 2 AZ 인 이유: ALB 가 최소 2개 AZ 의 서브넷을 요구합니다.
+# 실제 리소스는 MVP 방침상 AZ-a 에만 배치합니다.
+vpc_az_suffixes = ["a", "c"]
+
+# 🔴 app 계층만 /20 입니다.
+#    EKS VPC CNI 는 Pod 하나마다 VPC 의 실제 IP 를 하나씩 줍니다.
+#    /24(약 250개)로는 Pod 가 늘면 IP 가 고갈되고,
+#    CIDR 은 서브넷 생성 후 절대 바꿀 수 없습니다.
+#    → /24 로 "정리"하지 마세요. (검수 체크리스트 #1)
+vpc_subnet_cidrs = {
+  public = {
+    a = "10.0.0.0/24"
+    c = "10.0.1.0/24"
+  }
+  app = {
+    a = "10.0.16.0/20" # 🔴 /20
+    c = "10.0.32.0/20" # 🔴 /20
+  }
+  data = {
+    a = "10.0.2.0/24"
+    c = "10.0.3.0/24"
+  }
+}
+
+# ---------- eks 모듈 (eks_ 접두사) ----------
+# 현재는 서브넷의 kubernetes.io/cluster/<이름> 태그에만 쓰입니다.
+# ⑥ EKS 생성 단계에서 실제 클러스터 이름과 일치하는지 반드시 대조하세요.
+eks_cluster_name = "jangin-prod-eks-cluster" # staging: jangin-staging-eks-cluster
+
+# ---------- ⑥ EKS 클러스터 (eks_ 접두사)  💰 유료 ----------
+# 🔴 아래 3개는 9/16 회의 확정 대상입니다. 확정 전에는 apply 하지 마세요.
+
+# 🔴 TODO — 잠정값. 되돌릴 수 없는 결정입니다(올릴 수만 있고 내릴 수 없음).
+#    확인: aws eks describe-cluster-versions --region ap-northeast-2 --profile jangin --output table
+#    기준: STANDARD_SUPPORT + AWS 기본(default) 버전. 확장 지원 구간은 추가 요금.
+eks_cluster_version = "1.33"
+
+# 🔴 TODO(박다정님) — 권한 명부 위치. 좁히는 방향으로만 변경 가능.
+#    API_AND_CONFIG_MAP 으로 시작 → 9/21 보안 검수 전 API 로 축소
+eks_authentication_mode = "API_AND_CONFIG_MAP"
+
+# 🔴 생성자 자동 관리자 권한.
+#    ⚠️ 9/15~17 한시적 admin 회수와 충돌 주의 — 회수 후에도 남는 역할로 apply 할 것
+eks_bootstrap_creator_admin = true
+
+# 🟡 TODO(보안팀) — 컨트롤플레인 접근 범위.
+#    "공개"라도 인증 명부에 없으면 401 입니다.
+eks_endpoint_public_access  = true
+eks_endpoint_private_access = true
+eks_public_access_cidrs     = ["0.0.0.0/0"]
+
+# 비워 둡니다 — EKS 가 eks-cluster-sg-<이름> 을 자동 생성합니다.
+eks_additional_security_group_ids = []
+
+# 감사 로그 (보안팀 상쇄 조치 #1). 💰 CloudWatch Logs 요금 발생
+eks_enabled_log_types  = ["api", "audit", "authenticator"]
+eks_log_retention_days = 30
+
+# ⑧ KMS 단계에서 채웁니다. 🔴 생성 후 해제 불가.
+eks_secrets_kms_key_arn = null
+
+# ---------- ⑤ NAT Gateway (nat_ 접두사)  💰 유료 ----------
+# 🔴 apply 는 9/18 일괄 (작업 규칙 17). 그전에는 plan 까지만.
+#
+# 비용 절감 스위치: 10/1~10/4 환경을 내릴 때 false 로 바꾸면
+# NAT 만 사라지고 EIP(고정 공인 IP)는 남습니다.
+# → 다시 올려도 같은 IP → 스마트택배 allowlist 유지 (작업 규칙 12)
+nat_enabled = true
+
+# AZ-a 단일. 🔴 이 AZ 장애 시 아웃바운드 전체 중단 (보안팀 NAT 조건 #5)
+nat_gateway_az = "a"
+
+# CloudWatch 알람(ErrorPortAllocation · PacketsDropCount) 알림 수신처.
+# 🟡 Budget 알림 SNS 재사용 여부 미확정 → 빈 목록.
+#    빈 목록이어도 지표 수집·알람 상태 표시는 정상 동작합니다.
+nat_alarm_sns_topic_arns = []
+
+# ---------- ecr 모듈 (ecr_ 접두사) ----------
+# 🔗 이창원님 담당 (PR #12). 현재 값은 ecr.tfvars.json.example 에 있습니다.
+#    B안 전환에 따라 이 파일로 합쳐질 예정이며,
+#    파트장님이 9/16 에 직접 정리하신다고 하셨으므로 인프라가 임의로 옮기지 않습니다.
+#
+# ecr_enabled              = false   # 🔴 공용 ECR State 위치 확정 후 한쪽만 true
+# ecr_repositories         = ["jangin-app"]
+# ecr_keep_last_images     = 10
+# ecr_untagged_expire_days = 7
+# ecr_kms_key_arn          = null

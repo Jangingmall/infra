@@ -1,0 +1,115 @@
+# 가정: workflow_dispatch는 prod Environment 승인 기준으로 실행하며 staging 검증 기록은 운영자가 설정한다.
+# 이미지 후보 결정만 담당한다. Argo Rollouts 수동 promote는 박명수 소관이다.
+name: promote
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: staging 검증을 마친 앱 커밋 SHA (7자리 또는 전체 40자리)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prod-image-${{ github.repository }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }} # 확정: jangin-app
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    # 필수: prod Required reviewers와 self-review 방지를 별도 설정.
+    # environment 이름만으로 승인자가 자동 생성되지는 않는다.
+    environment: prod
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: 승격 입력 및 staging 검증 기록 확인
+        id: tag
+        env:
+          SOURCE_SHA: ${{ inputs.sha }}
+          VERIFIED_SHA: ${{ vars.STAGING_VERIFIED_SHA }}
+          VERIFIED_DIGEST: ${{ vars.STAGING_VERIFIED_DIGEST }}
+          AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+        run: |
+          set -euo pipefail
+          for key in ECR_REPOSITORY AWS_REGION AWS_ROLE_ARN; do
+            if [[ -z "${!key}" || "${!key}" == *CHANGE_ME* ]]; then
+              echo "::error::$key 설정이 필요합니다."
+              exit 1
+            fi
+          done
+          [[ "$SOURCE_SHA" =~ ^([0-9a-f]{7}|[0-9a-f]{40})$ ]] || { echo "::error::SHA는 소문자 hex 7/40자리여야 합니다."; exit 1; }
+          [[ "$VERIFIED_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::staging 검증 완료 전체 SHA 기록이 필요합니다."; exit 1; }
+          [[ "$VERIFIED_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::staging 검증 완료 digest 기록이 필요합니다."; exit 1; }
+          if [[ "$SOURCE_SHA" != "$VERIFIED_SHA" && "$SOURCE_SHA" != "${VERIFIED_SHA:0:7}" ]]; then
+            echo "::error::요청 SHA가 staging 검증 기록과 다릅니다."
+            exit 1
+          fi
+          echo "image_tag=${SOURCE_SHA:0:7}" >> "$GITHUB_OUTPUT"
+          echo "verified_digest=$VERIFIED_DIGEST" >> "$GITHUB_OUTPUT"
+      - name: AWS 인증 (prod OIDC, 읽기 권한)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: 기존 SHA 태그를 digest로 해석 및 staging 대조
+        id: image
+        env:
+          IMAGE_TAG: ${{ steps.tag.outputs.image_tag }}
+          VERIFIED_DIGEST: ${{ steps.tag.outputs.verified_digest }}
+        run: |
+          set -euo pipefail
+          result=$(aws ecr describe-images --repository-name "$ECR_REPOSITORY" \
+            --image-ids "imageTag=$IMAGE_TAG" --output json)
+          jq -e '(.imageDetails | length) == 1' <<< "$result" > /dev/null
+          digest=$(jq -er '.imageDetails[0].imageDigest' <<< "$result")
+          account=$(jq -er '.imageDetails[0].registryId' <<< "$result")
+          [[ "$account" =~ ^[0-9]{12}$ ]]
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "$digest" == "$VERIFIED_DIGEST" ]] || { echo "::error::staging 검증 digest와 ECR digest가 다릅니다."; exit 1; }
+          image_ref="$account.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY@$digest"
+          echo "image_ref=$image_ref" >> "$GITHUB_OUTPUT"
+          printf 'tag=%s\nprod_candidate=%s\n' "$IMAGE_TAG" "$image_ref" >> "$GITHUB_STEP_SUMMARY"
+
+      # 제안(박명수 확정): Jangingmall/infra, main, k8s/overlays/prod.
+      # 창원 제안: infra PR(main 직접 push 금지). 실제 접점은 박명수 확정·구현.
+      # 지금은 runner 편집/렌더 인계점만 유지한다.
+      - name: GitOps prod 체크아웃 (인계 초안)
+        if: vars.GITOPS_REPOSITORY != '' && vars.GITOPS_REF != '' && vars.GITOPS_PROD_PATH != ''
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.GITOPS_REPOSITORY }}
+          ref: ${{ vars.GITOPS_REF }}
+          token: ${{ secrets.GITOPS_READ_TOKEN || github.token }}
+          path: gitops
+          persist-credentials: false
+      - name: prod overlay 동일 digest 편집 및 렌더 (인계 초안)
+        if: vars.GITOPS_REPOSITORY != '' && vars.GITOPS_REF != '' && vars.GITOPS_PROD_PATH != ''
+        env:
+          OVERLAY_PATH: ${{ vars.GITOPS_PROD_PATH }}
+          IMAGE_REF: ${{ steps.image.outputs.image_ref }}
+        run: |
+          set -euo pipefail
+          command -v kustomize > /dev/null || { echo "::error::TODO: runner에 kustomize 설치 필요"; exit 1; }
+          root=$(realpath gitops)
+          target=$(realpath "gitops/$OVERLAY_PATH")
+          [[ "$target" == "$root/"* ]] || { echo "::error::GitOps 내부 overlay 경로가 필요합니다."; exit 1; }
+          cd "$target"
+          kustomize edit set image "jangin-app=$IMAGE_REF"
+          kustomize build . > "$RUNNER_TEMP/prod-rendered.yaml"
+      - name: prod 후보 인계 상태 기록
+        run: |
+          echo "::notice::GitOps 커밋은 미연결입니다. 승인된 이미지 후보만 인계합니다."
+          echo "운영 트래픽 전환은 박명수의 별도 Rollout 수동 promote입니다." >> "$GITHUB_STEP_SUMMARY"

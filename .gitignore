@@ -95,3 +95,4 @@ kubeconfig
 # 새 Markdown은 요청받은 파일만 명시적으로 추가한다.
 # 이미 추적 중인 팀 README/CLAUDE/CONVENTION/PR 템플릿은 그대로 유지한다.
 *.[mM][dD]
+!ci-cd/README.md
