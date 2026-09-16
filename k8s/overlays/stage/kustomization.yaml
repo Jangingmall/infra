@@ -3,3 +3,5 @@ kind: Kustomization
 
 resources:
   - ../../base
+  - ../../base/network-policies/database
+  - ../../base/network-policies/ai/ingress

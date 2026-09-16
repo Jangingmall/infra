@@ -6,6 +6,8 @@ usage() {
 Usage: bash scripts/validate-k8s.sh [--help]
 
 Render k8s/base, k8s/overlays/stage, and k8s/overlays/prod.
+Render pending DB egress, Backend, and full AI policy bundles.
+Only DB/AI ingress policies are enabled in the overlays.
 Lint/render the three configured platform Helm charts.
 Requires kubectl, Helm, and internet access to the public chart repositories.
 No cluster connection or AWS credentials are required.
@@ -40,6 +42,12 @@ helm version --short
 for target in base overlays/stage overlays/prod; do
   printf '\nRendering k8s/%s\n' "$target"
   kubectl kustomize "$repo_root/k8s/$target" > "$validation_dir/${target##*/}.yaml"
+done
+
+for target in database/egress backend ai; do
+  printf '\nRendering opt-in %s policies (not applied)\n' "$target"
+  kubectl kustomize "$repo_root/k8s/base/network-policies/$target" \
+    > "$validation_dir/policy-${target##*/}.yaml"
 done
 
 validate_chart() {
