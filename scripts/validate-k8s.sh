@@ -7,7 +7,7 @@ Usage: bash scripts/validate-k8s.sh [--help]
 
 Render k8s/base, k8s/overlays/stage, and k8s/overlays/prod.
 Render pending DB egress, Backend, and full AI policy bundles.
-Only DB/AI ingress policies are enabled in the overlays.
+DB/AI ingress and the AI vector DB isolation policy are enabled in the overlays.
 Lint/render the three configured platform Helm charts.
 Requires kubectl, Helm, and internet access to the public chart repositories.
 No cluster connection or AWS credentials are required.

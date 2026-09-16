@@ -49,6 +49,13 @@ spec:
             - name: SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE
               value: 30s
 
+            - name: SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE
+              value: "10"
+            - name: SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE
+              value: "5"
+            - name: SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT
+              value: "3000"
+
           startupProbe:
             httpGet:
               path: /actuator/health/liveness
@@ -73,12 +80,13 @@ spec:
             timeoutSeconds: 2
             failureThreshold: 3
 
-          # TODO(BE):
-          # requests 값을 Backend 팀과 확정한 뒤 resources를 추가한다.
-          #
-          # 현재 합의된 limits(cpu: 2, memory: 4Gi)만 먼저 넣으면
-          # Kubernetes가 request도 동일한 값으로 잡을 수 있으므로
-          # requests 확정 전에는 resources 자체를 두지 않는다.
+          resources:
+            requests:
+              cpu: 700m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
 
   strategy:
     blueGreen:
@@ -94,3 +102,5 @@ spec:
 
       # Service 전환 후 기존 ReplicaSet을 바로 죽이지 않는다.
       scaleDownDelaySeconds: 60
+      # 연속 배포 시 축소 대기 중인 이전 버전의 누적을 제한한다.
+      scaleDownDelayRevisionLimit: 1

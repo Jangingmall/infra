@@ -5,3 +5,4 @@ resources:
   - default-deny.yaml
   - ingress
   - allow-ai-dns-egress.yaml
+  - allow-vector-db-egress.yaml

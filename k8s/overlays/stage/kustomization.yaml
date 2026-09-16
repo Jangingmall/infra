@@ -5,3 +5,7 @@ resources:
   - ../../base
   - ../../base/network-policies/database
   - ../../base/network-policies/ai/ingress
+  - backend-secret-provider.yaml
+
+components:
+  - ../../components/backend-configtree
