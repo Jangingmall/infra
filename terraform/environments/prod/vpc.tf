@@ -1,5 +1,5 @@
 # ============================================================
-# vpc.tf — modules/network 호출 (IaC ②, ⑤에서 NAT 추가 예정)
+# vpc.tf — modules/network 호출 (IaC ②)   무료
 # ------------------------------------------------------------
 # 🔴 이 폴더(environments/prod)에는 리소스를 직접 선언하지 않는다.
 #    "무엇을 만들지"는 modules/ 가 갖고,
@@ -11,6 +11,9 @@
 #    Terraform 이 "network 먼저"를 스스로 안다(암묵적 의존성).
 #    depends_on 을 남발하면 병렬 실행이 막혀 apply 가 느려지고,
 #    의존 관계가 코드에서 안 보인다.
+#
+# 🔄 2026-09-16: NAT 호출을 nat.tf 로 분리했다 (PR #19 파트장 리뷰 반영).
+#    이 모듈이 만드는 것은 전부 요금이 $0 이라 작업 규칙 17 대상이 아니다.
 # ============================================================
 
 module "network" {
@@ -30,9 +33,4 @@ module "network" {
   # 서브넷의 kubernetes.io/cluster/<이름> 태그에 쓰인다.
   # ⑥ EKS 단계에서 실제 생성할 클러스터 이름과 반드시 일치해야 한다.
   cluster_name = var.eks_cluster_name
-
-  # ⑤ NAT Gateway  💰 유료 — 작업 규칙 17에 따라 apply 는 9/18 일괄
-  enable_nat_gateway   = var.nat_enabled
-  nat_gateway_az       = var.nat_gateway_az
-  alarm_sns_topic_arns = var.nat_alarm_sns_topic_arns
 }

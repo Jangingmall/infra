@@ -143,15 +143,28 @@ output "nat_public_ip" {
     이 값이 바뀌면 배송조회가 끊기므로 EIP 에 prevent_destroy 를 걸어 두었다.
     확인: terraform output nat_public_ip
   EOT
-  value       = module.network.nat_public_ip
+  value       = module.nat.public_ip
+}
+
+output "nat_eip_allocation_id" {
+  description = "EIP 할당 ID. NAT 를 내렸다 올려도 이 ID 로 같은 IP 가 다시 붙는다."
+  value       = module.nat.eip_allocation_id
 }
 
 output "nat_gateway_id" {
   description = "NAT Gateway ID (nat_enabled = false 면 null)"
-  value       = module.network.nat_gateway_id
+  value       = module.nat.nat_gateway_id
 }
 
 output "nat_gateway_az" {
-  description = "NAT 가 위치한 AZ. 🔴 이 AZ 장애 시 아웃바운드 전체 중단 (보안팀 조건 #5)"
-  value       = module.network.nat_gateway_az
+  description = <<-EOT
+    NAT 가 위치한 AZ 접미사. 🔴 이 AZ 장애 시 아웃바운드 전체 중단
+    (보안팀 NAT 승인 조건 #5 — 잔여 리스크로 문서화)
+  EOT
+  value       = module.nat.az_suffix
+}
+
+output "nat_alarm_names" {
+  description = "NAT CloudWatch 알람 이름 목록 (보안팀 NAT 승인 조건 #3 증빙용)"
+  value       = module.nat.alarm_names
 }
