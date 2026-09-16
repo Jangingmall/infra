@@ -1,0 +1,172 @@
+# 확정: staging 소스 브랜치는 develop. 가정: Dockerfile/컨텍스트는 ./Dockerfile, . 이다.
+# BE 앱 레포 .github/workflows/로 인계할 참조 초안. 실제 GitOps 커밋/배포는 미연결.
+name: build-deploy
+
+on:
+  pull_request:
+    branches: [develop]
+  push:
+    branches: [develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-deploy-${{ github.repository }}-${{ github.event_name }}-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }} # 확정: jangin-app
+  DOCKERFILE: ${{ vars.DOCKERFILE || 'Dockerfile' }} # TODO(BE): 확정
+  BUILD_CONTEXT: ${{ vars.BUILD_CONTEXT || '.' }} # TODO(BE): 확정
+  TEST_COMMAND: ${{ vars.TEST_COMMAND }} # TODO(BE): 런타임 준비 + 테스트 명령 확정
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  ci:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: BE 테스트
+        run: |
+          set -euo pipefail
+          if [[ -z "$TEST_COMMAND" ]]; then
+            echo "::error::TODO(BE): TEST_COMMAND와 필요한 런타임 준비 step을 확정하세요."
+            exit 1
+          fi
+          bash -euo pipefail -c "$TEST_COMMAND"
+      - name: Docker 빌드 검증 (push 없음)
+        run: |
+          set -euo pipefail
+          docker build --file "$DOCKERFILE" "$BUILD_CONTEXT"
+
+  cd:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      image_tag: ${{ steps.tag.outputs.image_tag }}
+      digest: ${{ steps.image.outputs.digest }}
+      image_ref: ${{ steps.image.outputs.image_ref }}
+    steps:
+      - name: 필수 CD 설정 확인
+        env:
+          AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+        run: |
+          set -euo pipefail
+          for key in ECR_REPOSITORY AWS_REGION AWS_ROLE_ARN; do
+            if [[ -z "${!key}" || "${!key}" == *CHANGE_ME* ]]; then
+              echo "::error::$key 설정이 필요합니다. CD를 중단합니다."
+              exit 1
+            fi
+          done
+      - name: 이미지 태그 결정
+        id: tag
+        run: echo "image_tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - name: AWS 인증 (develop OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: 기존 SHA 이미지 확인
+        id: existing
+        env:
+          IMAGE_TAG: ${{ steps.tag.outputs.image_tag }}
+        run: |
+          set -euo pipefail
+          result=$(aws ecr batch-get-image --repository-name "$ECR_REPOSITORY" \
+            --image-ids "imageTag=$IMAGE_TAG" --output json)
+          if jq -e '(.images | length) == 1 and (.failures | length) == 0' <<< "$result" > /dev/null; then
+            digest=$(jq -er '.images[0].imageId.imageDigest' <<< "$result")
+            [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          elif jq -e '(.images | length) == 0 and (.failures | length) == 1 and .failures[0].failureCode == "ImageNotFound"' <<< "$result" > /dev/null; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::ECR 조회 결과가 비정상입니다. 권한/저장소 오류는 이미지 부재로 처리하지 않습니다."
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+        if: steps.existing.outputs.exists == 'false'
+        with:
+          persist-credentials: false
+      - name: BE 테스트 (새 이미지에만 실행)
+        if: steps.existing.outputs.exists == 'false'
+        run: |
+          set -euo pipefail
+          if [[ -z "$TEST_COMMAND" ]]; then
+            echo "::error::TODO(BE): TEST_COMMAND와 필요한 런타임 준비 step을 확정하세요."
+            exit 1
+          fi
+          bash -euo pipefail -c "$TEST_COMMAND"
+      - name: ECR 로그인
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Buildx 준비
+        if: steps.existing.outputs.exists == 'false'
+        uses: docker/setup-buildx-action@v3
+      - name: 새 SHA 이미지 빌드 및 push
+        id: build
+        if: steps.existing.outputs.exists == 'false'
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.BUILD_CONTEXT }}
+          file: ${{ env.DOCKERFILE }}
+          push: true
+          tags: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.tag.outputs.image_tag }}
+      - name: 공통 digest 참조 확정
+        id: image
+        env:
+          EXISTING_DIGEST: ${{ steps.existing.outputs.digest }}
+          BUILT_DIGEST: ${{ steps.build.outputs.digest }}
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          set -euo pipefail
+          digest="${EXISTING_DIGEST:-$BUILT_DIGEST}"
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          image_ref="$REGISTRY/$ECR_REPOSITORY@$digest"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "image_ref=$image_ref" >> "$GITHUB_OUTPUT"
+          printf 'source_sha=%s\ntag=%s\nimage=%s\n' "$GITHUB_SHA" "${GITHUB_SHA::7}" "$image_ref" >> "$GITHUB_STEP_SUMMARY"
+
+      # 제안(박명수 확정): Jangingmall/infra, main, k8s/overlays/staging.
+      # TODO(박명수): GitOps 적용·경로·PR 접점과 runner의 kustomize 설치를 확정한다.
+      # 아래는 runner 체크아웃의 편집/렌더만 수행한다. 커밋·push·ArgoCD sync 없음.
+      - name: GitOps staging 체크아웃 (인계 초안)
+        if: vars.GITOPS_REPOSITORY != '' && vars.GITOPS_REF != '' && vars.GITOPS_STAGING_PATH != ''
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.GITOPS_REPOSITORY }}
+          ref: ${{ vars.GITOPS_REF }}
+          token: ${{ secrets.GITOPS_READ_TOKEN || github.token }}
+          path: gitops
+          persist-credentials: false
+      - name: staging overlay digest 편집 및 렌더 (인계 초안)
+        if: vars.GITOPS_REPOSITORY != '' && vars.GITOPS_REF != '' && vars.GITOPS_STAGING_PATH != ''
+        env:
+          OVERLAY_PATH: ${{ vars.GITOPS_STAGING_PATH }}
+          IMAGE_REF: ${{ steps.image.outputs.image_ref }}
+        run: |
+          set -euo pipefail
+          command -v kustomize > /dev/null || { echo "::error::TODO: runner에 kustomize 설치 필요"; exit 1; }
+          root=$(realpath gitops)
+          target=$(realpath "gitops/$OVERLAY_PATH")
+          [[ "$target" == "$root/"* ]] || { echo "::error::GitOps 내부 overlay 경로가 필요합니다."; exit 1; }
+          cd "$target"
+          kustomize edit set image "jangin-app=$IMAGE_REF"
+          kustomize build . > "$RUNNER_TEMP/staging-rendered.yaml"
+      # 창원 제안: BE 앱 레포에서 infra PR로 인계(main 직접 push 금지). 확정·구현은 박명수.
+      - name: staging 인계 상태 기록
+        run: |
+          echo "::notice::GitOps 커밋/sync/검증은 미연결입니다. 이 run 성공은 staging 배포 성공이 아닙니다."
+          echo "TODO(박명수): source SHA/digest로 staging 반영·검증 후 STAGING_VERIFIED_SHA/DIGEST를 기록하세요." >> "$GITHUB_STEP_SUMMARY"

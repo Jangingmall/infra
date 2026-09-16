@@ -27,6 +27,22 @@ foreach ($environment in @('prod', 'staging')) {
     # Only ECR files and test provider requirements; no real backend/provider.
     Get-ChildItem -LiteralPath (Join-Path $repoRoot "terraform/environments/$environment") -Filter 'ecr*.tf' |
         Copy-Item -Destination $isolatedRoot
+    if ($environment -eq 'prod') {
+        # B-plan prod: copy only shared env/ECR blocks, not network outputs or resources.
+        $sharedFiles = @(
+            @{ Name = 'variables.tf'; Pattern = '(?ms)^variable "(?:env|ecr_[^"]+)" \{.*?^\}'; Count = 7 },
+            @{ Name = 'outputs.tf'; Pattern = '(?ms)^output "ecr_[^"]+" \{.*?^\}'; Count = 3 }
+        )
+        foreach ($sharedFile in $sharedFiles) {
+            $sourceFile = Join-Path $repoRoot "terraform/environments/$environment/$($sharedFile.Name)"
+            $blocks = [regex]::Matches([System.IO.File]::ReadAllText($sourceFile), $sharedFile.Pattern)
+            if ($blocks.Count -ne $sharedFile.Count) {
+                throw "Unexpected env/ECR block count in $sourceFile : $($blocks.Count)"
+            }
+            $content = ($blocks | ForEach-Object { $_.Value }) -join "`n`n"
+            [System.IO.File]::WriteAllText((Join-Path $isolatedRoot $sharedFile.Name), "$content`n", [System.Text.UTF8Encoding]::new($false))
+        }
+    }
     Copy-Item -LiteralPath (Join-Path $repoRoot 'tests/ecr/versions.tf') -Destination $isolatedRoot
     Copy-Item -LiteralPath (Join-Path $repoRoot 'tests/ecr/environment.tftest.hcl') -Destination $isolatedRoot
     $checkRoots += $isolatedRoot
