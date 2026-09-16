@@ -4,9 +4,9 @@
 # IaC 착수 순서 ② — 전부 무료 리소스
 #
 # 이번 범위 밖 (만들지 않음):
-#   - NAT Gateway + EIP        → ⑤ nat.tf        (유료)
-#   - Security Group 4종       → ③ security_group.tf
-#   - S3 Gateway Endpoint      → ④ endpoints.tf
+#   - NAT Gateway + EIP        → ⑤ modules/nat        (💰 유료)
+#   - Security Group 4종       → ③ modules/security
+#   - S3 Gateway Endpoint      → ④ modules/endpoints
 #   - VPC Flow Logs            → s3-logs 버킷(⑨) 선행 필요
 # ============================================================
 
@@ -156,7 +156,8 @@ resource "aws_route" "public_igw" {
 }
 
 # [app] 지금은 경로가 비어 있다(=VPC 내부 통신만 가능).
-#       ⑤ nat.tf 에서 0.0.0.0/0 → NAT Gateway 경로를 여기에 추가한다.
+#       ⑤ modules/nat 이 이 테이블 ID 를 받아 0.0.0.0/0 → NAT Gateway 경로를 추가한다.
+#       (app_route_table_id output 으로 넘긴다)
 #
 #       테이블이 1개인 이유: NAT GW를 AZ-a 단일로 쓰기로 확정했으므로
 #       app-a / app-c 가 같은 NAT를 바라본다.

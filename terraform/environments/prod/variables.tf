@@ -106,3 +106,40 @@ variable "eks_cluster_name" {
   type        = string
   default     = "jangin-prod-eks-cluster"
 }
+
+# ============================================================
+# ⑤ NAT Gateway   💰 유료
+# ------------------------------------------------------------
+# B안 컨벤션: 루트 변수는 nat_ 접두사, 모듈 내부 변수는 접두사 없음.
+# ============================================================
+
+variable "nat_enabled" {
+  description = <<-EOT
+    NAT Gateway 생성 여부.
+    false 로 두면 NAT 와 app 라우팅 경로만 사라지고 EIP(고정 공인 IP)는 남는다.
+    → 10/1~10/4 환경을 내릴 때 값 하나로 비용을 끊되,
+      스마트택배 allowlist 에 등록된 IP 는 유지된다. (작업 규칙 12)
+  EOT
+  type        = bool
+  default     = true
+}
+
+variable "nat_gateway_az" {
+  description = <<-EOT
+    NAT Gateway 를 둘 AZ 접미사. vpc_az_suffixes 안의 값이어야 한다.
+    🔴 MVP 는 AZ-a 단일 — 해당 AZ 장애 시 아웃바운드 전체가 끊긴다.
+       (보안팀 NAT 승인 조건 #5 — 잔여 리스크로 문서화)
+  EOT
+  type        = string
+  default     = "a"
+}
+
+variable "nat_alarm_sns_topic_arns" {
+  description = <<-EOT
+    NAT CloudWatch 알람의 알림 수신 SNS 토픽 ARN 목록.
+    🟡 Budget 알림 SNS 재사용 여부 미확정 → 기본 빈 목록.
+       빈 목록이어도 지표 수집과 알람 상태 표시는 정상 동작한다.
+  EOT
+  type        = list(string)
+  default     = []
+}
