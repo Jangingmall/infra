@@ -1,0 +1,65 @@
+# ============================================================
+# terraform.tfvars.example — prod 환경의 실제 값 (예시)
+# ------------------------------------------------------------
+# 사용법:
+#   cp terraform.tfvars.example terraform.tfvars
+#   (terraform.tfvars 는 .gitignore 로 커밋이 막혀 있습니다 — 작업 규칙 3)
+#
+# 왜 파일이 하나인가 (B안 · 2026-09-15 파트장 확정):
+#   Terraform 이 자동으로 읽는 변수 파일은 terraform.tfvars 와
+#   *.auto.tfvars 뿐입니다. vpc.tfvars / ecr.tfvars 처럼 나누면
+#   terraform plan -var-file=... -var-file=... 를 매번 붙여야 하고,
+#   🔴 하나 빠뜨리면 에러가 아니라 variable 의 default 값으로
+#      조용히 넘어갑니다. CI 에서 특히 위험합니다.
+#
+# staging 과 다른 값은 아래 5개뿐입니다 (backend.tf 의 key 포함하면 6개):
+#   env / vpc_cidr / vpc_subnet_cidrs / eks_cluster_name
+# ============================================================
+
+# ---------- 공통 (전 모듈이 씀 · 접두사 없음) ----------
+project = "jangin"
+env     = "prod" # staging 환경에서는 "staging"
+region  = "ap-northeast-2"
+
+# ---------- network 모듈 (vpc_ 접두사) ----------
+vpc_cidr = "10.0.0.0/16" # staging: 10.1.0.0/16
+
+# 2 AZ 인 이유: ALB 가 최소 2개 AZ 의 서브넷을 요구합니다.
+# 실제 리소스는 MVP 방침상 AZ-a 에만 배치합니다.
+vpc_az_suffixes = ["a", "c"]
+
+# 🔴 app 계층만 /20 입니다.
+#    EKS VPC CNI 는 Pod 하나마다 VPC 의 실제 IP 를 하나씩 줍니다.
+#    /24(약 250개)로는 Pod 가 늘면 IP 가 고갈되고,
+#    CIDR 은 서브넷 생성 후 절대 바꿀 수 없습니다.
+#    → /24 로 "정리"하지 마세요. (검수 체크리스트 #1)
+vpc_subnet_cidrs = {
+  public = {
+    a = "10.0.0.0/24"
+    c = "10.0.1.0/24"
+  }
+  app = {
+    a = "10.0.16.0/20" # 🔴 /20
+    c = "10.0.32.0/20" # 🔴 /20
+  }
+  data = {
+    a = "10.0.2.0/24"
+    c = "10.0.3.0/24"
+  }
+}
+
+# ---------- eks 모듈 (eks_ 접두사) ----------
+# 현재는 서브넷의 kubernetes.io/cluster/<이름> 태그에만 쓰입니다.
+# ⑥ EKS 생성 단계에서 실제 클러스터 이름과 일치하는지 반드시 대조하세요.
+eks_cluster_name = "jangin-prod-eks-cluster" # staging: jangin-staging-eks-cluster
+
+# ---------- ecr 모듈 (ecr_ 접두사) ----------
+# 🔗 이창원님 담당 (PR #12). 현재 값은 ecr.tfvars.json.example 에 있습니다.
+#    B안 전환에 따라 이 파일로 합쳐질 예정이며,
+#    파트장님이 9/16 에 직접 정리하신다고 하셨으므로 인프라가 임의로 옮기지 않습니다.
+#
+# ecr_enabled              = false   # 🔴 공용 ECR State 위치 확정 후 한쪽만 true
+# ecr_repositories         = ["jangin-app"]
+# ecr_keep_last_images     = 10
+# ecr_untagged_expire_days = 7
+# ecr_kms_key_arn          = null
