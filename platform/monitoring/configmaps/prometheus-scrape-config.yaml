@@ -1,0 +1,68 @@
+# ⚠️ 전제: alertmanager/grafana/prometheus를 kube-prometheus-stack(Prometheus Operator)으로 쓰고 있다고 가정함
+#     (저번에 만든 그라파나 대시보드 ConfigMap이 sidecar 방식이라 이걸 전제로 함)
+#     이 경우 Prometheus는 raw scrape_configs가 아니라 ServiceMonitor/PodMonitor CR을 selector로 찾아서 자동 스크레이프함.
+#     → 순수 Prometheus(Operator 없이 ConfigMap+prometheus.yml 마운트 방식)라면 이 파일 대신 알려줘, additionalScrapeConfigs 방식으로 다시 작성해줄게.
+
+---
+# 1) 백엔드(Spring Boot) 앱 - /actuator/prometheus 스크레이프
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: janginmall-backend
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack   # ⚠️ Prometheus CR의 serviceMonitorSelector와 매칭되는 라벨로 교체
+                                      #    (kube-prometheus-stack 기본값은 helm release 이름. helm list로 확인)
+spec:
+  namespaceSelector:
+    matchNames:
+      - <NAMESPACE>                  # ⚠️ backend 앱이 실제 배포된 네임스페이스
+  selector:
+    matchLabels:
+      app: <BACKEND_SERVICE_LABEL>   # ⚠️ backend Service의 실제 label(예: app.kubernetes.io/name)로 교체
+  endpoints:
+    - port: http                     # ⚠️ Service에 정의된 포트 '이름'. actuator를 management.server.port로
+                                      #    분리했으면 그 포트를 가리키는 이름으로 교체 (예: management)
+      path: /actuator/prometheus
+      interval: 15s
+      scrapeTimeout: 10s
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+
+---
+# 2) GPU 노드 - NVIDIA GPU 사용률/메모리 메트릭 (nvidia-dcgm-exporter 배포 시)
+#    ⚠️ GPU exporter를 아직 안 붙였으면 이 블록은 지워도 됨. dcgm-exporter는 보통 DaemonSet + Service로 노출.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: janginmall-gpu-dcgm
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - <GPU_EXPORTER_NAMESPACE>      # ⚠️ dcgm-exporter가 배포된 네임스페이스 (보통 kube-system 또는 gpu-operator)
+  selector:
+    matchLabels:
+      app: <DCGM_EXPORTER_SERVICE_LABEL>
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+
+# ── 참고: 아래는 이미 자동으로 스크레이프되고 있어서 여기서 별도로 안 만들어도 됨 ──
+#
+# - PostgreSQL(CloudNativePG): cnpg 오퍼레이터가 Cluster 리소스에
+#   .spec.monitoring.enablePodMonitor: true 설정만 해주면 PodMonitor를 자동 생성함.
+#   → cnpg-cluster manifest 쪽에서 그 옵션만 켜져 있는지 확인.
+#
+# - node-exporter / kube-state-metrics: kube-prometheus-stack 설치 시 기본 포함,
+#   각자 ServiceMonitor가 이미 딸려 있음 (패널1,2에서 쓰는 node_cpu_seconds_total,
+#   kube_node_labels 등이 여기서 나옴).
+#
+# - RabbitMQ / SQS / Kafka 큐 exporter: 큐 기술이 아직 미정이라 여기 포함 안 함.
+#   기술 스택 정해지면 알려줘, 그때 ServiceMonitor 추가해줄게.

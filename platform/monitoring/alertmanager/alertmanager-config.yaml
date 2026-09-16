@@ -1,0 +1,45 @@
+# ⚠️ 전제: prometheus-scrape-config.yaml / backend-alerts.yaml과 동일하게 kube-prometheus-stack(Prometheus Operator) 사용.
+#    Alertmanager CR 자체는 helm이 만들어주니 새로 안 만들고, 이 AlertmanagerConfig(네임스페이스 스코프 CRD)만
+#    라우팅 규칙으로 추가함. 자동으로 helm이 생성한 최상위 config 밑에 서브 라우트로 병합됨.
+#
+# ⚠️ 아래 alertmanagerConfigSelector 라벨(release: kube-prometheus-stack)이 helm values의
+#    alertmanager.alertmanagerSpec.alertmanagerConfigSelector 와 안 맞으면 이 리소스를 만들어도
+#    Alertmanager가 조용히 무시함 — prometheus-scrape-config.yaml / backend-alerts.yaml에 쓴 것과
+#    반드시 같은 release 라벨값이어야 함.
+#
+# ⚠️ apiVersion은 v1alpha1으로 씀(가장 널리 호환됨). Operator 버전이 v1beta1을 지원하면
+#    `kubectl get crd alertmanagerconfigs.monitoring.coreos.com -o yaml` 로 served versions 확인 후 올려도 됨.
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: janginmall-discord
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack   # ⚠️ 실제 helm release 이름으로 교체
+spec:
+  route:
+    receiver: discord
+    groupBy: ["alertname", "namespace"]
+    groupWait: 30s
+    groupInterval: 5m
+    repeatInterval: 4h
+    # ⚠️ "일단 디스코드" 단일 채널로 시작 — 나중에 severity별로 채널 나누고 싶으면
+    #    아래처럼 routes를 추가하고 receivers에 discord-critical 하나 더 만들면 됨:
+    #
+    # routes:
+    #   - receiver: discord
+    #     matchers:
+    #       - name: severity
+    #         value: critical
+    #     continue: false
+
+  receivers:
+    - name: discord
+      discordConfigs:
+        - apiURL:
+            name: discord-webhook   # discord-webhook-secret.yaml 에서 만든 Secret 이름
+            key: webhook-url
+          sendResolved: true
+          # title/message 를 생략하면 Alertmanager 기본 디스코드 템플릿
+          # (discord.default.title / discord.default.message) 이 자동 적용됨 —
+          # 알림 발생(빨강)/해소(초록) 색상 임베드로 옴. 나중에 커스텀하고 싶으면 여기에 추가.
