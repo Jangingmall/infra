@@ -1,5 +1,15 @@
 # ============================================================
-# backend.tf — State 원격 저장 + 동시 작업 잠금
+# backend.tf — State 원격 저장 + 동시 작업 잠금  (staging)
+# ------------------------------------------------------------
+# 🔑 prod/backend.tf 와 "key 한 줄"만 다릅니다.
+#    버킷·Lock 테이블·KMS 키는 prod 와 공유하고, 환경 격리는 key 경로로 합니다.
+#    (CLAUDE.md 「환경 분리 전략」 — 버킷을 나누지 않는 것이 확정값)
+#
+# 🔴 작업 규칙 14: prod/backend.tf 를 고치면 이 파일도 같이 고쳐야 합니다.
+#    동기화 확인:
+#      diff terraform/environments/prod/backend.tf \
+#           terraform/environments/staging/backend.tf
+#    기대 diff: key 한 줄 + 이 헤더 주석뿐
 # ------------------------------------------------------------
 # 역할: terraform이 "무엇을 만들었는지" 기록한 State 파일을
 #       내 노트북이 아니라 팀 공용 S3에 둔다.
@@ -20,7 +30,10 @@ terraform {
     #   staging → staging/terraform.tfstate
     # 이 분리가 환경 격리의 마지막 방어선이다. State가 섞이면
     # 한쪽 apply가 다른 환경 리소스를 지울 수 있다.
-    key = "prod/terraform.tfstate"
+    #
+    # 🔴 이 한 줄이 prod 와 다른 유일한 값이다. prod 것을 복사해 오면서
+    #    이 줄을 안 바꾸면 staging apply 가 prod State 를 덮어쓴다.
+    key = "staging/terraform.tfstate"
 
     region = "ap-northeast-2"
 
@@ -44,7 +57,7 @@ terraform {
     #
     #    검증은 버킷 설정이 아니라 객체를 봐야 합니다:
     #      aws s3api head-object --bucket jangin-infra-s3-tfstate \
-    #        --key prod/terraform.tfstate --query ServerSideEncryption
+    #        --key staging/terraform.tfstate --query ServerSideEncryption
     #      → "aws:kms" 가 나와야 정상
     #
     #    ⚠️ 키 ARN 대신 별칭(alias)을 씁니다. ARN 에는 계정 ID 가 들어가는데

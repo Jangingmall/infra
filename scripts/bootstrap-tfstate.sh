@@ -14,10 +14,11 @@
 #
 #   1. S3 버킷 생성          → State(장부) 보관함
 #   2. Versioning 활성화     → State가 깨졌을 때 유일한 복구 수단
-#   3. 기본 암호화           → State에 리소스 ARN·ID가 그대로 들어감
-#   4. Public Access Block   → 보안 요구사항 (다정님 명시)
-#   5. 태그 부착             → Cost Explorer 필터링 선행조건 (작업규칙 13)
-#   6. DynamoDB Lock 테이블  → 두 사람이 동시에 apply 하는 사고 방지
+#   3. KMS CMK 생성          → 🔄 09-16 신설. State 전용 고객 관리 키
+#   4. 기본 암호화(SSE-KMS)  → State에 리소스 ARN·ID가 그대로 들어감
+#   5. Public Access Block   → 보안 요구사항 (다정님 명시)
+#   6. 태그 부착             → Cost Explorer 필터링 선행조건 (작업규칙 13)
+#   7. DynamoDB Lock 테이블  → 두 사람이 동시에 apply 하는 사고 방지
 #
 # ============================================================
 # [왜 Terraform이 아니라 쉘인가 — 의도적 선택]
@@ -51,6 +52,10 @@ REGION="ap-northeast-2"
 BUCKET="jangin-infra-s3-tfstate"         # 🔴 S3 이름은 전 세계에서 유일해야 함
 TABLE="jangin-infra-ddb-tfstate-lock"    # 네이밍 규칙 jangin-<env>-<resource> 적용
 PROJECT_TAG="jangin"
+
+# 🔄 2026-09-16 신설 — State 전용 KMS CMK 별칭
+#   🔴 ⑧ 단계에서 Terraform 이 만드는 CMK 와 "다른 키"여야 합니다. 이유는 아래 3번 참조.
+KMS_ALIAS="alias/jangin-infra-s3-tfstate"
 # --------------------------------------------------
 
 say() { printf "\n\033[1;36m▶ %s\033[0m\n" "$*"; }
@@ -78,7 +83,7 @@ read -r ANSWER
 
 # ===== 1. S3 버킷 =====
 say "1. S3 버킷 생성"
-if aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
+if aws s3api head-bucket --bucket "$BUCKET" >/dev/null 2>&1; then
   skip "$BUCKET"
 else
   aws s3api create-bucket \
@@ -96,37 +101,122 @@ aws s3api put-bucket-versioning \
   --versioning-configuration Status=Enabled
 ok "Enabled"
 
-# ===== 3. 기본 암호화 =====
-# TODO(⑧ KMS 단계): CLAUDE.md는 State 암호화를 SSE-KMS(CMK)로 명시하고 있습니다.
-#   CMK가 아직 없어 지금은 SSE-S3로 둡니다. 버킷을 재생성하지 않고
-#   put-bucket-encryption 재실행만으로 전환 가능합니다.
-say "3. 기본 암호화(SSE-S3) 설정"
+# ===== 3. KMS CMK (State 전용) =====
+# 🔄 2026-09-16 신설 — 파트장(강윤주) 지적 반영.
+#    기존에는 SSE-S3(AES256)로 두고 "⑧ KMS 단계에서 전환" TODO 를 달아뒀는데,
+#    보안팀 요구사항은 처음부터 SSE-KMS(CMK) 입니다.
+#
+# ── 왜 ⑧ 을 기다리지 않고 여기서 만드는가 (🔴 순환 의존) ──────────────
+#
+#   ⑧ 단계의 CMK 는 Terraform 이 만듭니다. 그 키로 State 버킷을 암호화하면
+#   "State 를 담은 금고의 열쇠를, 그 State 가 관리하는" 구조가 됩니다.
+#
+#     terraform destroy (⑧)
+#       → KMS 키가 삭제 대기(7~30일)로 들어감
+#       → 그 순간부터 State 를 복호화할 수 없음
+#       → terraform 자체가 동작 불능. plan 도 destroy 도 못 함.
+#       → 🔴 복구 수단 없음
+#
+#   그래서 State 버킷용 CMK 는 반드시 Terraform 밖(이 스크립트)에서 만들고,
+#   ⑧ 의 애플리케이션용 CMK 와는 별개 키로 유지합니다.
+#
+# 💰 CMK 1개당 월 약 $1 + 요청당 소액. 아래 BucketKeyEnabled 로 요청 수를 줄입니다.
+#    비용 산정서 v1.0 미반영 항목이라 다정님께 공유가 필요합니다.
+say "3. KMS CMK 확인/생성 (State 전용)"
+
+# 멱등성: 별칭으로 기존 키를 먼저 찾습니다.
+#   🔴 aws kms create-key 는 멱등이 아닙니다. 그냥 실행하면 매번 새 키가 생기고
+#      쓰지도 않는 키에 매월 $1 씩 붙습니다. 별칭 조회가 이를 막습니다.
+KEY_ARN=$(aws kms describe-key --key-id "$KMS_ALIAS" --region "$REGION" \
+            --query 'KeyMetadata.Arn' --output text 2>/dev/null || true)
+
+if [[ -n "${KEY_ARN:-}" && "$KEY_ARN" != "None" ]]; then
+  skip "$KMS_ALIAS"
+else
+  # ── 키 정책 ─────────────────────────────────────────────
+  # 🔴 KMS 는 IAM 과 달리 "키 정책"이 1차 관문입니다.
+  #    키 정책에서 허용하지 않으면, IAM 에서 아무리 권한을 줘도 못 씁니다.
+  #    그래서 키 정책을 좁게 쓰면 자기 키에서 스스로 잠기는(lock-out) 사고가 납니다.
+  #    AWS 가 권장하는 기본형은 "계정 루트에 위임"입니다 —
+  #    이후 누가 쓸지는 IAM 정책(SSO 퍼미션셋)으로 통제합니다.
+  KEY_POLICY=$(cat <<JSON
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "EnableIAMPolicies",
+      "Effect": "Allow",
+      "Principal": { "AWS": "arn:aws:iam::${ACCOUNT}:root" },
+      "Action": "kms:*",
+      "Resource": "*"
+    }
+  ]
+}
+JSON
+)
+  KEY_ID=$(aws kms create-key \
+    --region "$REGION" \
+    --description "Terraform state encryption (jangin-infra-s3-tfstate). Created by bootstrap-tfstate.sh - NOT managed by Terraform." \
+    --key-usage ENCRYPT_DECRYPT \
+    --key-spec SYMMETRIC_DEFAULT \
+    --policy "$KEY_POLICY" \
+    --tags TagKey=Project,TagValue="${PROJECT_TAG}" \
+           TagKey=Env,TagValue=shared \
+           TagKey=ManagedBy,TagValue=manual-cli \
+           TagKey=Purpose,TagValue=terraform-state \
+    --query 'KeyMetadata.KeyId' --output text)
+
+  aws kms create-alias --region "$REGION" \
+    --alias-name "$KMS_ALIAS" --target-key-id "$KEY_ID"
+
+  # 연 1회 자동 키 교체. 예전 데이터는 예전 키 자료로 계속 복호화되므로 무중단입니다.
+  aws kms enable-key-rotation --region "$REGION" --key-id "$KEY_ID"
+
+  KEY_ARN=$(aws kms describe-key --key-id "$KMS_ALIAS" --region "$REGION" \
+              --query 'KeyMetadata.Arn' --output text)
+  ok "생성됨: $KMS_ALIAS"
+fi
+
+# 🔴 일부 KMS API 는 별칭을 받지 않습니다 (예: get-key-rotation-status).
+#    ARN 끝부분이 곧 키 ID 이므로 API 호출 없이 잘라 씁니다.
+#      arn:aws:kms:<region>:<account>:key/<KEY_ID>
+KEY_ID="${KEY_ARN##*/}"
+
+# ===== 4. 기본 암호화 (SSE-KMS / CMK) =====
+say "4. 기본 암호화(SSE-KMS · CMK) 설정"
 aws s3api put-bucket-encryption \
   --bucket "$BUCKET" \
   --server-side-encryption-configuration \
-  '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"},"BucketKeyEnabled":true}]}'
-ok "AES256"
+  "{\"Rules\":[{\"ApplyServerSideEncryptionByDefault\":{\"SSEAlgorithm\":\"aws:kms\",\"KMSMasterKeyID\":\"${KEY_ARN}\"},\"BucketKeyEnabled\":true}]}"
+ok "aws:kms + BucketKey (요청 비용 절감)"
 
-# ===== 4. Public Access Block (다정님 요구사항) =====
-say "4. 퍼블릭 접근 차단 (4종 전부)"
+# 🔴 여기까지만으로는 "실제로" KMS 로 저장되지 않습니다.
+#    Terraform S3 백엔드는 backend.tf 의 encrypt = true 만 있으면
+#    PutObject 에 AES256 헤더를 직접 붙여서, 버킷 기본 암호화를 덮어씁니다.
+#    → backend.tf 에 kms_key_id 를 같이 넣어야 합니다. (같은 PR 에 포함)
+#    → 검증은 아래 8번의 head-object 출력으로 합니다. 버킷 설정이 아니라
+#      "객체에 실제로 무엇이 적용됐는지"를 봐야 합니다.
+
+# ===== 5. Public Access Block (다정님 요구사항) =====
+say "5. 퍼블릭 접근 차단 (4종 전부)"
 aws s3api put-public-access-block \
   --bucket "$BUCKET" \
   --public-access-block-configuration \
   BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
 ok "BlockPublicAcls / IgnorePublicAcls / BlockPublicPolicy / RestrictPublicBuckets"
 
-# ===== 5. 태그 =====
-say "5. 태그 부착 (비용 분석 선행조건)"
+# ===== 6. 태그 =====
+say "6. 태그 부착 (비용 분석 선행조건)"
 aws s3api put-bucket-tagging \
   --bucket "$BUCKET" \
   --tagging "TagSet=[{Key=Project,Value=${PROJECT_TAG}},{Key=Env,Value=shared},{Key=ManagedBy,Value=manual-cli},{Key=Purpose,Value=terraform-state}]"
 ok "Project / Env / ManagedBy / Purpose"
 
-# ===== 5-2. TLS 강제 버킷 정책 (CLAUDE.md 요구) =====
+# ===== 6-2. TLS 강제 버킷 정책 (CLAUDE.md 요구) =====
 # HTTP(암호화 안 된 평문)로 오는 요청을 전부 거부합니다.
 # State 파일에는 리소스 ARN·ID가 그대로 들어가므로 전송 구간 보호가 필요합니다.
 # aws:SecureTransport 가 false = HTTPS가 아닌 요청.
-say "5-2. TLS 강제 버킷 정책"
+say "6-2. TLS 강제 버킷 정책"
 POLICY=$(cat <<JSON
 {
   "Version": "2012-10-17",
@@ -149,10 +239,10 @@ JSON
 aws s3api put-bucket-policy --bucket "$BUCKET" --policy "$POLICY"
 ok "HTTP 요청 Deny (aws:SecureTransport=false)"
 
-# ===== 6. DynamoDB Lock 테이블 =====
+# ===== 7. DynamoDB Lock 테이블 =====
 # 두 사람이 동시에 apply 하면 State가 깨집니다. 먼저 온 쪽이 자물쇠를 걸고,
 # 나중 쪽은 "누가 작업 중"이라는 메시지를 받고 대기합니다.
-say "6. DynamoDB Lock 테이블 생성"
+say "7. DynamoDB Lock 테이블 생성"
 if aws dynamodb describe-table --table-name "$TABLE" --region "$REGION" >/dev/null 2>&1; then
   skip "$TABLE"
 else
@@ -169,17 +259,58 @@ else
   ok "생성됨: $TABLE"
 fi
 
-# ===== 7. 검증 =====
-say "7. 검증"
+# ===== 8. 검증 =====
+# 🔑 보안팀 검수에 그대로 붙일 수 있는 출력입니다.
+#
+# 🔴 여기서 set -e 를 잠시 끕니다.
+#    위쪽 "생성" 구간은 중간에 실패하면 반쪽짜리 리소스가 남으므로 즉시 중단이 맞지만,
+#    "조회" 구간은 정반대입니다. 항목 하나가 실패했다고 나머지를 안 보여주면
+#    검증 자체가 무의미해집니다. (09-16 실제 사고: 키 교체 상태 조회 실패로
+#    가장 중요한 8-2 객체 암호화 확인이 실행되지 못함)
+set +e
+
+say "8. 검증"
 printf "  Versioning       : "; aws s3api get-bucket-versioning --bucket "$BUCKET" --query 'Status' --output text
-printf "  Encryption       : "; aws s3api get-bucket-encryption --bucket "$BUCKET" \
+printf "  Encryption(설정) : "; aws s3api get-bucket-encryption --bucket "$BUCKET" \
   --query 'ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault.SSEAlgorithm' --output text
+printf "  KMS Key Alias    : %s\n" "$KMS_ALIAS"
+# ⚠️ 별칭이 아니라 KEY_ID 를 넘깁니다. 이 API 는 별칭을 거부합니다.
+printf "  KMS Key Rotation : "; aws kms get-key-rotation-status --region "$REGION" \
+  --key-id "$KEY_ID" --query 'KeyRotationEnabled' --output text 2>/dev/null || echo "(조회 실패)"
+printf "  BucketKeyEnabled : "; aws s3api get-bucket-encryption --bucket "$BUCKET" \
+  --query 'ServerSideEncryptionConfiguration.Rules[0].BucketKeyEnabled' --output text
 printf "  PublicAccessBlock: "; aws s3api get-public-access-block --bucket "$BUCKET" \
   --query 'PublicAccessBlockConfiguration.[BlockPublicAcls,IgnorePublicAcls,BlockPublicPolicy,RestrictPublicBuckets]' --output text
 printf "  BucketPolicy(TLS): "; aws s3api get-bucket-policy --bucket "$BUCKET" \
   --query 'Policy' --output text | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d["Statement"][0]["Sid"], d["Statement"][0]["Effect"])'
 printf "  DynamoDB Status  : "; aws dynamodb describe-table --table-name "$TABLE" --region "$REGION" \
   --query 'Table.TableStatus' --output text
+
+# 🔴 여기가 진짜 검증입니다.
+#    위의 "Encryption(설정)"은 버킷의 기본값일 뿐이고,
+#    실제 State 객체가 무엇으로 암호화됐는지는 객체를 직접 봐야 압니다.
+#    backend.tf 의 kms_key_id 를 빠뜨리면 여기만 AES256 으로 남습니다.
+say "8-2. 실제 State 객체 암호화 확인 (가장 중요)"
+for K in prod/terraform.tfstate staging/terraform.tfstate; do
+  OBJ_SSE=$(aws s3api head-object --bucket "$BUCKET" --key "$K" \
+              --query 'ServerSideEncryption' --output text 2>/dev/null || true)
+  if [[ -z "${OBJ_SSE:-}" || "$OBJ_SSE" == "None" ]]; then
+    printf "  %-28s : (아직 없음 — apply 전이면 정상)\n" "$K"
+  elif [[ "$OBJ_SSE" == "aws:kms" ]]; then
+    printf "  %-28s : \033[1;32m%s ✓\033[0m\n" "$K" "$OBJ_SSE"
+  else
+    printf "  %-28s : \033[1;31m%s ← backend.tf 의 kms_key_id 확인 필요\033[0m\n" "$K" "$OBJ_SSE"
+  fi
+done
+
+# ⚠️ 이미 존재하는 State 객체는 이 스크립트로 재암호화되지 않습니다.
+#    S3 의 기본 암호화는 "앞으로 올라오는 객체"에만 적용됩니다.
+#    → 다음 apply 때 새 버전이 SSE-KMS 로 기록되고,
+#      버전 관리가 켜져 있어 이전 버전은 AES256 인 채로 남습니다.
+#    → 이전 버전을 지우면 복구 수단이 사라지므로 지우지 않습니다.
+#      "구버전 State 는 SSE-S3" 를 잔여 위험으로 기록하고 프로젝트 종료 시 정리합니다.
+
+set -e  # 검증 끝 — 엄격 모드 복구
 
 cat <<EOF
 
@@ -193,8 +324,13 @@ terraform {
     region         = "${REGION}"
     dynamodb_table = "${TABLE}"
     encrypt        = true
+    kms_key_id     = "${KMS_ALIAS}"
   }
 }
+
+🔴 kms_key_id 를 빠뜨리면 버킷 기본 암호화가 무시됩니다.
+   encrypt = true 만 있으면 Terraform 이 PutObject 에 AES256 헤더를
+   직접 붙이기 때문입니다. 위 8-2 출력이 aws:kms 인지 반드시 확인하세요.
 
 ※ 환경 분리는 버킷이 아니라 key 경로로 합니다
    prod    → prod/terraform.tfstate
@@ -270,9 +406,14 @@ EOF
 #   bucket = aws_s3_bucket.tfstate.id
 #   rule {
 #     apply_server_side_encryption_by_default {
-#       sse_algorithm = "AES256"   # SSE-S3. KMS CMK를 쓰면 키 관리비 발생
+#       # 🔄 09-16: 실제 구현은 SSE-KMS(CMK)로 전환했습니다(보안팀 요구).
+#       #    단, 이 CMK 를 Terraform 이 관리하면 순환 의존이 생깁니다
+#       #    — State 를 담은 버킷의 키를 그 State 가 관리하게 되기 때문.
+#       #    그래서 실제로는 이 키만 CLI(이 스크립트)로 만듭니다.
+#       sse_algorithm     = "aws:kms"
+#       kms_master_key_id = aws_kms_key.tfstate.arn
 #     }
-#     bucket_key_enabled = true    # KMS 사용 시 요청 비용 절감 (AES256이면 무해)
+#     bucket_key_enabled = true    # KMS 요청 비용 절감 (S3 Bucket Keys)
 #   }
 # }
 #
