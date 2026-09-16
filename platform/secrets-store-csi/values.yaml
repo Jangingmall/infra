@@ -13,6 +13,16 @@ driverWritesSecrets: false
 rbac:
   install: true
 
+tolerations:
+  - key: workload
+    operator: Equal
+    value: db
+    effect: NoSchedule
+  - key: nvidia.com/gpu
+    operator: Equal
+    value: "true"
+    effect: NoSchedule
+
 # AWS Provider Helm chart의 dependency로 Secrets Store CSI Driver도 함께 설치한다.
 secrets-store-csi-driver:
   install: true
@@ -24,7 +34,6 @@ secrets-store-csi-driver:
   # Backend의 Secret reload 정책 확정 전까지 자동 Rotation은 비활성화한다.
   enableSecretRotation: false
 
-  # IRSA / EKS Pod Identity 인증에 필요한 ServiceAccount Token audience.
+  # IRSA 인증에 필요한 ServiceAccount Token audience.
   tokenRequests:
     - audience: sts.amazonaws.com
-    - audience: pods.eks.amazonaws.com

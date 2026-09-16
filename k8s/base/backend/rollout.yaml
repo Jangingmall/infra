@@ -21,6 +21,8 @@ spec:
         app.kubernetes.io/part-of: jangingmall
     spec:
       serviceAccountName: backend-sa
+      nodeSelector:
+        workload-type: app
 
       # Spring Boot graceful shutdown 30s보다 여유 있게 보장한다.
       terminationGracePeriodSeconds: 45
