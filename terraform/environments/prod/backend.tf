@@ -32,6 +32,26 @@ terraform {
 
     # State를 S3에 암호화해서 저장
     encrypt = true
+
+    # 🔴 2026-09-16 신설 — 이 한 줄이 없으면 위 encrypt = true 가
+    #    버킷의 기본 암호화(SSE-KMS)를 "덮어씁니다".
+    #
+    #    Terraform S3 백엔드는 encrypt = true 만 있고 kms_key_id 가 없으면
+    #    PutObject 요청에 AES256(SSE-S3) 헤더를 직접 붙입니다.
+    #    S3 의 버킷 기본 암호화는 "요청에 암호화 지정이 없을 때"만 적용되므로,
+    #    버킷을 SSE-KMS 로 바꿔도 State 객체만 계속 AES256 으로 저장됩니다.
+    #    → 설정은 KMS 인데 실물은 SSE-S3 인, 가장 발견하기 어려운 형태의 불일치.
+    #
+    #    검증은 버킷 설정이 아니라 객체를 봐야 합니다:
+    #      aws s3api head-object --bucket jangin-infra-s3-tfstate \
+    #        --key prod/terraform.tfstate --query ServerSideEncryption
+    #      → "aws:kms" 가 나와야 정상
+    #
+    #    ⚠️ 키 ARN 대신 별칭(alias)을 씁니다. ARN 에는 계정 ID 가 들어가는데
+    #       작업 규칙 2 가 계정 ID 의 코드 하드코딩을 금지하기 때문입니다.
+    #       이 키는 scripts/bootstrap-tfstate.sh 가 CLI 로 만듭니다
+    #       (Terraform 이 관리하면 순환 의존이 생김 — 스크립트 3번 주석 참조).
+    kms_key_id = "alias/jangin-infra-s3-tfstate"
   }
 }
 
