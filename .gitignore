@@ -114,3 +114,5 @@ kubeconfig
 !platform/observability/platform/README.md
 !platform/observability/alerts/README.md
 !k8s/base/backend/README.md
+
+!platform/observability/README.md

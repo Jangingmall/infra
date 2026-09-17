@@ -1,5 +1,5 @@
 # kube-prometheus-stack 91.4.1. 반드시 stage.yaml 또는 prod.yaml과 함께 렌더링한다.
-# 자동 배포 미연결: System 용량, EBS CSI, Grafana 인증과 통신 검증 후 연결한다.
+# Argo CD Application 연결 완료. 최초 수동 sync 전 System 용량, EBS CSI, Grafana 인증을 확인한다.
 fullnameOverride: metrics
 kubeEtcd:
   enabled: false
@@ -242,8 +242,8 @@ grafana:
           updateIntervalSeconds: 30
           options:
             path: /var/lib/grafana/dashboards/default
-        # 팀 Backend 대시보드는 Helm의 dashboards ConfigMap으로 공급한다.
-        # JSON 변경은 chart checksum으로 Grafana 재시작에 반영된다.
+        # 팀 JSON은 observability-assets chart의 ConfigMap을 디렉터리로 마운트한다.
+        # subPath를 쓰지 않아 kubelet 파일 갱신 후 30초 polling으로 읽으며 재시작은 필요 없다.
         - name: backend
           orgId: 1
           folder: Backend
@@ -274,6 +274,22 @@ grafana:
   # 각 기본 ConfigMap을 별도 하위 디렉터리에 연결한다. provider는 하위 경로도 읽는다.
   # 파일이 삭제되면 해당 대시보드도 공급 목록에서 삭제되므로 Git diff를 확인한다.
   extraConfigmapMounts:
+    - name: metrics-dashboard-backend
+      configMap: metrics-dashboard-backend
+      mountPath: /var/lib/grafana/dashboards/backend
+      readOnly: true
+    - name: metrics-dashboard-gpu
+      configMap: metrics-dashboard-gpu
+      mountPath: /var/lib/grafana/dashboards/gpu
+      readOnly: true
+    - name: metrics-dashboard-cnpg
+      configMap: metrics-dashboard-cnpg
+      mountPath: /var/lib/grafana/dashboards/platform/cnpg
+      readOnly: true
+    - name: metrics-dashboard-argo
+      configMap: metrics-dashboard-argo
+      mountPath: /var/lib/grafana/dashboards/platform/argo
+      readOnly: true
     - name: metrics-alertmanager-overview
       configMap: metrics-alertmanager-overview
       mountPath: /var/lib/grafana/dashboards/default/metrics-alertmanager-overview

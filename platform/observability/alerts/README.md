@@ -114,7 +114,7 @@ alertmanager:
       eks.amazonaws.com/role-arn: <인프라가 제공한 해당 환경의 실제 Role ARN>
 ```
 
-4. SecretProviderClass를 먼저 적용하고 metrics의 **기존 전체 Helm 입력**에 아래 두 values와 ARN override를 추가한다. 기존 Backend/GPU/Platform dashboard `--set-file` 입력을 빼면 안 된다.
+4. GitOps에서는 [Discord 선택 component](../README.md)를 해당 환경 Kustomization에 추가한다. 같은 metrics Application이 아래 두 values·runtime ARN override·SecretProviderClass·대시보드 assets를 함께 공급한다. 이미 Argo CD가 관리하면 별도 Helm release로 설치하지 않는다.
 
 ```sh
 -f platform/observability/alerts/discord/values.yaml \

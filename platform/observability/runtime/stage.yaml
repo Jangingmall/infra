@@ -1,0 +1,6 @@
+# 비밀값을 넣지 않는다. 인프라가 제공한 실제 ARN/버킷 이름만 아래 위치에 입력한다.
+# 이 파일은 외부 Helm chart와 observability-assets chart의 마지막 override로 사용된다.
+# Loki: serviceAccount.annotations.eks.amazonaws.com/role-arn + lokiBucket.
+# Discord 활성화 시: alertmanager.serviceAccount.annotations.eks.amazonaws.com/role-arn.
+# 빈 상태에서는 자동 동기화를 켜지 않는다. Grafana admin Secret은 별도 안전한 절차로 공급한다.
+{}

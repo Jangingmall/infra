@@ -31,19 +31,11 @@ XID는 마지막 오류 **코드**다. 오류 발생 **횟수**나 오류율로 
 AI Pod 필터는 `ai-sglang-*`/`ai-ollama-*`다. 벡터DB를 AI inference Pod에 합산하지 않는다.
 GPU 사용률만으로 요청 성공/실패·추론 p95·모델 로딩 시간을 알 수는 없다.
 
-Grafana 기존 파일 제공 방식에 연결했으며 추가 sidecar가 없다.
-Metrics Helm 렌더링 시 기존 Backend 입력과 함께 다음 파일도 반드시 제공한다.
-
-```sh
---set-file grafana.dashboards.gpu.overview.json=platform/observability/gpu/dashboard.json
-```
-
-JSON 변경은 Grafana chart의 dashboard checksum에 반영되어 재시작된다.
-후속 Argo CD 연결도 이 파일 입력을 보존해야 한다.
+Grafana 파일 제공 방식에 연결했으며 추가 sidecar가 없다. metrics Application의 assets source가 GPU JSON을 ConfigMap으로 공급한다. 디렉터리 마운트와 30초 polling으로 갱신하며 JSON 변경에 재시작은 필요 없다.
 
 ## AI API 메트릭은 준비만 한 상태
 
-`../ai-metrics`는 별도 opt-in 번들이다. GPU/기본 workload/Argo CD에는 포함하지 않았다.
+`../ai-metrics`는 별도 수동 Application으로 연결했다. GPU 또는 기본 workload Sync만으로 적용되지 않는다.
 실제 AI 이미지가 `http`라는 컨테이너 포트(8000)의 `/metrics`를 제공한 뒤 적용한다.
 AI-SGLang/Ollama 양쪽 Pod를 대상으로 하며 엔진 내부 포트 11434는 열지 않는다.
 NetworkPolicy는 HTTP 경로를 구분하지 않아 Prometheus에 8000 포트 전체를 허용한다.
@@ -56,8 +48,7 @@ bash scripts/validate-ai-observability.sh
 bash scripts/validate-observability.sh
 ```
 
-실제 배포는 아직 연결하지 않았다. 배포 시 공식 chart를 release `dcgm-exporter`, namespace `monitoring`으로
-`values.yaml`과 함께 렌더링/설치하고 `policies/`도 함께 적용해야 한다. Prometheus Operator CRD가 먼저 필요하다.
+observability-gpu Application이 공식 chart와 `policies/`를 함께 소유한다. release `dcgm-exporter`, namespace `monitoring`을 유지한다. Prometheus Operator CRD와 NVIDIA runtime 준비 후 [수동 Sync](../README.md)한다.
 
 로컬 확인: 공식 Helm lint/render, Stage/Prod Collector Kustomize, PromQL 8개 문법,
 Grafana 13.2.2 브라우저에서 상단/하단 8개 패널 렌더링과 No data 상태 확인.
