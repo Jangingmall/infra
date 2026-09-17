@@ -114,33 +114,45 @@ variable "nat_alarm_sns_topic_arns" {
 # TODO(staging 값 확정): 박명수/플랫폼: Kubernetes 버전 1.33은 prod 잠정값, staging 적용 전 지원 범위 확인
 variable "eks_cluster_version" {
   description = <<-EOT
-    🔴 TODO(9/16 확정) — 쿠버네티스 버전. 되돌릴 수 없는 결정입니다.
+    ✅ 2026-09-17 팀 확정 — 쿠버네티스 버전 1.35.
+    🔴 되돌릴 수 없습니다. 올릴 수만 있고 내릴 수 없어, 잘못되면 클러스터 재생성입니다.
 
-    확인 명령:
-      aws eks describe-cluster-versions --region ap-northeast-2 --profile jangin --output table
-    선택 기준: STANDARD_SUPPORT 이면서 AWS 기본(default) 인 버전
-      · 최신 버전은 ALB Controller·CNPG·Argo Rollouts·nvidia-device-plugin 이 미대응일 수 있음
-      · 확장 지원 구간은 시간당 추가 요금 (예산 98.8% 소진 상태라 회피 필수)
-    🔗 박명수님 — 위 4개 부품의 k8s 지원 범위 확인 필요
+    🔴 apply 전 반드시 확인 (아직 미확인):
+      aws eks describe-cluster-versions --region ap-northeast-2 --output table
+      aws eks describe-addon-versions --region ap-northeast-2 --kubernetes-version 1.35 \
+        --query 'addons[?addonName==`aws-ebs-csi-driver` || addonName==`vpc-cni`]'
 
-    아래 값은 **잠정값**입니다. 9/18 apply 전에 반드시 확정값으로 교체하세요.
+    확인 기준 두 가지
+      1. STANDARD_SUPPORT 인가 — 확장 지원 구간은 시간당 추가 요금
+      2. 애드온이 1.35 를 지원하는가
+         · aws-ebs-csi-driver 없으면 CNPG PVC 가 Pending → DB Pod 3개가 안 뜸
+         · vpc-cni(NetworkPolicy) 없으면 CN NetworkPolicy 가 에러 없이 무시됨
+
+    ⚠️ "최신 = 좋은 것" 이 아닙니다. EKS 는 새 버전이 나와도 애드온이 몇 주 늦게 따라옵니다.
   EOT
   type        = string
-  default     = "1.33"
+  default     = "1.35"
 }
 
 # TODO(staging 값 확정): 박다정: API_AND_CONFIG_MAP 인증 모드 확정
 variable "eks_authentication_mode" {
   description = <<-EOT
-    🔴 TODO(9/16 확정 · 박다정님) — 클러스터 접근 권한 명부 위치.
+    ✅ 2026-09-16 파트장 확정 — API (AWS API 로만 권한 관리).
 
-    인프라 권고: API_AND_CONFIG_MAP → 9/21 보안 검수 전 API 로 축소
-      · 좁히는 방향으로만 변경 가능하므로 넓은 쪽에서 시작해야 선택지가 남음
-      · 팀원 대부분이 보는 인터넷 자료가 아직 aws-auth 기준이라 API 전용은 혼선 발생
-      · 검수 전 API 로 좁히면 "레거시 인증 경로 제거" 라는 보안 개선 항목이 생김
+    구 방식(CONFIG_MAP)은 클러스터 안의 aws-auth ConfigMap 을 손으로 고칩니다.
+    🔴 오타 하나로 전원이 클러스터에서 잠기는 사고가 EKS 에서 가장 흔한 사고 유형입니다.
+    API 방식은 aws_eks_access_entry 라는 AWS 리소스로 관리해 그 위험이 구조적으로 없습니다.
+
+    🔑 9/21 private only 전환과 궁합이 좋습니다.
+       CONFIG_MAP 이면 "권한을 주려면 접속해야 하는데 접속하려면 권한이 필요한" 순환이 생기는데,
+       API 는 클러스터에 붙지 않고 Terraform 만으로 권한을 줄 수 있습니다.
+
+    ⚠️ 좁히는 방향으로만 변경 가능합니다. API 에서 CONFIG_MAP 으로 되돌릴 수 없습니다.
+    ⚠️ bootstrap_cluster_creator_admin_permissions = true 라, apply 를 실행한 사람이
+       자동으로 관리자가 됩니다. 나머지 팀원은 access entry 로 추가해야 합니다.
   EOT
   type        = string
-  default     = "API_AND_CONFIG_MAP"
+  default     = "API"
 }
 
 # TODO(staging 값 확정): 박다정: 생성자 관리자 권한과 apply 주체 확인
@@ -159,8 +171,21 @@ variable "eks_bootstrap_creator_admin" {
 # TODO(staging 값 확정): 보안팀: staging API 공개 접근 여부 확인
 variable "eks_endpoint_public_access" {
   description = <<-EOT
-    🟡 TODO(9/16 확정 · 보안팀) — 컨트롤플레인 API 인터넷 접근 허용 여부.
-    "공개"라도 인증 명부에 없으면 401 입니다. Public = 무방비가 아닙니다.
+    ✅ 2026-09-17 파트장 확정 — 단계 운영(B안).
+
+      9/18 ~ 9/20 구축  : true  + public_access_cidrs 를 팀원 IP 로 제한
+      9/21 ~ 검수·운영  : false 로 전환 (private only)
+
+    전환은 클러스터 재생성 없이 몇 분이면 됩니다. 버전·인증모드와 달리 가역입니다.
+
+    왜 구축 기간에는 열어두나
+      ArgoCD·CloudNativePG·Argo Rollouts·Secrets Store CSI 를 Helm 으로 설치해야 하는데,
+      private only 면 SSM 을 거쳐야 합니다. 노드에 kubectl 을 두는 우회는
+      🔴 노드 IAM 역할에 클러스터 관리자 권한이 필요해, 그 노드의 모든 Pod 가
+      클러스터를 조작할 수 있게 됩니다 — 보안을 위한 선택이 더 큰 구멍을 만듭니다.
+
+    ⚠️ "공개"라도 인증 명부에 없으면 401 입니다. Public = 무방비가 아닙니다.
+       건물 주소가 지도에 나오는 것과 현관문이 열려 있는 것은 다릅니다.
   EOT
   type        = bool
   default     = true
@@ -175,13 +200,23 @@ variable "eks_endpoint_private_access" {
 # TODO(staging 값 확정): 보안팀: prod 잠정 전체 허용 유지; 감사 로그/최소 인증 권한 전제와 staging 허용 CIDR 확정
 variable "eks_public_access_cidrs" {
   description = <<-EOT
-    🟡 public 접근 허용 CIDR.
-    팀원 6명이 고정 IP 가 아니라 제한이 현실적으로 운영 불가 → 잠정 전체 허용.
-    상쇄 조치: 감사 로그 활성화 + 인증 명부 최소화 + 9/21 전 API 모드 축소.
-    (보안팀 조건부 승인 요청 대상)
+    🔴 TODO — 팀원 IP 목록. **apply 전에 반드시 채워야 합니다.**
+
+    파트장 9/17: "B안으로 작성해뒀습니다. IP 는 작성 필요합니다"
+
+    형식: ["1.2.3.4/32", "5.6.7.8/32", ...]   (각자 IP 확인: curl ifconfig.me)
+
+    ⚠️ staging 에는 9/21~23 DAST 스캐너 IP 도 함께 들어갑니다 (보안팀 9/17 공유 예정).
+
+    🔴 default 를 빈 목록으로 둔 것은 의도입니다.
+       ["0.0.0.0/0"] 을 기본값으로 두면 값을 빠뜨렸을 때 **조용히 전 세계에 열립니다.**
+       빈 목록이면 modules/eks 의 precondition 이 apply 를 막아 실수를 잡아냅니다.
+
+    ⚠️ 9/21 private only 전환 시에는 endpoint_public_access = false 와 함께
+       이 값을 빈 목록으로 되돌립니다.
   EOT
   type        = list(string)
-  default     = ["0.0.0.0/0"]
+  default     = []
 }
 
 variable "eks_additional_security_group_ids" {

@@ -21,14 +21,23 @@ vpc_subnet_cidrs = {
 
 eks_cluster_name = "jangin-staging-eks-cluster"
 # TODO(staging 값 확정): 박명수/플랫폼 — prod 잠정 버전의 staging 지원 범위 확인.
-eks_cluster_version = "1.33"
+eks_cluster_version = "1.35" # ✅ 9/17 팀 확정. 🔴 apply 전 STANDARD_SUPPORT·애드온 호환 확인
 # TODO(staging 값 확정): 박다정 — 인증 모드, 생성자 권한, apply 주체 확인.
-eks_authentication_mode     = "API_AND_CONFIG_MAP"
+eks_authentication_mode     = "API"                  # ✅ 9/16 파트장 확정
 eks_bootstrap_creator_admin = true
 # TODO(staging 값 확정): 보안팀 — 공개 API 접근과 CIDR 확정. prod 잠정 전체 허용은 감사 로그/최소 인증 권한 전제.
-eks_endpoint_public_access        = true
+eks_endpoint_public_access        = true                 # B안: 9/18~20 열고, 9/21 false 로 전환
 eks_endpoint_private_access       = true
-eks_public_access_cidrs           = ["0.0.0.0/0"]
+# 🔴 팀원 IP 를 반드시 채우세요. 빈 목록이면 apply 가 막힙니다(의도).
+#    각자 확인: curl ifconfig.me
+#    9/21 private only 전환 시 public_access = false + 빈 목록으로 되돌립니다.
+eks_public_access_cidrs = [
+  # "1.2.3.4/32",  # 강윤주
+  # "1.2.3.4/32",  # 신준한
+  # "1.2.3.4/32",  # 박명수
+  # "1.2.3.4/32",  # 이창원
+  # "1.2.3.4/32",  # 박다정
+]
 eks_additional_security_group_ids = []
 eks_enabled_log_types             = ["api", "audit", "authenticator"]
 eks_log_retention_days            = 30

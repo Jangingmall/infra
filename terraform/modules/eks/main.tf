@@ -148,6 +148,22 @@ resource "aws_eks_cluster" "main" {
       condition     = var.endpoint_public_access || var.endpoint_private_access
       error_message = "public·private 접근을 둘 다 끄면 아무도 클러스터에 접속할 수 없습니다."
     }
+
+    # 🔴 2026-09-17 신설 — 실수로 전 세계에 열리는 것을 막는 안전장치
+    #
+    #    팀 결정(B안)은 "구축 기간에는 public 을 열되 팀원 IP 로 제한" 입니다.
+    #    그런데 public 을 켠 채 CIDR 을 빠뜨리면 AWS 가 0.0.0.0/0 으로 간주합니다.
+    #    → 에러도 경고도 없이 전 세계에서 접근 가능한 상태가 됩니다.
+    #
+    #    ⚠️ 정말 전체를 열어야 하는 상황이면 이 블록을 지우는 PR 을 올립니다.
+    #       "열려면 리뷰를 거쳐라" 가 이 장치의 목적입니다.
+    precondition {
+      condition = (
+        !var.endpoint_public_access
+        || (length(var.public_access_cidrs) > 0 && !contains(var.public_access_cidrs, "0.0.0.0/0"))
+      )
+      error_message = "endpoint_public_access = true 이면 public_access_cidrs 에 팀원 IP 를 지정해야 합니다. 빈 목록이거나 0.0.0.0/0 은 허용하지 않습니다 (2026-09-17 팀 결정 B안)."
+    }
   }
 }
 
