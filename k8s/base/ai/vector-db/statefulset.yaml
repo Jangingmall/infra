@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ai-vector-db
+  namespace: ai
+  labels:
+    app.kubernetes.io/name: ai-vector-db
+    app.kubernetes.io/part-of: jangingmall
+spec:
+  serviceName: ai-vector-db-headless
+  replicas: 1
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ai-vector-db
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ai-vector-db
+        app.kubernetes.io/part-of: jangingmall
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        workload-type: gpu
+        gpu-model: t4
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: postgres
+          image: pgvector/pgvector:0.8.2-pg17-bookworm
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: midam
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ai-vector-db-auth
+                  key: postgres-password
+            - name: AI_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ai-vector-db-auth
+                  key: password
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          startupProbe:
+            exec:
+              command: [pg_isready, -h, "127.0.0.1", -U, postgres, -d, midam]
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command: [pg_isready, -h, "127.0.0.1", -U, postgres, -d, midam]
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 2Gi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+      volumes:
+        - name: init
+          configMap:
+            name: ai-vector-db-init
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: gp3-ai-vector
+        resources:
+          requests:
+            storage: 10Gi

@@ -1,0 +1,29 @@
+# Rollout CRD의 containers/env 목록을 교체하지 않고 기존 단일 Backend 컨테이너에 추가한다.
+- op: test
+  path: /spec/template/spec/containers/0/name
+  value: backend
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value:
+    name: SPRING_PROFILES_ACTIVE
+    value: prod
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value:
+    name: SPRING_CONFIG_IMPORT
+    value: configtree:/mnt/secrets-store/
+- op: add
+  path: /spec/template/spec/containers/0/volumeMounts
+  value:
+    - name: backend-config
+      mountPath: /mnt/secrets-store
+      readOnly: true
+- op: add
+  path: /spec/template/spec/volumes
+  value:
+    - name: backend-config
+      csi:
+        driver: secrets-store.csi.k8s.io
+        readOnly: true
+        volumeAttributes:
+          secretProviderClass: backend-config

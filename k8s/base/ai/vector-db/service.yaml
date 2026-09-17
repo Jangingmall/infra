@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-vector-db-headless
+  namespace: ai
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: ai-vector-db
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-vector-db
+  namespace: ai
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: ai-vector-db
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres

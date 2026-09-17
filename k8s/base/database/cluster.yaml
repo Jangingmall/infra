@@ -12,6 +12,10 @@ spec:
 
   serviceAccountName: cnpg-backup-sa
 
+  postgresql:
+    parameters:
+      max_connections: "200"
+
   bootstrap:
     initdb:
       database: jangingmall

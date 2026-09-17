@@ -16,13 +16,17 @@ Stage와 Prod는 별도 EKS 클러스터를 사용하는 설계다. 따라서 Na
 
 ## 현재 구현 범위
 
-두 overlay 모두 공통 base를 참조한다. Stage·Prod 모두 DB 수신 정책 2개와 AI 수신 정책 2개를 포함한다. 이미지·리소스 등 환경별 차이가 확정되면 해당 overlay에 `patches` 또는 `images` 설정을 추가한다.
+두 overlay 모두 공통 base를 참조한다. Stage·Prod 모두 업무 DB 수신 정책 2개와 AI API 수신 정책 2개, AI 벡터DB 전용 수신·발신 정책 1개를 포함한다. 이미지·리소스 등 환경별 차이가 확정되면 해당 overlay에 `patches` 또는 `images` 설정을 추가한다.
 
 - 이미지: Backend·AI의 실제 ECR 이미지가 전달되면 환경별 `images`로 지정한다. Production은 Staging에서 검증한 동일 이미지 SHA/Digest를 사용한다.
 - Replica·CPU·메모리: 현재 base 값을 상속한다. 환경별 운영 수치가 확정되면 patch로 관리한다.
 - 도메인·IRSA·시크릿: 실제 연결 값과 사용 방식이 확정된 뒤 환경별 설정을 추가한다.
 
 Backend·AI 이미지에는 아직 base의 자리표시자(`jangin-app`, `jangin-ai/sglang`, `jangin-ai/ollama`)가 사용된다. 이번 구조 추가는 배포 준비 단계이며, 실제 이미지·인증·설정 연결 및 EKS 실행 검증까지 완료된 상태는 아니다.
+
+## AI 전용 벡터DB
+
+T4 GPU 노드에 PostgreSQL/pgvector StatefulSet과 EBS PVC를 추가했다. Ollama만 TCP 5432로 접근하며 DB는 GPU를 요청하지 않는다. 자원은 실측 전 초기값이고 Redis는 보류한다. Secret 공급, 초기화, 테스트와 운영 제한은 [벡터DB 문서](base/ai/vector-db/README.md)를 따른다.
 
 ## Stage·Prod DB 수신 NetworkPolicy
 
@@ -142,16 +146,16 @@ Probe는 기존 계약의 `/ai/health`를 유지한다. 새 요청 문서의 `/h
 
 ## Backend·AI 공통 정책 — 환경 연결 대기
 
-부속 B의 내부 통신 계약을 다음 두 독립 Kustomize 묶음으로 작성했다. Backend 전체 묶음과 AI 전체 묶음은 배포 경로에 연결하지 않는다. AI의 `ingress` 하위 묶음만 DB 수신 정책과 함께 Stage·Prod에서 참조한다.
+부속 B의 내부 통신 계약을 다음 두 독립 Kustomize 묶음으로 작성했다. Backend 전체 묶음과 AI 전체 묶음은 배포 경로에 연결하지 않는다. AI API의 `ingress` 하위 묶음은 DB 수신 정책과 함께 Stage·Prod에서 참조한다. 전용 벡터DB 정책은 AI base를 통해 별도로 포함된다.
 
 | 묶음 | 작성한 규칙 |
 | --- | --- |
 | `base/network-policies/backend` | app Namespace 수신·발신 기본 차단, Backend Pod → CoreDNS TCP·UDP 53 / 해당 CNPG 클러스터 TCP 5432 / ai-sglang·ai-ollama TCP 8000 허용 |
-| `base/network-policies/ai` | ai Namespace 수신·발신 기본 차단, Backend Pod → 두 AI Runtime TCP 8000 수신 허용, 두 AI Runtime → CoreDNS TCP·UDP 53 발신 허용 |
+| `base/network-policies/ai` | ai Namespace 수신·발신 기본 차단, Backend Pod → 두 AI Runtime TCP 8000 수신 허용, 두 AI Runtime → CoreDNS TCP·UDP 53 및 Ollama → 전용 벡터DB TCP 5432 발신 허용 |
 
 허용 규칙의 Namespace와 Pod 라벨은 같은 peer에 두어 두 조건을 모두 만족해야 한다. Backend는 기존 Rollout의 `app.kubernetes.io/name: backend`를 선택하므로 active·preview Pod 모두 해당한다. AI는 name 라벨이 `ai-sglang` 또는 `ai-ollama`인 Pod만 `matchExpressions/In`으로 선택한다. 다른 앱·추론 엔진 라벨을 임의로 추정해 허용하지 않는다.
 
-Backend → DB는 Backend 발신과 기존 DB 수신 규칙이, Backend → AI는 Backend 발신과 AI 수신 규칙이 서로 대응한다. 전체 묶음에는 AI → DB 및 AI → Backend의 새 연결 예외가 없다. 현재 overlay에서는 DB 수신 정책으로 AI → DB를 제한하지만, AI 발신 및 Backend 수신 차단이 미연결이므로 AI → Backend 차단까지 구현된 상태는 아니다. Backend가 시작한 요청에 대한 AI 응답은 별도 Callback 연결이 아니다. 기본 차단은 Namespace 전체를 선택하지만 허용은 지정된 워크로드만 선택하므로, 나중에 추가한 다른 Pod가 자동으로 허용되지는 않는다.
+Backend → DB는 Backend 발신과 기존 DB 수신 규칙이, Backend → AI는 Backend 발신과 AI 수신 규칙이 서로 대응한다. 전체 묶음에는 AI → 업무 CNPG DB 및 AI → Backend의 새 연결 예외가 없다. Ollama → AI 전용 벡터DB는 별도 TCP 5432 예외를 사용한다. 현재 overlay에서는 DB 수신 정책으로 AI → DB를 제한하지만, AI 발신 및 Backend 수신 차단이 미연결이므로 AI → Backend 차단까지 구현된 상태는 아니다. Backend가 시작한 요청에 대한 AI 응답은 별도 Callback 연결이 아니다. 기본 차단은 Namespace 전체를 선택하지만 허용은 지정된 워크로드만 선택하므로, 나중에 추가한 다른 Pod가 자동으로 허용되지는 않는다.
 
 **두 묶음을 단독 적용하면 Backend의 ALB 수신과 외부 호출, AI 모델 다운로드 등이 차단된다. 아직 `apply -k`하거나 overlay에 연결하지 않는다.** 다음 예외를 작성하고 정상 통신을 확인한 뒤 순차 연결한다.
 
@@ -174,7 +178,7 @@ DB 단계 검증 후 Backend, AI 순으로 진행한다. 각 단계의 필수 �
 | Backend·AI → 실제 CoreDNS | UDP·TCP DNS 조회 성공 |
 | app Namespace에서 Backend 라벨 없는 테스트 Pod → DB·AI | 새 연결 차단 |
 | 다른 Namespace에서 Backend와 같은 라벨을 가진 테스트 Pod → DB·AI | 새 연결 차단 |
-| AI → DB:5432 및 Backend:8080 | 새 연결 차단 |
+| AI → 업무 CNPG DB:5432 및 Backend:8080 | 새 연결 차단 |
 | Backend → DB:8000 또는 비허용 목적지 | 새 연결 차단 |
 | ALB → Backend:8080 | 예외 추가 후 health check·요청 정상 |
 | Backend의 외부 API·메일, AI 모델 다운로드 | 각 예외 추가 후 기능 정상 |
@@ -194,7 +198,7 @@ DB는 위 DB 검증표의 복제·재합류·Operator 관리와 Egress 연결 �
 | Backend → DB `5432` | 연결 성공 |
 | 같은 클러스터의 DB 복제·새 인스턴스 합류 | 정상 동작 |
 | CNPG Operator → DB `8000` | 연결 성공 및 상태 관리 정상 |
-| AI 또는 허용되지 않은 Pod → DB `5432` | 새 연결 차단 |
+| AI 또는 허용되지 않은 Pod → 업무 CNPG DB `5432` | 새 연결 차단 |
 | `app`의 Backend 외 Pod → DB `5432` | 새 연결 차단 |
 | Backend → DB `8000`, 모니터링 → DB `9187` | 현재 규칙에서는 새 연결 차단 |
 | DB DNS·Kubernetes API·기존 STS/S3 접근 | 정책 적용 전후 동작 유지 |
@@ -249,3 +253,17 @@ bash scripts/validate-k8s.sh
 ```
 
 GitHub Actions도 같은 스크립트를 실행한다. 도구 버전, 실행 조건과 검증의 한계는 [저장소 검증 안내](../README.md#kubernetes-설정-검증)를 참고한다.
+
+## Backend 자원·HPA·DB 연결 수
+
+Stage·Prod 공통으로 Backend requests 700m/1Gi, limits 2 CPU/4Gi, HPA min 2/max 4,
+HikariCP 최대 10·최소 idle 5·연결 대기 3000ms, CNPG max_connections 200을 선언한다.
+CPU 목표 70%는 실측 전 초기값이다. Blue/Green 최대 운영 승격 시 단일 전환 기준 8개 Pod를 계획하며,
+현재 App 노드 한 대로는 수용할 수 없다. [자원 예산과 배포 전 조건](base/backend/README.md)을 확인한다.
+
+## Backend configtree
+
+Stage·Prod overlay는 환경별 SecretProviderClass와 공통 configtree component를 포함한다.
+SSM 값을 `/mnt/secrets-store/`의 파일로 마운트해 Spring 설정으로 읽는다.
+Naver 계약을 기준으로 작성했으며 실제 IRSA ARN, SSM 값 준비, Backend의 Google·이메일 URL 불일치 해결은 남아 있다.
+[매핑·동작 과정·배포 전 조건](components/backend-configtree/README.md)을 확인한다.
