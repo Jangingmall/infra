@@ -1,0 +1,61 @@
+# Loki는 자체 인증이 없는 단일 tenant다. 인터넷에 공개하지 않고 아래 Pod만 ingress 허용한다.
+# egress의 API/SSM/STS/S3 경로는 실제 endpoint·CIDR 인계 후 별도 제한한다.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: loki-internal-ingress
+  namespace: monitoring
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: loki
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: loki
+      ports:
+        - {protocol: TCP, port: 3100}
+        - {protocol: TCP, port: 9095}
+        - {protocol: TCP, port: 7946}
+        - {protocol: UDP, port: 7946}
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: alloy-pods
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: alloy-events
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: grafana
+              app.kubernetes.io/instance: metrics
+      ports:
+        - {protocol: TCP, port: 8080}
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+              operator.prometheus.io/name: metrics-prometheus
+      ports:
+        - {protocol: TCP, port: 3100}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: alloy-internal-ingress
+  namespace: monitoring
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: alloy
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+              operator.prometheus.io/name: metrics-prometheus
+      ports:
+        - {protocol: TCP, port: 12345}

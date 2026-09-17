@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: monitoring
+spec:
+  replicas: 1
+  # 초기 단일 수집기. 재시작 시 메모리 큐는 유실될 수 있으며 HA를 보장하지 않는다.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: otel-collector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: otel-collector
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        workload-type: system
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: collector
+          image: otel/opentelemetry-collector-k8s:0.160.0
+          args: [--config=/etc/otel/config.yaml]
+          env:
+            # TODO(네이티브): 실제 Tempo 배포가 준비된 후 이 ConfigMap을 생성한다.
+            # 키만 넣어도 Tempo가 설치되는 것은 아니다. 미제공 시 Pod는 시작하지 않는다.
+            - name: TEMPO_OTLP_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: traces-runtime
+                  key: TEMPO_OTLP_ENDPOINT
+            - name: OBS_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: trace-environment
+                  key: OBS_ENV
+          ports:
+            - {name: otlp-grpc, containerPort: 4317}
+            - {name: metrics, containerPort: 8888}
+            - {name: health, containerPort: 13133}
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {memory: 384Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          readinessProbe:
+            httpGet: {path: /, port: health}
+          livenessProbe:
+            httpGet: {path: /, port: health}
+            initialDelaySeconds: 10
+          volumeMounts:
+            - {name: config, mountPath: /etc/otel, readOnly: true}
+      volumes:
+        - name: config
+          configMap:
+            name: otel-collector-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: otel-collector
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: otel-collector
+  ports:
+    - {name: otlp-grpc, port: 4317, targetPort: otlp-grpc}
+    - {name: metrics, port: 8888, targetPort: metrics}

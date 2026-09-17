@@ -1,0 +1,11 @@
+loki.source.kubernetes_events "cluster" {
+  namespaces = ["app", "ai", "database", "argocd", "argo-rollouts", "cnpg-system", "kube-system", "monitoring"]
+  log_format = "json"
+  forward_to = [loki.process.events.receiver]
+}
+loki.process "events" {
+  stage.static_labels { values = { environment = sys.env("OBS_ENV"), service = "kubernetes-events" } }
+  // 이름/UID/이벤트 본문은 JSON에 유지하고 인덱스에는 namespace/service/environment만 사용한다.
+  stage.label_drop { values = ["job", "instance"] }
+  forward_to = [loki.write.default.receiver]
+}

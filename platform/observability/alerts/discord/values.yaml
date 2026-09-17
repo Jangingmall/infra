@@ -1,0 +1,69 @@
+# 명시적으로 추가할 때만 Discord/CSI 연결을 활성화한다.
+# 실제 SSM 파라미터와 IRSA ARN 준비 전에는 운영 Helm 입력에 넣지 않는다.
+alertmanager:
+  # Alertmanager 자체에는 Kubernetes API 토큰이 필요 없다.
+  # CSI의 TokenRequest를 통한 IRSA는 별도이며 node role/Pod Identity를 사용하지 않는다.
+  serviceAccount:
+    create: true
+    name: alertmanager-sa
+    automountServiceAccountToken: false
+    # 환경별 실제 ARN은 인프라 인계 후 values override로 주입한다. 가짜 ARN을 기본값으로 두지 않는다.
+    annotations: {}
+  tplConfig: false
+  config:
+    global:
+      resolve_timeout: 5m
+    route:
+      receiver: "null"
+      group_by: [environment, component, alertname, severity]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 2h
+      # 환경별 values에서만 라우팅을 연다. 단독 입력은 전송하지 않는다.
+      routes: []
+    inhibit_rules:
+      - source_matchers: ['severity="critical"', 'notify="discord"']
+        target_matchers: ['severity="warning"', 'notify="discord"']
+        # 동일 namespace/PVC/revision/장치만 억제한다. 다른 장애까지 가리지 않는다.
+        equal: [environment, component, alertname, namespace, resource_namespace, persistentvolumeclaim, pod, container, revision, node, UUID, job]
+    receivers:
+      - name: "null"
+      - name: discord
+        discord_configs:
+          - webhook_url_file: /mnt/alertmanager-secrets/discord-webhook-url
+            send_resolved: true
+            title: '[{{ .Status | toUpper }}][{{ .CommonLabels.environment | toUpper }}][{{ .CommonLabels.severity | toUpper }}] {{ .CommonLabels.alertname }}'
+            message: '{{ template "janging.discord.message" . }}'
+    templates: ['/etc/alertmanager/config/*.tmpl']
+  # 알림 본문은 최대 3개만 표시해 Discord embed 길이 한도를 넘지 않도록 한다.
+  # 임의 label/annotation 전체 덤프는 하지 않는다. Webhook·토큰·요청 본문은 포함하지 않는다.
+  templateFiles:
+    discord.tmpl: |-
+      {{ define "janging.discord.message" -}}
+      담당: {{ .CommonLabels.owner }} / 구성요소: {{ .CommonLabels.component }}
+      {{ range $i, $alert := .Alerts }}{{ if lt $i 3 }}
+      **{{ $alert.Status | toUpper }} — {{ printf "%.120s" $alert.Annotations.summary }}**
+      대상: {{ printf "%s %s %s %s %s %s %s" (or $alert.Labels.namespace "") (or $alert.Labels.resource_namespace "") (or $alert.Labels.pod "") (or $alert.Labels.persistentvolumeclaim "") (or $alert.Labels.node "") (or $alert.Labels.UUID "") (or $alert.Labels.name "") | printf "%.240s" }}
+      {{ printf "%.300s" $alert.Annotations.description }}
+      시작: {{ $alert.StartsAt }}
+      Revision: {{ $alert.Labels.revision }}
+      화면: {{ $alert.Annotations.dashboard }}
+      경로: {{ $alert.Annotations.dashboard_url }}
+      런북: {{ $alert.Annotations.runbook_url }}
+      {{ end }}{{ end }}
+      {{ if gt (len .Alerts) 3 }}총 {{ len .Alerts }}개 중 3개 표시. 나머지는 Alertmanager에서 확인하세요.{{ end }}
+      {{- end }}
+  alertmanagerSpec:
+    # 파일을 Secret 객체로 복사하지 않고 Alertmanager 컨테이너에 직접 읽기 전용 마운트한다.
+    # SSM/IRSA 미준비면 FailedMount가 되므로 이 값은 준비 완료 후에만 배포한다.
+    volumes:
+      - name: discord-webhook
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: monitoring-discord
+    volumeMounts:
+      - name: discord-webhook
+        mountPath: /mnt/alertmanager-secrets
+        readOnly: true

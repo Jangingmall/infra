@@ -1,0 +1,513 @@
+{
+  "uid": "janging-argo",
+  "title": "Argo CD · Rollouts 상태",
+  "description": "고정 버전의 기본 메트릭. 실제 EKS 검증 전이며 No data를 정상 상태로 바꾸지 않습니다.",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "tags": [
+    "argo",
+    "platform"
+  ],
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "refresh": "30s",
+  "panels": [
+    {
+      "title": "Argo 수집 Endpoint 상태",
+      "type": "stat",
+      "description": "Controller·Server·Repo Server·ApplicationSet·Rollouts를 구분합니다. 서비스 Health/Sync 성공을 뜻하지 않습니다. 현재 값을 표시합니다.",
+      "targets": [
+        {
+          "expr": "up{job=~\"argocd-controller|argocd-server|argocd-repo-server|argocd-applicationset|argo-rollouts\"}",
+          "legendFormat": "{{job}} / {{pod}}",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "수집 실패",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "수집 성공",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "text": {
+          "titleSize": 14,
+          "valueSize": 24
+        },
+        "wideLayout": false
+      },
+      "id": 1,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 8
+      }
+    },
+    {
+      "title": "Application Sync · Health",
+      "type": "table",
+      "description": "Argo CD가 보고한 현재 상태. resource_namespace는 Application 리소스의 namespace이며 배포 목적지는 dest_namespace입니다.",
+      "targets": [
+        {
+          "expr": "max by (resource_namespace,name,project,dest_namespace,sync_status,health_status) (argocd_app_info{job=\"argocd-controller\"})",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "showHeader": true
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true,
+              "project": true,
+              "resource_namespace": true
+            },
+            "indexByName": {
+              "name": 0,
+              "sync_status": 1,
+              "health_status": 2,
+              "project": 3,
+              "resource_namespace": 4,
+              "dest_namespace": 5
+            },
+            "renameByName": {
+              "name": "이름",
+              "sync_status": "Git 동기화",
+              "health_status": "건강 상태",
+              "phase": "배포 상태",
+              "strategy": "배포 전략",
+              "project": "프로젝트",
+              "resource_namespace": "리소스 namespace",
+              "dest_namespace": "배포 namespace"
+            }
+          }
+        }
+      ],
+      "id": 2,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 24,
+        "h": 5
+      }
+    },
+    {
+      "title": "Application Sync 실행률",
+      "type": "timeseries",
+      "description": "초당 Sync 실행 수를 phase별로 표시합니다. revision/사용자 등 고유값 라벨을 추가하지 않습니다.",
+      "targets": [
+        {
+          "expr": "sum by (resource_namespace,name,phase) (rate(argocd_app_sync_total{job=\"argocd-controller\"}[5m]))",
+          "legendFormat": "{{name}} / {{phase}}",
+          "refId": "A",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "id": 3,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "Application 조정 시간 p95",
+      "type": "timeseries",
+      "description": "Argo CD가 Git 상태와 클러스터 상태를 맞추는 reconcile 시간입니다. Backend HTTP 응답 시간이 아닙니다. 조정 이벤트가 없어 계산값이 NaN이면 결과에서 제외해 No data로 표시합니다. 이는 0초나 정상 동작 판정이 아닙니다.",
+      "targets": [
+        {
+          "expr": "(histogram_quantile(0.95, sum by (le,resource_namespace,name) (rate(argocd_app_reconcile_bucket{job=\"argocd-controller\"}[5m])))) >= 0",
+          "legendFormat": "{{name}}",
+          "refId": "A",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "id": 4,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 13,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "Backend Rollout 상태",
+      "type": "table",
+      "description": "v1.10.0의 rollout_info phase를 사용합니다. 두 Controller의 동일 상태 gauge는 max로 중복 합산하지 않습니다.",
+      "targets": [
+        {
+          "expr": "max by (resource_namespace,name,strategy,phase) (rollout_info{job=\"argo-rollouts\",resource_namespace=\"app\",name=\"backend\"})",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "showHeader": true
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true
+            },
+            "indexByName": {
+              "name": 0,
+              "phase": 1,
+              "strategy": 2,
+              "resource_namespace": 3
+            },
+            "renameByName": {
+              "name": "이름",
+              "sync_status": "Git 동기화",
+              "health_status": "건강 상태",
+              "phase": "배포 상태",
+              "strategy": "배포 전략",
+              "project": "프로젝트",
+              "resource_namespace": "리소스 namespace",
+              "dest_namespace": "배포 namespace"
+            }
+          }
+        }
+      ],
+      "id": 5,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 24,
+        "h": 5
+      }
+    },
+    {
+      "title": "Backend 목표 · 가용 · 최신 버전 Pod",
+      "type": "timeseries",
+      "description": "updated는 최신 template의 replica 수이며 Preview 전용 replica 수와 동일하지 않습니다. 배포 중 전체 Pod 수는 desired보다 많을 수 있습니다.",
+      "targets": [
+        {
+          "expr": "max by (resource_namespace,name) (rollout_info_replicas_desired{job=\"argo-rollouts\",resource_namespace=\"app\",name=\"backend\"})",
+          "legendFormat": "desired",
+          "refId": "A",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        },
+        {
+          "expr": "max by (resource_namespace,name) (rollout_info_replicas_available{job=\"argo-rollouts\",resource_namespace=\"app\",name=\"backend\"})",
+          "legendFormat": "available",
+          "refId": "B",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        },
+        {
+          "expr": "max by (resource_namespace,name) (rollout_info_replicas_updated{job=\"argo-rollouts\",resource_namespace=\"app\",name=\"backend\"})",
+          "legendFormat": "updated",
+          "refId": "C",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "id": 6,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 26,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "Rollouts 조정 오류율",
+      "type": "timeseries",
+      "description": "각 Controller가 직접 처리하다 발생한 오류 counter는 rate 후 합산합니다. gauge 중복 제거 방식과 구분합니다.",
+      "targets": [
+        {
+          "expr": "sum by (resource_namespace,name) (rate(rollout_reconcile_error{job=\"argo-rollouts\",resource_namespace=\"app\",name=\"backend\"}[5m]))",
+          "legendFormat": "{{name}}",
+          "refId": "A",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "id": 7,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 26,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "Rollouts 작업 대기열",
+      "type": "timeseries",
+      "description": "Controller Pod별 workqueue 길이입니다. Replica 두 개의 수치를 구분해 봅니다.",
+      "targets": [
+        {
+          "expr": "max by (pod,name) (workqueue_depth{job=\"argo-rollouts\"})",
+          "legendFormat": "{{pod}} / {{name}}",
+          "refId": "A",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "id": 8,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 34,
+        "w": 24,
+        "h": 8
+      }
+    },
+    {
+      "title": "Argo 프로세스 CPU",
+      "type": "timeseries",
+      "description": "기존 프로세스의 CPU 사용량(코어). Pod의 requests/limits 사용률과는 다릅니다.",
+      "targets": [
+        {
+          "expr": "rate(process_cpu_seconds_total{job=~\"argocd-controller|argocd-server|argocd-repo-server|argocd-applicationset|argo-rollouts\"}[5m])",
+          "legendFormat": "{{job}} / {{pod}}",
+          "refId": "A",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cores"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "id": 9,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 42,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "Argo 프로세스 메모리",
+      "type": "timeseries",
+      "description": "RSS입니다. 컨테이너 전체 메모리나 Go Heap과 같은 의미가 아닙니다.",
+      "targets": [
+        {
+          "expr": "process_resident_memory_bytes{job=~\"argocd-controller|argocd-server|argocd-repo-server|argocd-applicationset|argo-rollouts\"}",
+          "legendFormat": "{{job}} / {{pod}}",
+          "refId": "A",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "id": 10,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 42,
+        "w": 12,
+        "h": 8
+      }
+    }
+  ]
+}

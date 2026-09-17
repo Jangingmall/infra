@@ -1,0 +1,15 @@
+# PVC 용량은 초기 제안값. 실제 series/samples 측정 후 조정한다.
+prometheus:
+  prometheusSpec:
+    externalLabels:
+      environment: stage
+    retention: 7d
+    retentionSize: 16GB
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp3-monitoring
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 20Gi

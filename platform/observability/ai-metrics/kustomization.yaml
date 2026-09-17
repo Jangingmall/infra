@@ -1,0 +1,6 @@
+# AI 이미지가 /metrics를 실제 제공할 때만 별도 적용한다. 기본 GPU 번들에는 포함하지 않는다.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - podmonitor.yaml
+  - network-policy.yaml

@@ -1,0 +1,376 @@
+# kube-prometheus-stack 91.4.1. 반드시 stage.yaml 또는 prod.yaml과 함께 렌더링한다.
+# 자동 배포 미연결: System 용량, EBS CSI, Grafana 인증과 통신 검증 후 연결한다.
+fullnameOverride: metrics
+kubeEtcd:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+# EKS의 kube-proxy metrics bind address가 확인되지 않아 비활성.
+kubeProxy:
+  enabled: false
+windowsMonitoring:
+  enabled: false
+defaultRules:
+  rules:
+    etcd: false
+    kubeControllerManager: false
+    kubeSchedulerAlerting: false
+    kubeSchedulerRecording: false
+    kubeProxy: false
+    windows: false
+prometheusOperator:
+  nodeSelector:
+    workload-type: system
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  prometheusConfigReloader:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 50Mi
+      limits:
+        memory: 100Mi
+  admissionWebhooks:
+    patch:
+      nodeSelector:
+        workload-type: system
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          memory: 128Mi
+prometheus:
+  service:
+    type: ClusterIP
+  ingress:
+    enabled: false
+  prometheusSpec:
+    replicas: 1
+    nodeSelector:
+      workload-type: system
+      # 확정 구성: medium 1 + large 1. 가장 큰 메트릭 저장 Pod는 large에 배치한다.
+      # EKS 표준 라벨을 사용한다. large 부재/PVC AZ 불일치 시 Pending이므로 배포 전 확인한다.
+      node.kubernetes.io/instance-type: t3.large
+    scrapeInterval: 30s
+    scrapeTimeout: 10s
+    evaluationInterval: 30s
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1536Mi
+      limits:
+        memory: 2Gi
+    # 중앙 저장 Pod를 같은 hostname에 몰지 않도록 우선 분산한다. 강제/HA 보장은 아니다.
+    podMetadata:
+      labels:
+        observability.jangingmall.io/storage: "true"
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  observability.jangingmall.io/storage: "true"
+    # monitoring namespace의 release=metrics Monitor/Rule만 선택한다.
+    # 향후 앱 PodMonitor도 monitoring에 만들고 namespaceSelector로 대상 앱을 지정한다.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector:
+      matchLabels:
+        release: metrics
+    serviceMonitorNamespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: monitoring
+    podMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelector:
+      matchLabels:
+        release: metrics
+    podMonitorNamespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: monitoring
+    ruleSelectorNilUsesHelmValues: false
+    ruleSelector:
+      matchLabels:
+        release: metrics
+    ruleNamespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: monitoring
+alertmanager:
+  service:
+    type: ClusterIP
+  ingress:
+    enabled: false
+  # 실제 수신 채널 미제공. UI에는 경보가 보이지만 외부 알림은 전송하지 않는다.
+  config:
+    global:
+      resolve_timeout: 5m
+    route:
+      receiver: "null"
+      group_by: [namespace, alertname]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+    receivers:
+      - name: "null"
+  alertmanagerSpec:
+    replicas: 1
+    nodeSelector:
+      workload-type: system
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp3-monitoring
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 2Gi
+kube-state-metrics:
+  nodeSelector:
+    workload-type: system
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+prometheus-node-exporter:
+  nodeSelector:
+    kubernetes.io/os: linux
+  # System뿐 아니라 App/DB/GPU 노드도 수집한다. GPU 장치 메트릭은 별도 DCGM 담당.
+  tolerations:
+    - operator: Exists
+      effect: NoSchedule
+  resources:
+    requests:
+      cpu: 30m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+grafana:
+  nodeSelector:
+    workload-type: system
+  service:
+    type: ClusterIP
+  ingress:
+    enabled: false
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+  grafana.ini:
+    auth.anonymous:
+      enabled: false
+    users:
+      allow_sign_up: false
+  persistence:
+    enabled: true
+    storageClassName: gp3-monitoring
+    accessModes: [ReadWriteOnce]
+    size: 2Gi
+  deploymentStrategy:
+    type: Recreate
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  # 보조 컨테이너 2개를 제거해 요청 메모리 128Mi를 절약한다.
+  # 대시보드 기능은 유지하며 아래 ConfigMap을 Grafana에 직접 파일로 연결한다.
+  # 기본 대시보드는 고정 chart가 생성한다. chart 업그레이드 시 이름/파일 목록을 검증한다.
+  sidecar:
+    dashboards:
+      enabled: false
+    datasources:
+      enabled: false
+  # 데이터소스 파일은 chart의 checksum/config에 포함된다.
+  # Git에서 이 설정을 바꾸어 배포하면 Pod template hash가 바뀌어 Grafana가 재시작된다.
+  # Recreate 동안 화면 조회는 잠시 중단되지만 Prometheus 수집/저장은 계속된다.
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          uid: prometheus
+          type: prometheus
+          access: proxy
+          url: http://metrics-prometheus.monitoring.svc:9090
+          isDefault: true
+          editable: false
+        - name: Alertmanager
+          uid: alertmanager
+          type: alertmanager
+          access: proxy
+          url: http://metrics-alertmanager.monitoring.svc:9093
+          editable: false
+          jsonData:
+            implementation: prometheus
+        - name: Loki
+          uid: loki
+          type: loki
+          access: proxy
+          url: http://loki-gateway.monitoring.svc
+          editable: false
+  # 30초 polling으로 마운트된 대시보드 JSON을 다시 읽는다.
+  # ConfigMap 볼륨 갱신 지연도 있으므로 Git merge 직후 즉시 반영된다고 보장하지 않는다.
+  # subPath 없이 디렉터리 전체를 마운트해야 Kubernetes의 파일 갱신이 전달된다.
+  # UI 저장은 막는다. UI에서 실험한 변경은 JSON으로 내보내 Git의 공급 파일에 반영한다.
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: default
+          orgId: 1
+          folder: Kubernetes
+          type: file
+          disableDeletion: false
+          allowUiUpdates: false
+          updateIntervalSeconds: 30
+          options:
+            path: /var/lib/grafana/dashboards/default
+        # 팀 Backend 대시보드는 Helm의 dashboards ConfigMap으로 공급한다.
+        # JSON 변경은 chart checksum으로 Grafana 재시작에 반영된다.
+        - name: backend
+          orgId: 1
+          folder: Backend
+          type: file
+          disableDeletion: false
+          allowUiUpdates: false
+          updateIntervalSeconds: 30
+          options:
+            path: /var/lib/grafana/dashboards/backend
+        - name: gpu
+          orgId: 1
+          folder: GPU-AI
+          type: file
+          disableDeletion: false
+          allowUiUpdates: false
+          updateIntervalSeconds: 30
+          options:
+            path: /var/lib/grafana/dashboards/gpu
+        - name: platform
+          orgId: 1
+          folder: Platform
+          type: file
+          disableDeletion: false
+          allowUiUpdates: false
+          updateIntervalSeconds: 30
+          options:
+            path: /var/lib/grafana/dashboards/platform
+  # 각 기본 ConfigMap을 별도 하위 디렉터리에 연결한다. provider는 하위 경로도 읽는다.
+  # 파일이 삭제되면 해당 대시보드도 공급 목록에서 삭제되므로 Git diff를 확인한다.
+  extraConfigmapMounts:
+    - name: metrics-alertmanager-overview
+      configMap: metrics-alertmanager-overview
+      mountPath: /var/lib/grafana/dashboards/default/metrics-alertmanager-overview
+      readOnly: true
+    - name: metrics-apiserver
+      configMap: metrics-apiserver
+      mountPath: /var/lib/grafana/dashboards/default/metrics-apiserver
+      readOnly: true
+    - name: metrics-cluster-total
+      configMap: metrics-cluster-total
+      mountPath: /var/lib/grafana/dashboards/default/metrics-cluster-total
+      readOnly: true
+    - name: metrics-grafana-overview
+      configMap: metrics-grafana-overview
+      mountPath: /var/lib/grafana/dashboards/default/metrics-grafana-overview
+      readOnly: true
+    - name: metrics-k8s-coredns
+      configMap: metrics-k8s-coredns
+      mountPath: /var/lib/grafana/dashboards/default/metrics-k8s-coredns
+      readOnly: true
+    - name: metrics-k8s-resources-cluster
+      configMap: metrics-k8s-resources-cluster
+      mountPath: /var/lib/grafana/dashboards/default/metrics-k8s-resources-cluster
+      readOnly: true
+    - name: metrics-k8s-resources-multicluster
+      configMap: metrics-k8s-resources-multicluster
+      mountPath: /var/lib/grafana/dashboards/default/metrics-k8s-resources-multicluster
+      readOnly: true
+    - name: metrics-k8s-resources-namespace
+      configMap: metrics-k8s-resources-namespace
+      mountPath: /var/lib/grafana/dashboards/default/metrics-k8s-resources-namespace
+      readOnly: true
+    - name: metrics-k8s-resources-node
+      configMap: metrics-k8s-resources-node
+      mountPath: /var/lib/grafana/dashboards/default/metrics-k8s-resources-node
+      readOnly: true
+    - name: metrics-k8s-resources-nodes-overview
+      configMap: metrics-k8s-resources-nodes-overview
+      mountPath: /var/lib/grafana/dashboards/default/metrics-k8s-resources-nodes-overview
+      readOnly: true
+    - name: metrics-k8s-resources-pod
+      configMap: metrics-k8s-resources-pod
+      mountPath: /var/lib/grafana/dashboards/default/metrics-k8s-resources-pod
+      readOnly: true
+    - name: metrics-k8s-resources-workload
+      configMap: metrics-k8s-resources-workload
+      mountPath: /var/lib/grafana/dashboards/default/metrics-k8s-resources-workload
+      readOnly: true
+    - name: metrics-k8s-resources-workloads-namespace
+      configMap: metrics-k8s-resources-workloads-namespace
+      mountPath: /var/lib/grafana/dashboards/default/metrics-k8s-resources-workloads-namespace
+      readOnly: true
+    - name: metrics-kubelet
+      configMap: metrics-kubelet
+      mountPath: /var/lib/grafana/dashboards/default/metrics-kubelet
+      readOnly: true
+    - name: metrics-namespace-by-pod
+      configMap: metrics-namespace-by-pod
+      mountPath: /var/lib/grafana/dashboards/default/metrics-namespace-by-pod
+      readOnly: true
+    - name: metrics-namespace-by-workload
+      configMap: metrics-namespace-by-workload
+      mountPath: /var/lib/grafana/dashboards/default/metrics-namespace-by-workload
+      readOnly: true
+    - name: metrics-node-cluster-rsrc-use
+      configMap: metrics-node-cluster-rsrc-use
+      mountPath: /var/lib/grafana/dashboards/default/metrics-node-cluster-rsrc-use
+      readOnly: true
+    - name: metrics-node-rsrc-use
+      configMap: metrics-node-rsrc-use
+      mountPath: /var/lib/grafana/dashboards/default/metrics-node-rsrc-use
+      readOnly: true
+    - name: metrics-nodes-aix
+      configMap: metrics-nodes-aix
+      mountPath: /var/lib/grafana/dashboards/default/metrics-nodes-aix
+      readOnly: true
+    - name: metrics-nodes-darwin
+      configMap: metrics-nodes-darwin
+      mountPath: /var/lib/grafana/dashboards/default/metrics-nodes-darwin
+      readOnly: true
+    - name: metrics-nodes
+      configMap: metrics-nodes
+      mountPath: /var/lib/grafana/dashboards/default/metrics-nodes
+      readOnly: true
+    - name: metrics-persistentvolumesusage
+      configMap: metrics-persistentvolumesusage
+      mountPath: /var/lib/grafana/dashboards/default/metrics-persistentvolumesusage
+      readOnly: true
+    - name: metrics-pod-total
+      configMap: metrics-pod-total
+      mountPath: /var/lib/grafana/dashboards/default/metrics-pod-total
+      readOnly: true
+    - name: metrics-prometheus
+      configMap: metrics-prometheus
+      mountPath: /var/lib/grafana/dashboards/default/metrics-prometheus
+      readOnly: true
+    - name: metrics-workload-total
+      configMap: metrics-workload-total
+      mountPath: /var/lib/grafana/dashboards/default/metrics-workload-total
+      readOnly: true
