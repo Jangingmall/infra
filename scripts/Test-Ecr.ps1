@@ -27,8 +27,8 @@ foreach ($environment in @('prod', 'staging')) {
     # Only ECR files and test provider requirements; no real backend/provider.
     Get-ChildItem -LiteralPath (Join-Path $repoRoot "terraform/environments/$environment") -Filter 'ecr*.tf' |
         Copy-Item -Destination $isolatedRoot
-    if ($environment -eq 'prod') {
-        # B-plan prod: copy only shared env/ECR blocks, not network outputs or resources.
+    if ($environment -in @('prod', 'staging')) {
+        # B-plan prod/staging: copy only shared env/ECR blocks, not network outputs or resources.
         $sharedFiles = @(
             @{ Name = 'variables.tf'; Pattern = '(?ms)^variable "(?:env|ecr_[^"]+)" \{.*?^\}'; Count = 7 },
             @{ Name = 'outputs.tf'; Pattern = '(?ms)^output "ecr_[^"]+" \{.*?^\}'; Count = 3 }

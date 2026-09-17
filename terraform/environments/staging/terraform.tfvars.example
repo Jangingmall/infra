@@ -1,0 +1,12 @@
+# staging 환경 값 예시. terraform.tfvars로 복사한 뒤 담당자 확인 후 사용한다.
+# 공용 ECR 소유 state가 정해지기 전에는 ecr_enabled=false 기본값을 유지한다.
+# project = "jangin"
+env = "staging"
+# region = "ap-northeast-2"
+
+# ecr_enabled = false
+ecr_repositories = ["jangin-app", "jangin-ai/sglang", "jangin-ai/ollama"]
+# ecr_keep_last_images     = 10
+# ecr_untagged_expire_days = 7
+# ecr_kms_key_arn          = null
+# ecr_tags                 = {}
