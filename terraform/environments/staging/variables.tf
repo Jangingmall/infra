@@ -111,7 +111,8 @@ variable "nat_alarm_sns_topic_arns" {
   default     = []
 }
 
-# TODO(staging 값 확정): 박명수/플랫폼: Kubernetes 버전 1.33은 prod 잠정값, staging 적용 전 지원 범위 확인
+# ✅ 2026-09-17 팀 확정: 1.35 (prod·staging 동일)
+#    🔴 apply 전 STANDARD_SUPPORT 구간인지 + 애드온 호환만 확인하세요
 variable "eks_cluster_version" {
   description = <<-EOT
     ✅ 2026-09-17 팀 확정 — 쿠버네티스 버전 1.35.
@@ -134,7 +135,7 @@ variable "eks_cluster_version" {
   default     = "1.35"
 }
 
-# TODO(staging 값 확정): 박다정: API_AND_CONFIG_MAP 인증 모드 확정
+# ✅ 2026-09-16 파트장 확정: API (prod·staging 동일) — aws-auth ConfigMap 미사용
 variable "eks_authentication_mode" {
   description = <<-EOT
     ✅ 2026-09-16 파트장 확정 — API (AWS API 로만 권한 관리).
@@ -168,7 +169,8 @@ variable "eks_bootstrap_creator_admin" {
   default     = true
 }
 
-# TODO(staging 값 확정): 보안팀: staging API 공개 접근 여부 확인
+# ✅ 2026-09-17 팀 확정: B안 — 구축기(9/18~20)는 public(팀원 IP 제한)+private,
+#    9/21 검수 시작 시 private only 로 전환. 전환은 클러스터 재생성 없이 몇 분
 variable "eks_endpoint_public_access" {
   description = <<-EOT
     ✅ 2026-09-17 파트장 확정 — 단계 운영(B안).
@@ -197,7 +199,9 @@ variable "eks_endpoint_private_access" {
   default     = true
 }
 
-# TODO(staging 값 확정): 보안팀: prod 잠정 전체 허용 유지; 감사 로그/최소 인증 권한 전제와 staging 허용 CIDR 확정
+# ✅ 2026-09-17 확정: 기본값 [] — 0.0.0.0/0 전체 허용은 폐기됐습니다
+#    🔴 실제 팀원 IP 는 terraform.tfvars 에서 채웁니다 (작업 규칙 23)
+#    🟡 staging 은 9/21~23 DAST 스캐너 IP 추가 필요 — 보안팀 회신 대기
 variable "eks_public_access_cidrs" {
   description = <<-EOT
     🔴 TODO — 팀원 IP 목록. **apply 전에 반드시 채워야 합니다.**

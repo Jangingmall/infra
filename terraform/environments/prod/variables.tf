@@ -97,11 +97,8 @@ variable "eks_cluster_name" {
   description = <<-EOT
     EKS 클러스터 이름. 서브넷의 kubernetes.io/cluster/<이름> 태그에 쓰인다.
 
-    TODO(⑥ EKS 단계에서 확정값 재확인)
-      CLAUDE.md에 클러스터명이 명시돼 있지 않아, 네이밍 규칙
-      jangin-<env>-<resource> 에서 유도한 잠정값이다.
-      ⑥에서 실제 생성할 클러스터 이름과 일치하는지 반드시 대조할 것.
-      (불일치 시 태그가 무의미해지는 정도이고 파괴적이지는 않다)
+    ✅ ⑥ 에서 대조 완료 — eks.tf 가 같은 변수를 modules/eks 의 cluster_name 으로
+       넘기므로 서브넷 태그와 실제 클러스터 이름이 구조적으로 일치한다.
   EOT
   type        = string
   default     = "jangin-prod-eks-cluster"
