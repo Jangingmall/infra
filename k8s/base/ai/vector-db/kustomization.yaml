@@ -9,4 +9,5 @@ configMapGenerator:
   - name: ai-vector-db-init
     namespace: ai
     files:
+      - 00-load-password.sh
       - init.sql

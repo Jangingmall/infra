@@ -1,33 +1,34 @@
-# AI 벡터DB Parameter Store 연결
+# AI 벡터DB 파일 기반 비밀번호 공급
 
-Stage·Prod overlay에서만 사용한다. Parameter Store → CSI 마운트 → ai-vector-db-auth Secret 동기화 → DB/AI 환경변수 경로다. Backend configtree에는 secretObjects를 추가하지 않는다.
+Parameter Store → CSI 파일 마운트 → 프로세스가 파일 읽기 방식이다. Kubernetes Secret을 생성하지 않는다. Backend configtree도 유지한다.
 
-## 배포 전 필수 인계
+## 연결
 
-- 제안 경로는 `/staging/ai/vector-db/{postgres-password,password}`와 `/prod/ai/vector-db/{postgres-password,password}`다. 기존 팀 3단 경로 규칙과 다르므로 실제 이름을 인프라와 확정하고 SPC 및 검증을 함께 갱신한다.
-- 두 파라미터는 환경별 SecureString으로 생성한다. 실제 값은 Git에 넣지 않는다.
-- 환경별 IRSA Role 신뢰 대상: `system:serviceaccount:ai:ai-vector-db-sa`, audience `sts.amazonaws.com`, 해당 EKS OIDC provider.
-- 인프라가 두 파라미터의 ssm:GetParameters와 사용 KMS 키의 필요한 kms:Decrypt 권한을 제공한다.
-- 실제 ARN을 받은 뒤 각 환경 overlay에서 ai-vector-db-sa의 `eks.amazonaws.com/role-arn` annotation을 patch한다. 현재 ARN은 미제공이며 이 상태는 배포 준비 완료가 아니다.
-- CSI driver/provider의 노드 네트워크에서 STS·SSM 접근이 가능해야 한다. DB 컨테이너의 egress를 임의 개방하지 않는다.
+- 벡터DB: ai-vector-db-sa → ai-vector-db-config → 관리자/앱 비밀번호 파일 두 개.
+- 관리자: POSTGRES_PASSWORD_FILE로 PostgreSQL entrypoint가 읽는다.
+- 앱 계정 초기화: 비실행 00-load-password.sh를 entrypoint가 source하고, 파일 내용을 프로세스 환경변수 AI_DB_PASSWORD에만 담아 init.sql의 psql 변수 인용으로 전달한다. SQL/명령행 인자에 비밀번호를 직접 삽입하지 않는다.
+- AI: ai-worker-sa → ai-chatbot-config → 앱 비밀번호 파일 하나. DB_PASSWORD_FILE로 경로를 전달한다. 관리자 파일은 AI에 마운트하지 않는다.
+- init 스크립트는 빈 데이터 디렉터리의 최초 초기화에만 실행된다. ConfigMap 기본 파일 모드 0644를 유지한다.
 
-## 인증과 최초 실행
+## 배포 전 필수 조건
 
-DB의 일반 Kubernetes API 토큰 자동 마운트는 계속 비활성이다. CSI Driver의 tokenRequests(sts.amazonaws.com)로 Pod ServiceAccount 토큰을 요청하는 경로를 사용한다. CSI Driver에 AWS IRSA Role을 부여하지 않는다.
+- TODO(AI): DB_PASSWORD_FILE을 읽고 파일 누락/빈 값에서 실패하는 AI 이미지/digest 제공. 현재 확인한 AI 코드는 DB_PASSWORD 환경변수만 읽는다. 이 이미지가 준비되지 않으면 배포하지 않는다.
+- TODO(인프라): 제안 경로 /staging/ai/vector-db/{postgres-password,password}, /prod/ai/vector-db/{postgres-password,password}를 실제 팀 규칙에 맞춰 확정하고 SecureString 생성. 검증 스크립트도 함께 변경한다.
+- TODO(인프라/네이티브): 환경별 ai-vector-db-sa Role ARN을 overlay에 연결한다. 신뢰 sub는 system:serviceaccount:ai:ai-vector-db-sa, audience sts.amazonaws.com. 해당 파라미터의 ssm:GetParameters와 필요한 KMS decrypt만 부여한다.
+- ai-worker-sa의 기존 IRSA에 앱 비밀번호 조회 권한을 추가한다. 이 SA는 두 AI Deployment가 공유하므로 권한은 SGLang에도 적용된다. 관리자 비밀번호 조회는 허용하지 않는다. 엄격한 앱별 권한 분리는 별도 SA/Role 합의가 필요하다.
+- CSI는 tokenRequests를 사용한다. DB의 일반 API 토큰 automount=false를 유지한다. Driver에 통합 AWS Role을 주지 않는다.
+- Driver/Provider 노드 경로의 STS/SSM 연결을 확인한다. DB 컨테이너 egress를 임의 개방하지 않는다.
 
-플랫폼 CSI syncSecret/RBAC 준비 후 workloads를 등록한다. DB Pod가 CSI 볼륨을 마운트해야 Secret이 동기화된다. SPC만 적용해도 Secret이 생기는 것은 아니다. 같은 Pod에서 Secret 환경변수를 사용할 때 초기 동기화 동안 컨테이너 생성이 재시도될 수 있다. Ollama도 Secret 준비 전에는 대기할 수 있다.
+## 전환과 운영
 
-관리자 비밀번호 파일은 벡터DB Pod에만 마운트한다. Ollama는 기존 password 키 참조를 유지한다. Argo CD가 Secret을 직접 선언하지 않으며 CSI가 소유한다.
+secretObjects와 ai-vector-db-auth 참조를 제거했다. CSI syncSecret도 false다. 실제 클러스터의 기존 Secret은 소비자가 없는 것을 확인한 후 운영자가 정리한다. 이번 작업은 클러스터 리소스를 삭제하지 않는다.
 
-## 생명주기와 비밀번호 변경
-
-동기화를 담당하는 마운트 Pod가 모두 삭제되면 동기화 Secret도 삭제될 수 있다. 환경변수 참조만 하는 AI Pod가 Secret을 유지한다고 가정하지 않는다. GPU 노드 재가동 시 SSM/IRSA가 다시 준비되어야 한다. Secret 부재를 빈 비밀번호나 인증 우회로 처리하지 않는다.
-
-자동 rotation은 비활성이다. 기존 PVC의 DB 계정 비밀번호는 SSM 갱신이나 Pod 재시작만으로 변경되지 않는다. 백업/유지보수 계획 하에 DB 계정 암호, SSM 값, Secret 재동기화, AI 재시작을 조정한다. 각 단계의 불일치 기간에는 접속 실패가 가능하며 실제 값을 로그·명령 이력에 남기지 않는다.
+자동 rotation은 비활성이다. 파일 변경만으로 기존 DB 계정 암호가 바뀌지 않는다. DB 계정 변경, SSM 값 변경, 마운트 갱신, AI 재시작을 유지보수 계획 아래 조정한다. 환경변수·메모리에 암호가 일시적으로 존재할 수 있으며 '파일 방식'을 프로세스에 암호가 없다는 뜻으로 해석하지 않는다.
 
 ## 검증
 
-로컬: overlay 렌더링, 환경별 경로, alias/key, CSI 마운트, Helm sync RBAC를 확인한다.
-실제 EKS: ARN·SSM 준비 후 CSI 마운트/Secret 존재와 키 이름만 확인하고 DB Ready, AI 인증 접속, DB Pod 재생성 후 재연결을 확인한다. Secret 값 출력은 하지 않는다. 이 문서는 실제 EKS 검증 결과가 아니다.
+로컬: overlay 렌더링, Secret 복제/참조 제거, DB/AI 파일 경로, AI 관리자 파일 미노출 확인.
+DB 이미지: 임시 테스트 비밀번호 파일로 초기화·앱 계정 접속·특수문자 비밀번호·빈 파일 실패·데이터 재사용 확인.
+실제 EKS와 실제 AI 이미지는 별도 검증이다. 실제 암호/Secret 내용을 출력하지 않는다.
 
-공식 근거: https://secrets-store-csi-driver.sigs.k8s.io/topics/sync-as-kubernetes-secret
+2026-09-17 로컬 검증 통과: pgvector:0.8.2-pg17-bookworm에서 0644 초기화 파일로 계정 생성, 특수문자 암호 로그인, 잘못된 암호 거부, 빈/누락 파일 거부, 기존 데이터 재시작을 확인했다. TCP 인증 테스트는 initdb의 host 인증을 scram-sha-256으로 명시했다. Mac bind mount의 실행 권한 판정 차이를 피하기 위해 초기화 파일을 컨테이너 내부에 복사하여 ConfigMap 기본 권한을 재현했다. CSI/IRSA 자체의 실행 검증은 포함하지 않는다.

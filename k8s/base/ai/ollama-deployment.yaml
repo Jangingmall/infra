@@ -49,11 +49,9 @@ spec:
               value: midam
             - name: DB_USER
               value: ai_chatbot
-            - name: DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: ai-vector-db-auth
-                  key: password
+            # TODO(AI, 배포 전): DB_PASSWORD_FILE을 읽는 이미지/digest가 필요하다.
+            - name: DB_PASSWORD_FILE
+              value: /mnt/secrets-store/password
           startupProbe:
             httpGet:
               path: /ai/health

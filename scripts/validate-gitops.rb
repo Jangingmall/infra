@@ -45,13 +45,24 @@ check(spc.dig('spec','parameters','usePodIdentity')=='false', 'AI vector DB must
 objects = YAML.load(spc.dig('spec','parameters','objects'))
 prefix = environment=='stage' ? 'staging' : 'prod'
 check(objects.map { |o| o['objectName'] }.sort == %W[/#{prefix}/ai/vector-db/password /#{prefix}/ai/vector-db/postgres-password], 'AI secret environment paths differ')
-synced = spc.dig('spec','secretObjects').first
-check(synced['secretName']=='ai-vector-db-auth', 'AI Secret name differs')
-check(synced['data'].map { |d| [d['objectName'],d['key']] }.sort == [['password','password'],['postgres-password','postgres-password']], 'AI Secret alias/key mismatch')
+check(!spc.dig('spec','secretObjects'), 'AI DB must not sync Kubernetes Secrets')
+chat = managed.find { |r| r['kind']=='SecretProviderClass' && r.dig('metadata','name')=='ai-chatbot-config' }
+check(chat && !chat.dig('spec','secretObjects'), 'AI chatbot must use file-only secrets')
+chat_objects = YAML.load(chat.dig('spec','parameters','objects'))
+check(chat_objects.map { |o| o['objectName'] } == ["/#{prefix}/ai/vector-db/password"], 'AI must mount only application password')
+ai = managed.find { |r| r['kind']=='Deployment' && r.dig('metadata','name')=='ai-ollama' }.dig('spec','template','spec')
+check(ai['volumes'].any? { |v| v.dig('csi','volumeAttributes','secretProviderClass')=='ai-chatbot-config' }, 'AI CSI volume missing')
+check(ai['containers'].first['env'].any? { |e| e['name']=='DB_PASSWORD_FILE' && e['value']=='/mnt/secrets-store/password' }, 'AI password file contract missing')
+check(ai['containers'].first['volumeMounts'].any? { |v| v['name']=='ai-chatbot-secrets' && v['readOnly']==true }, 'AI CSI mount missing')
 db = managed.find { |r| r['kind']=='StatefulSet' && r.dig('metadata','name')=='ai-vector-db' }.dig('spec','template','spec')
 check(db['serviceAccountName']=='ai-vector-db-sa', 'AI DB IRSA ServiceAccount missing')
 check(db['volumes'].any? { |v| v.dig('csi','volumeAttributes','secretProviderClass')=='ai-vector-db-config' }, 'AI secret sync needs CSI volume')
 check(db['containers'].first['volumeMounts'].any? { |v| v['name']=='ai-vector-db-secrets' && v['readOnly']==true }, 'AI secret sync needs mounted volume')
+check(db['containers'].first['env'].any? { |e| e['name']=='POSTGRES_PASSWORD_FILE' && e['value']=='/mnt/secrets-store/postgres-password' }, 'DB password file missing')
+check(db['containers'].first['env'].any? { |e| e['name']=='AI_DB_PASSWORD_FILE' && e['value']=='/mnt/secrets-store/password' }, 'DB application password file missing')
+[db, ai].each do |pod|
+  check(pod['containers'].all? { |c| c.fetch('env',[]).none? { |e| e.dig('valueFrom','secretKeyRef','name')=='ai-vector-db-auth' } }, 'obsolete AI Secret reference remains')
+end
   managed.each do |r|
     group = r['apiVersion'].include?('/') ? r['apiVersion'].split('/').first : ''
     scope = r.dig('metadata','namespace') ? 'namespaceResourceWhitelist' : 'clusterResourceWhitelist'
