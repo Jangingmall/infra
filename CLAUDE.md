@@ -2,11 +2,11 @@
 
 > kt cloud TECH UP 2기 3팀 "삼성가고싶어요" 통합프로젝트 · 서비스 **장인몰**
 > Claude Code가 매 세션 자동으로 읽습니다. **결정사항 위주로 짧게 유지하세요.**
-> 기준: **통합프로젝트 Context 2026-09-14** + **팀 컨텍스트 v0.8** + **네트워크·계정 설계서 최종본(9/14)** + **모듈화 전략 B안(9/15 19:21 파트장 최종)** + **비용 보고서 v1.0**
-> 최종 갱신 **2026-09-15** (이전판 09-14)
+> 기준: **통합프로젝트 Context 2026-09-14** + **팀 컨텍스트 v0.8** + **네트워크·계정 설계서 최종본(9/14)** + **모듈화 전략 B안(9/15 19:21 파트장 최종)** + **비용 보고서 v1.0** + 🆕 **엣지·S3 버킷 설계서(9/16 파트장)** + 🆕 **인터페이스 명세서 v0.5(9/16)**
+> 최종 갱신 **2026-09-16** (이전판 09-15)
 >
-> 🔴 **현재 AWS 상태: 리소스 없음.** 9/15 파트장님이 기존 네트워크 리소스를 destroy 하셨습니다.
-> 코드는 `main` 에 남아 있으나 **모듈 구조로 재작성 후 재생성**해야 합니다.
+> 🔴 **현재 AWS 상태: 여전히 리소스 없음.** ②③④ 는 코드만 `main` 에 머지(PR #18)됐고 **apply 는 9/18 일괄**입니다.
+> ✅ **예외 — ① State 백엔드는 살아 있고, 9/16 에 SSE-KMS(CMK)로 전환**했습니다. 「배포 리소스 현황」 참조.
 
 ---
 
@@ -35,18 +35,33 @@
 | 1 | **ECR 태그 규칙** (BE `sha-` vs 다정님 `staging-`/`prod-`) | CN+다정+BE | CI 이미지 승격 |
 | 2 | **메일 SMTP 세부** ("google email"만 회신) | BE | 아웃바운드 포트·시크릿 |
 | 3 | **App `requests` 구체값** | BE | 롤링 배포 가능 여부 |
-| 4 | **AI 컨테이너 이미지·모델 배포 경로** | AI | NAT 처리료 $13 |
+| 4 | **AI 컨테이너 이미지·모델 배포 경로**<br>🔄 09-16: 명수님 PR #24 의 AI 이미지가 **임시 값** — *"실제 ECR 주소·Digest 로 교체 필요"* | AI + CN + 창원 | NAT 처리료 $13 · **Pod 가 안 뜸** |
 | 5 | **staging / prod 운영 방식** (가)순차·(나)staging축소·(다)prod단일 | 파트장 + 그룹장 | **동시 운영은 예산 2배로 불가** |
-| 6 | **공용 ECR State 위치** — 🔴 현재 `ecr_enabled = false` **양쪽 다 꺼져 있음** | 창원 + 파트장 | **BE가 `docker push` 못 함** (다정님 안내 이미 발송됨) |
+| 6 | **공용 ECR State 위치** — 🔴 현재 `ecr_enabled = false` **양쪽 다 꺼져 있음**<br>🔄 09-16 창원님 제안: *"동일 digest 승격이라 환경별 분리 시 승격 모델이 깨짐 → **prod state 단일 생성 + staging 공유**"* → 인프라 동의. **파트장 확정 대기**<br>🔴 **지금 정해야 함** — state 간 이동은 `moved` 로 안 되고, Immutable 태그라 재생성 시 BE 이미지 소실 | 창원 + 파트장 | **BE가 `docker push` 못 함** |
 | 7 | **최종 설계서 ↔ 코드 차이 4건** (아래 「설계서 차이」) | 파트장 | ⑦⑧ 코드 작성 |
 | 8 | **EKS 버전 · 인증 모드 · 엔드포인트 공개** | 파트장 + 다정 + 보안 | 🔴 **되돌릴 수 없는 결정** — 별도 안건 문서 |
 | **9** | 🆕🔴 **Redis 미설계** — BE 회신에 `redis-host`·`redis-port` **필수**로 등장 | 인프라 + CN + BE | **리소스·비용 산정에 Redis가 없음** |
 | **10** | 🆕🔴 **App 노드 메모리** — BE `-XX:MaxRAMPercentage=75` + limit 4Gi → 힙 최대 3Gi.<br>t3.medium(allocatable ≈3.4Gi)에 Pod 2개 = **OOM 위험** | 인프라 + CN + BE | ⑦ 노드그룹 사이징 |
 | **11** | 🆕 **ALB Idle Timeout** — BE가 **SSE + AI 응답 Streaming** 사용. 기본 60초면 끊김 | 인프라(⑩) | SSE 연결 유지 |
 | **12** | 🆕 **`jangin-staging-build` EC2 정체** — 다정님 SSM 안내에 등장. 기존 설계엔 **Bastion·빌드 EC2 없음** | 다정 + 파트장 | 신규 리소스면 **비용 미산정** |
-| **13** | 🆕 **DNS 서브도메인 `stg.` vs `staging.`** | 파트장 | Route53·CORS·FE env |
+| ~~13~~ | ~~DNS 서브도메인 `stg.` vs `staging.`~~ | — | ✅ **9/16 해소** (아래) |
+| ~~14~~ | ~~AI ServiceAccount 이름 변경~~ | — | ✅ **9/16 해소** — 두 Deployment 가 `ai-worker-sa` 를 **공유**. IRSA 6번 그대로 유효 |
+| **15** | 🆕🔴 **NetworkPolicy egress 예외 — 인프라가 값 5종을 CN 에 줘야 함** (PR #24 명시 요구) | **인프라** → CN | 🔴 **DB·Backend·AI 발신 정책을 영영 연결 못 함.** 보안팀 조건 #1 미충족 |
+| **16** | 🆕🔴 **VPC CNI NetworkPolicy 미활성화** — addon 에서 켜지 않으면 NetworkPolicy 가 **에러 없이 무시**됨 | **인프라** (⑥/⑧) | 🔴 **명수님 정책 전부가 무효.** "만들었는데 안 막힌다" |
+| **17** | 🆕🔴 **무효 리소스 ID 가 타 직군 문서에 살아 있음** — `vpce-02f0b40…` 등 9/15 destroy 된 ID | **인프라** (즉시 공지) | 잘못된 값으로 설계·구현이 진행됨 |
 
 > 위 값이 안 나온 상태에서 **임의값으로 채우지 말 것.** `variable` + `TODO` 주석으로 남기고 진행.
+
+### ✅ 9/16 해소된 것
+
+| 항목 | 결론 |
+|---|---|
+| **DNS 서브도메인 `stg.` vs `staging.`** | ✅ **`stg.` 확정** (9/16 파트장 「엣지·S3 버킷 설계서」).<br>`midam.store`→Vercel · `api.midam.store`→ALB · **`stg.midam.store`**→Vercel staging · 🆕 **`api.stg.midam.store`**→staging ALB · 🆕 **`img.midam.store`**→CloudFront<br>⚠️ **리소스 이름 접두사는 그대로 `staging`** 입니다. DNS 와 리소스명은 별개 축이라는 기존 판단이 유지됐습니다 |
+| **이미지 CDN 도메인** | ✅ **`img.midam.store`** 확정 → FE `next.config.js` 통보 대상 (인터페이스 명세서 IF_11) |
+| **S3 버킷 구성** | ✅ **5종 → 7종** 으로 변경 (9/16 파트장). 아래 「S3 버킷」 참조 |
+| **State 암호화 SSE-KMS(CMK)** | ✅ **9/16 전환 완료.** 파트장 지적 반영 — PR `fix/tfstate-kms-encryption`. 아래 「배포 리소스 현황」 |
+| **CNPG 노드 배치(Taint/Toleration)** | ✅ **명수님 PR #21 에 반영 완료.** 인프라가 요청한 내용이 그대로 들어감 → ⑦ 사양이 고정됨 (아래 「노드 구성」 참조) |
+| **네트워크 모듈 구조** | ✅ **`modules/nat` 분리** (9/16 파트장 리뷰). 「디렉토리 구조」 참조 |
 
 ### ✅ 9/15 해소된 것
 
@@ -76,7 +91,7 @@
 
 | 영역 | 확정 |
 |---|---|
-| IaC | **Terraform** (State: 전용 S3 + DynamoDB Lock — **CLI 수동 생성 승인**) |
+| IaC | **Terraform** (State: 전용 S3 + DynamoDB Lock — **CLI 수동 생성 승인**)<br>🔄 09-16: State 암호화 **SSE-KMS(CMK) 전환 완료**. 키는 `alias/jangin-infra-s3-tfstate`<br>🔴 이 CMK 는 **Terraform 이 관리하지 않습니다** — ⑧ CMK 로 쓰면 순환 의존 |
 | 클라우드 | **AWS 단일** |
 | 리전 | **`ap-northeast-2` (서울)** |
 | 계정 | 공용계정 1개 + IAM Identity Center. **SSO Start URL**: `https://d-9b675a5254.awsapps.com/start` |
@@ -84,12 +99,12 @@
 | **환경 분리** | **staging / prod 별도 클러스터 · 별도 VPC** (Peering 없음) |
 | **NAT** | ✅ **NAT Gateway** (AZ-a 단일 + **EIP 고정**) — ~~NAT Instance~~ 폐기 |
 | LB | **ALB (target-type `ip`)** + **AWS WAF** · Pod Readiness Gate 병행 |
-| **DNS** | apex `midam.store` → Vercel / `api.midam.store` → ALB<br>🟡 **스테이징 서브도메인 `stg.` vs `staging.` — 파트장 확인 필요**<br>(리소스 **이름 접두사**는 9/14 설계서 최종본에서 `staging` 으로 통일됐으나, **DNS 서브도메인은 별개 축**이라 자동 변경하지 않음) |
+| **DNS** ✅ | 🔄 **09-16 전부 확정** (파트장 「엣지·S3 버킷 설계서」)<br>`midam.store` → Vercel (FE) · `api.midam.store` → ALB (BE)<br>**`stg.midam.store`** → Vercel staging · 🆕 **`api.stg.midam.store`** → staging ALB<br>🆕 **`img.midam.store`** → CloudFront (상품 이미지 CDN)<br>⚠️ **DNS 는 `stg.` / 리소스 이름 접두사는 `staging`** — 별개 축입니다. 통일하지 마세요 |
 | **DB** | **CloudNativePG** — Primary 1 + Replica 2 |
 | 레지스트리 | ECR — **단일 레포 `jangin-app` + 동일 아티팩트 승격** · **Immutable** |
 | **시크릿** | Parameter Store **`/{env}/{team}/{key}` (3단)** + KMS CMK<br>**CSI Driver → 볼륨 마운트 → Spring `configtree`** (Secret Sync 미사용) |
-| **AI 런타임** | **EKS GPU 직접** — g6e.xlarge(이미지·SGLang) + g4dn.xlarge(챗봇·Ollama) |
-| S3 | **5종** — images / returns / backup / models / logs |
+| **AI 런타임** | **EKS GPU 직접** — g6e.xlarge(이미지·SGLang) + g4dn.xlarge(챗봇·Ollama)<br>🔄 09-16: 명수님 PR #24 가 Deployment·Service 를 **`ai-sglang`(L40S) / `ai-ollama`(T4)** 로 분리 → 🔴 **IRSA 이름 재확인 필요**(막힌 항목 14) |
+| S3 | 🔄 **09-16: 5종 → 7종** — images / returns / backup / models / logs + 🆕 **access** + 🆕 **waf-logs** |
 | CI/CD | GitHub Actions → ECR → ArgoCD → EKS |
 | 레포 | **`infra` 단일** + `terraform/`·`k8s/`·`argocd/` |
 | 모니터링 | Prometheus + Grafana + **Loki(S3 백엔드)** — **Kubecost 미도입** |
@@ -101,13 +116,18 @@
 인바운드  : 사용자 → Route53(DNS 조회) → WAF → ALB → App Pod : 443→8080 (/healthz)
 앱↔DB     : App Pod ↔ CNPG Pod : 5432                      (양방향)
 앱→AI     : App Pod → GPU Pod : 8000                       (클러스터 내부)
+             🔄 09-16 PR #24: 대상이 2개로 분리됨
+             ├─ ai-sglang Service : 8000   (L40S · 이미지)
+             └─ ai-ollama Service : 8000   (T4  · 챗봇)
 모니터링   : Prometheus → App Pod : 9090                     (클러스터 내부만)
 아웃바운드 : 모든 노드 → NAT Gateway(EIP 고정) → IGW : 443
-             ├─ 토스페이먼츠(PG) · 카카오/구글(OAuth) · 스마트택배
+             ├─ 토스페이먼츠(PG) · 카카오/구글/네이버(OAuth) · 스마트택배
              ├─ Google SMTP : 587/465
              └─ ECR · STS · EC2 API
+             🔴 STS 는 IRSA 의 생명줄 — NetworkPolicy egress 예외에 반드시 포함 (막힌 항목 15)
 S3        : 노드 → S3 Gateway Endpoint (NAT 미경유 · 무료)
 이미지조회 : 브라우저 → CloudFront(OAC) → S3 `products/`   ✅ 9/15 확정 · BPA 유지
+             🆕 09-16: CDN 도메인 = img.midam.store
              업로드는 presigned PUT 으로 S3 직접 (CloudFront 미경유)
 관리      : Admin → SSM Session Manager (Bastion 없음, SSH 22 차단)
 🔴 차단   : Data→인터넷 ✕ / ALB→9090 ✕ / GPU→DB ✕ / Staging→Prod ✕
@@ -168,6 +188,13 @@ ECR:   jangin-app  (환경 구분 없이 단일 레포, 태그로 구분)
 - 리소스명은 **`locals`로 조립**
 - ⚠️ S3 버킷명은 **전역 고유** — 충돌 시 접미사
 
+> 🔴 **네이밍 규칙의 유일한 예외 (09-16 신설)**
+> ```
+> aws-waf-logs-logs-jangin-{env}     ← WAF 로그 버킷
+> ```
+> AWS 가 **WAF 로그 대상 버킷 이름은 `aws-waf-logs` 로 시작해야 한다**고 하드 제약을 겁니다.
+> **`jangin-` 으로 고치면 WAF 로깅이 조용히 멈춥니다.** 이름을 바꾸기 전에 이 문단을 확인하세요.
+
 ### 공통 태그 (비용 분석 선행조건)
 
 ```hcl
@@ -193,9 +220,55 @@ locals {
 |---|---|---|---|---|
 | **System** | `t3.medium` | **2** | 264h | Prometheus·Grafana·Loki·ArgoCD·ALB Controller |
 | **App** | `t3.medium` | **1** | 102h | Backend Pod |
-| **DB** | `t3.small` | 3 | 102h | CNPG Primary 1 + Replica 2 |
+| **DB** | `t3.small` | 🔴 **3 (min_size 도 3)** | 102h | CNPG Primary 1 + Replica 2 |
 | **GPU-A** | **`g6e.xlarge`** (L40S 48GB) | 1 | 102h | 이미지·텍스트 (SGLang) |
 | **GPU-B** | **`g4dn.xlarge`** (T4 16GB) | 1 | 102h | 챗봇 (Ollama) |
+
+### 🆕🔴 DB 노드그룹 — 09-16 제약 확정 (명수님 PR #21)
+
+명수님이 `k8s/base/database/cluster.yaml` 에 아래를 넣으셨고, 이게 ⑦ 사양을 고정합니다.
+
+```yaml
+spec:
+  affinity:
+    nodeSelector:
+      workload-type: db          # ← 라벨 키:  workload-type
+    tolerations:
+      - key: workload            # ← Taint 키: workload   (서로 다름. 정상입니다)
+        value: db
+        effect: NoSchedule
+    enablePodAntiAffinity: true
+    topologyKey: kubernetes.io/hostname
+    podAntiAffinityType: required   # 🔄 preferred 에서 변경됨
+```
+
+**⑦ 에서 반드시 이 값으로 만들어야 합니다**
+
+```hcl
+labels = { "workload-type" = "db" }                                  # Pod 가 노드를 고르는 쪽
+taint  = { key = "workload", value = "db", effect = "NO_SCHEDULE" }  # 노드가 Pod 를 막는 쪽
+```
+
+⚠️ **Label 키와 Taint 키가 다릅니다.** 둘은 별개 메커니즘이라 달라도 동작하며,
+GPU 규약(`workload-type=gpu` 라벨 + `nvidia.com/gpu` Taint)과도 일관됩니다. **통일하지 마세요.**
+
+🔴 **`podAntiAffinityType: required` 가 만든 제약**
+
+`required` + `topologyKey: hostname` = *"CNPG Pod 3개는 반드시 서로 다른 노드에"* 입니다.
+Pod 3개 : 노드 3대 = **여유 0**.
+
+| 항목 | 값 | 안 지키면 |
+|---|---|---|
+| `desired_size` | **3** | Pod 가 못 뜸 |
+| **`min_size`** | 🔴 **3** (2 아님) | 오토스케일러가 1대 줄이는 순간 **Pod 1개 영구 `Pending`** |
+| `capacity_type` | 🔴 **`ON_DEMAND`** | **Spot 회수 시 그 Pod 가 영영 못 돌아옴** |
+
+⚠️ **10/1~10/4 노드 내리기 때도** DB 노드를 부분적으로 줄이면 복구 시 Pod 가 안 뜹니다.
+**전부 내렸다 전부 올리는** 방식이어야 합니다 (파트장 Q-PL-07 결정과 직결).
+
+> 💡 `required` 는 더 안전해 보이지만 **가용성을 노드 대수에 묶습니다.**
+> 실무에선 노드를 Pod 보다 1대 더 두거나 `topologyKey` 를 AZ 단위로 올리는데,
+> 우리는 **AZ-a 단일 + 예산 98.8%** 라 둘 다 못 합니다. 잔여 위험으로 기록합니다.
 
 ### GPU 노드그룹 — 🔴 `desired_size = 0`으로 생성
 
@@ -226,32 +299,74 @@ g6e 250GB / g4dn 125GB NVMe를 **containerd 데이터 루트 + kubelet ephemeral
 | 3 | **`app:backend-sa`** | `jangin-{env}-irsa-backend` | Parameter Store + `kms:Decrypt` + **`kms:GenerateDataKey`** |
 | 4 | **`database:cnpg-backup-sa`** | `jangin-{env}-irsa-cnpg` | S3 백업 + **`kms:GenerateDataKey`** |
 | 5 | **`monitoring:loki-sa`** | `jangin-{env}-irsa-loki` | `s3-logs` 접근 |
-| 6 | **`ai:ai-worker-sa`** | `jangin-{env}-irsa-ai` | `s3-models` 최소권한 |
+| 6 | 🔴 **`ai:ai-worker-sa`** — **09-16 실물과 불일치 가능** | `jangin-{env}-irsa-ai` | `s3-models` 최소권한 |
 | — | ~~`secrets-store-csi-driver`~~ | **만들지 않음** | Workload SA가 직접 보유 |
 
 > ⚠️ **OIDC Provider 등록이 선행조건.** 빠뜨리면 `sts:AssumeRoleWithWebIdentity` 오류가 나는데 원인이 잘 안 드러남
 > 🔴 **`kms:GenerateDataKey` 누락 시** SSE-KMS 버킷 업로드가 실패하는데, **에러가 KMS인지 S3인지 구분이 안 됨**
+>
+> 🆕🔴 **09-16: 6번 AI ServiceAccount 재확인 필요** (막힌 항목 14)
+> 명수님 PR #24 가 AI 를 **`ai-sglang`(L40S) / `ai-ollama`(T4)** 두 Deployment·Service 로 분리했습니다.
+> ServiceAccount 도 분리됐다면 `ai:ai-worker-sa` 하나로는 맞지 않습니다.
+> - SA 가 **1개 유지**면 → 기존 IRSA 그대로
+> - SA 가 **2개로 분리**면 → IRSA 도 2개(또는 1 Role 에 2 SA trust) 로 가야 함
+> 🔴 안 맞으면 AI Pod 가 `s3-models` 를 못 읽고, 에러는 단순 권한 오류로 보여 원인을 찾기 어렵습니다.
+>
+> 🆕🔴 **09-16: NetworkPolicy egress 에 STS 예외 필수** (막힌 항목 15)
+> IRSA 는 Pod 가 **STS 를 호출해 임시 자격증명을 받는 구조**입니다.
+> PR #24 가 Backend·DB·AI 발신 차단 정책을 아직 배포에 연결하지 않았는데,
+> **STS 예외 없이 연결되면 위 6종이 전부 동시에 죽습니다.** 연결 전 CN 과 반드시 확인.
 
 ---
 
-## S3 버킷 5종 + State
+## S3 버킷 **7종** + State 🔄 09-16 변경
+
+> 🔄 **2026-09-16 파트장 「엣지·S3 버킷 설계서」 반영.** 기존 5종 → **7종**.
 
 | 버킷 | 용도 | 공개 | 암호화 |
 |---|---|---|---|
-| `jangin-{env}-s3-images` | 상품 이미지 | 🟡 **CloudFront vs 공개 — 결정 대기** | SSE-S3 |
+| `jangin-{env}-s3-images` | 상품 이미지 | **CloudFront(OAC) 경유만** · BPA 유지 | SSE-S3 |
 | `jangin-{env}-s3-returns` | 반품 증빙 | **비공개** | **SSE-KMS(CMK)** |
 | `jangin-{env}-s3-backup` | CNPG WAL·백업 | 비공개 | **SSE-KMS(CMK)** |
 | `jangin-{env}-s3-models` | AI 가중치 | 비공개 | SSE-S3 |
-| `jangin-{env}-s3-logs` | **4가지 용도 — 아래** | 비공개 | SSE-KMS |
-| `jangin-infra-s3-tfstate` | Terraform State | 비공개 | SSE-KMS + 버전관리 + TLS 강제 |
+| `jangin-{env}-s3-logs` | 🔄 **로그 3종으로 축소** — 아래 | 비공개 | **SSE-KMS(CMK)** |
+| 🆕 **`jangin-{env}-s3-access`** | **S3 서버 접근 로그 전용** | 비공개 | 🔴 **SSE-S3 (KMS 금지)** |
+| 🆕 **`aws-waf-logs-logs-jangin-{env}`** | **WAF 로그 전용** | 비공개 | (기본) |
+| `jangin-infra-s3-tfstate` | Terraform State | 비공개 | ✅ **SSE-KMS(CMK) + 버전관리 + TLS 강제** (09-16 전환 완료) |
 
-**`s3-logs` prefix 분리 필수**
+### 🔴 신설 2종 — 각각 "반드시 이래야 하는" 이유가 있습니다
+
+**① `s3-access` 를 왜 분리하고, 왜 SSE-S3 인가**
+
+S3 서버 접근 로그는 **AWS 의 로그 전송 주체가 직접 버킷에 씁니다.** 이 주체는 우리 CMK 를 쓸 권한이 없어서, **SSE-KMS(CMK) 버킷에는 로그를 남기지 못합니다.**
+
+🔴 **그런데 에러가 나지 않습니다.** 로그가 그냥 안 쌓입니다.
+→ 보안팀 검수 때 *"접근 로그가 비어 있다"* 로 발견되는 전형적인 함정입니다.
+→ 그래서 **접근 로그만 별도 버킷 + SSE-S3** 로 뺍니다. (기존 `s3-logs/s3-access/` prefix 는 폐지)
+
+**② `aws-waf-logs-` 는 🔴 네이밍 규칙의 유일한 예외입니다**
+
+```
+우리 규칙 : jangin-<env>-<resource>
+WAF 로그  : aws-waf-logs-logs-jangin-{env}     ← AWS 하드 제약
+```
+
+AWS 가 **WAF 로그 대상 S3 버킷 이름은 `aws-waf-logs` 로 시작해야 한다**고 강제합니다.
+
+🔴 **이 예외를 모르는 사람이 "규칙에 안 맞네" 하고 이름을 고치면 WAF 로깅이 조용히 멈춥니다.**
+이름을 바꾸기 전에 반드시 이 문단을 확인하세요.
+
+⚠️ 파트장님 문서 표기에 **`jagin-{env}-s3-access`** (`n` 누락) 오타가 있어 확인 요청드린 상태입니다. 위 표는 `jangin-` 기준입니다.
+
+**`s3-logs` prefix 분리 필수 — 🔄 4종 → 3종**
 
 ```
 s3-logs/cloudtrail/   ← 장기보관 (멘토 요구)
-        s3-access/    ← S3 접근 로그 (보안팀)
         vpc-flow/     ← VPC Flow Logs (보안팀 NAT 조건 4)
         loki/         ← Loki 청크 (단기)
+
+❌ s3-access/   → 🔄 09-16 폐지. 별도 버킷 jangin-{env}-s3-access 로 이동
+❌ waf/         → 🔄 09-16 폐지. 별도 버킷 aws-waf-logs-logs-jangin-{env} 로 이동
 ```
 🔴 prefix를 안 나누면 lifecycle이 엉켜 **비용이 샙니다.**
 
@@ -267,7 +382,7 @@ s3-logs/cloudtrail/   ← 장기보관 (멘토 요구)
 }
 ```
 - **GET 불필요** — `<img src>`·`next/image`(서버 fetch)라 CORS 대상 아님
-- **staging 버킷에는 `https://stg.midam.store` 추가**
+- **staging 버킷에는 `https://stg.midam.store` 추가** ✅ 09-16 DNS 확정으로 이 값 고정
 - ⚠️ **SSE-KMS는 버킷 기본 암호화로 강제.** 버킷 정책에 *"암호화 헤더 없으면 Deny"* 를 **넣지 않음** (넣으면 FE가 헤더를 보내야 함). TLS 강제 Deny는 유지
 
 ### 공통 버킷 정책 (보안팀 요구)
@@ -276,7 +391,7 @@ s3-logs/cloudtrail/   ← 장기보관 (멘토 요구)
 |---|---|
 | TLS 강제 | `aws:SecureTransport = false` Deny |
 | ACL 비활성화 | `Object Ownership = Bucket owner enforced` |
-| 접근 로깅 | → `s3-logs/s3-access/` |
+| 접근 로깅 | 🔄 **09-16: → `jangin-{env}-s3-access` 버킷** (구: `s3-logs/s3-access/` prefix) |
 | 익명 권한 (공개 시) | `products/*` `s3:GetObject`만. **`ListBucket`·`Put`·`Delete`·ACL 금지** |
 
 ---
@@ -324,12 +439,64 @@ s3-logs/cloudtrail/   ← 장기보관 (멘토 요구)
 - 🔴 **챗봇 모델 미확정** · CUDA 재포팅 9/11 or 9/15 불확실
 - ⚠️ **Ollama 기본 포트는 11434** — 8000은 앞단 uvicorn 추정. Pod 내부 구조 확인 필요
 
+**🆕 ☸️ CN (박명수) 09-16 반영분 — 인프라 영향**
+
+| PR | 내용 | 인프라 영향 |
+|---|---|---|
+| **#21** (머지됨) | CNPG `nodeSelector: workload-type=db` + `toleration: workload=db` 추가 | ✅ **막힌 항목 해소.** ⑦ 사양이 이 값으로 **고정**됨 |
+| **#21** (머지됨) | `podAntiAffinityType: preferred` → **`required`** | 🔴 **DB 노드 `min_size=3` · `ON_DEMAND` 강제** (「노드 구성」 참조) |
+| **#21** (머지됨) | `k8s-validate.yml` CI 신설 (`paths: k8s/**`·`platform/**`) | terraform PR 에는 안 걸림. **terraform CI 는 여전히 부재** |
+| **#24** (열림) | AI 를 **`ai-sglang`(L40S) / `ai-ollama`(T4)** 로 분리 | 🔴 **IRSA 6번 SA 이름 재확인**(막힌 항목 14) · 앱→AI 대상이 2개로 |
+| **#24** (열림) | DB 수신 기본 차단 + Backend·CNPG 허용, Backend→AI 8000 허용 | ✅ 보안팀 NAT 조건 #1 **부분 충족** |
+| **#24** (열림) | Backend 기본 차단·DB/AI 발신 차단은 **배포 미연결** (ALB·외부 API·**STS**·S3 예외 미완) | 🔴 **STS 예외 없이 연결되면 IRSA 6종 전부 실패**(막힌 항목 15) |
+| **#24** (열림) | AI 이미지가 **임시 값** — 실제 ECR 주소·Digest 필요 | 막힌 항목 4·6 과 연결 |
+
+> 🔗 **NetworkPolicy 는 CN 과업입니다** (작업규칙 13). 인프라는 **SG·NACL·NAT 계층**만 담당하고,
+> 겹치는 지점만 협업 포인트로 짚습니다. **단, 아래 두 가지는 인프라 작업입니다.**
+
+#### 🆕🔴 인프라 작업 A — VPC CNI NetworkPolicy 활성화 (막힌 항목 16)
+
+EKS 에서 NetworkPolicy 는 **VPC CNI addon 에서 켜야 실제로 동작**합니다.
+
+```
+enableNetworkPolicy = "true"    ← aws-vpc-cni addon configuration
+```
+
+🔴 **안 켜면 NetworkPolicy 리소스는 생성되지만 아무것도 막지 않습니다. 에러도 안 납니다.**
+명수님이 *"YAML 렌더링만으로 통신 차단 여부를 확인할 수 없다"* 고 쓰신 게 이 얘기이며,
+**명수님이 만든 정책 전부가 무효가 되는 단일 실패점**입니다.
+
+- 작업 위치: **⑥ EKS addon** 또는 **⑧** (애드온 단계)
+- 검증: `kubectl -n kube-system get ds aws-node -o yaml | grep -i networkpolicy`
+- ⚠️ 정책 시행 주체가 노드의 에이전트라 **노드가 뜬 뒤에야** 동작합니다
+
+#### 🆕🔴 인프라 작업 B — CN 에 넘겨야 할 값 5종 (막힌 항목 15)
+
+명수님이 PR #24 에 **명시적으로 요청**한 항목입니다. 이게 없으면 DB·Backend·AI **발신 정책을 영영 연결 못 합니다.**
+
+| # | 항목 | 인프라가 줘야 할 것 | 🔴 주의 |
+|---|---|---|---|
+| 1 | **CNPG → Kubernetes API** (443) | EKS API endpoint 의 **실제 목적지 IP/CIDR** | 🔴 **Q-PL-01 엔드포인트 공개 범위 결정에 종속.**<br>public 이면 EKS 공인 IP, private 이면 **VPC 내 ENI IP**(AWS 가 관리, 변할 수 있음) |
+| 2 | **백업 워크로드 → STS** (443) | `sts.ap-northeast-2.amazonaws.com` 의 IP 범위 | 🔴 **NAT 경유**(Interface Endpoint 미도입 확정).<br>NAT EIP 는 **출발지**이지 목적지가 아님 — 명수님 지적 정확 |
+| 3 | **백업 워크로드 → S3** (443) | 리전 S3 **CIDR 목록 + 갱신 방법** | 🔴 **prefix list ID 를 NetworkPolicy 에 넣을 수 없음.**<br>SG 는 되지만 NetworkPolicy 는 **CIDR 만** 받음 — 명수님 지적 정확 |
+| 4 | **DNS 구성** | CoreDNS 라벨 / NodeLocal DNS 사용 여부 | 미사용 확정이면 그대로 답하면 됨 |
+| 5 | **S3 Gateway Endpoint 경로** | Endpoint ID · 연결된 라우팅 테이블 | 🔴 **9/18 apply 후에야 실제 ID 가 나옵니다** |
+
+> 🔴 **1·5 는 9/18 apply 전에는 값 자체가 없습니다.** CN 에 *"apply 후 제공"* 으로 일정을 맞춰야 합니다.
+
+> 💡 **3번 S3 는 트레이드오프를 함께 제시해야 합니다.**
+> S3 공인 IP 대역은 AWS 가 수시로 갱신합니다. NetworkPolicy 에 CIDR 로 박으면 **목록이 바뀔 때마다 사람이 갱신**해야 하고, 놓치면 **백업이 조용히 실패**합니다.
+> 심층 방어 관점에서 S3 접근 제한은 **IAM + Endpoint Policy + Bucket Policy** 3계층이 이미 담당하므로,
+> NetworkPolicy 는 **443 포트 단위 허용**에 그치는 선택지가 있습니다.
+> ⚠️ 명수님은 *"외부 HTTPS 전체 허용으로 예외를 대신하지 않는다"* 는 원칙을 세우셨으므로 **보안팀·CN·인프라 합의 사안**입니다. 인프라 단독 결정 아님.
+
 **🔐 보안** — 3-tier · SG Reference · IRSA · **CSI Driver 볼륨 마운트**
 - **NAT Gateway 조건부 승인 5건** — 아래
 - **AI Pod DAST 범위 편입** · **스테이징 GPU 필요** (스캔 시점만)
 - 🔴 **CloudFront OAC 권고** · **EXIF 서버측 백스톱 권고** (MVP는 잔여위험)
 - IAM: Root MFA · AccessKey 미생성 · **한시적 admin 9/15~17 회수**
 - 스테이징 DAST 8항목
+- 🆕 **09-16 문서 표현 수정 요구**: *"3-tier"* → **"전통적인 서브넷 기반 3-tier 가 아니라, EKS 내부 워크로드에 Kubernetes 네트워크 정책과 노드 격리를 적용한 **논리적 3-tier 구조**"** — 문서 5종 반영 대상
 
 ### NAT Gateway 조건 5건 (보안팀)
 
@@ -367,6 +534,8 @@ s3-logs/cloudtrail/   ← 장기보관 (멘토 요구)
 | **18** | 🆕🔴 **남이 만든 파일을 확인 없이 `cp`·`mv` 로 덮지 않는다.** 대상 경로에 파일이 있는지 `ls` 로 먼저 확인 (09-12 `.gitignore` 25줄 파괴 · 09-15 `modules/network/main.tf` 덮어쓰기) |
 | **19** | 🆕 **커밋 전 `git status` 첫 줄(브랜치명) 확인** (09-13 잘못된 브랜치 커밋) |
 | **20** | 🆕 **리소스 이름·버킷명·경로를 제안하기 전에 이 문서의 확정값을 먼저 확인** (09-12 State 버킷명 임의 제안 사고) |
+| **21** | 🆕🔴 **"설정"이 아니라 "실물"을 확인한다.** 버킷 설정이 SSE-KMS 라도 객체는 AES256 일 수 있다.<br>보안 항목 검증은 리소스 설정 조회가 아니라 **결과물 조회**로 한다 — 예: `aws s3api head-object ... --query ServerSideEncryption`<br>*(09-16 실제 사례: `backend.tf` 의 `encrypt = true` 가 버킷 기본 암호화를 덮어써서, 콘솔엔 KMS 인데 State 는 SSE-S3 였음)* |
+| **22** | 🆕 **셸 스크립트는 "생성 구간"과 "검증 구간"의 엄격도를 나눈다.** 생성은 `set -e` 로 즉시 중단, 검증은 `set +e` 로 끝까지 출력.<br>*(09-16 실제 사례: 키 교체 상태 조회 실패로 스크립트가 죽어, 가장 중요한 객체 암호화 확인이 실행되지 못함)* |
 
 > 📌 **규칙 10 보충 (2026-09-13)**: `NodePool` 값은 `system｜app｜db｜ai` 중 하나여야 Cost Explorer 필터가 의미를 갖습니다.
 > VPC·서브넷·IGW·라우팅·SG·Endpoint 는 **요금이 $0** 이고 저 넷 중 어디에도 속하지 않으므로 **부여하지 않습니다.**
@@ -413,7 +582,7 @@ s3-logs/cloudtrail/   ← 장기보관 (멘토 요구)
 | ✅ **9/13 (일)** | **② VPC (PR #4) · ③ SG (PR #5) · ④ S3 Endpoint (PR #6)** — 관리 리소스 41개 · $0 |
 | ✅ **9/14 (월)** | 보안팀 검토 요청 · 타 직군 질문 · **파트장 설계서 최종본 수령** · 로컬 동기화 |
 | ✅ **9/15 (화)** | 🔄 **모듈화 B안 최종 확정**(오전 A안 → 저녁 정정) · **CloudFront OAC 확정** · 🔴 **네트워크 리소스 destroy** · PR #12·#15·#16 머지 |
-| **9/16 (수)** | **B안 구조로 네트워크 재PR → 재apply (과금 $0)** · ⑤⑥⑦⑧ 코드 → **`plan` 까지만** |
+| ✅ **9/16 (수)** | **PR #13·#18·#21 머지** · 🔄 **`modules/nat` 분리**(파트장 리뷰) · ✅ **State SSE-KMS 전환** · 파트장 **엣지·S3 설계서** 수령 · 명수님 **PR #24 NetworkPolicy**<br>🔴 **재apply 안 함 — 파트장 지시로 9/18 일괄로 통합** |
 | 🔴 **9/17 (목)** | **신준한 정규시간 부재** (개인 작업은 가능) · 🔴 **과금 리소스 apply 금지일** |
 | **9/18 (금)** | 🔴 **⑤~⑧ 일괄 `apply`** · **프로비저닝 완료** |
 | 9/15~17 | IAM 한시적 admin 회수 (박다정) |
@@ -439,18 +608,23 @@ s3-logs/cloudtrail/   ← 장기보관 (멘토 요구)
 ✅ ② VPC · 서브넷 6개 · 라우팅 · IGW          ← 무료             PR #4
 ✅ ③ Security Group 4종 (sg-eks-gpu 포함)     ← 무료             PR #5
 ✅ ④ S3 Gateway Endpoint                      ← 무료             PR #6
-🔄 ②③④ 모듈 구조로 재PR + 재apply             ← 무료 · 9/16     (리소스 destroy됨)
-   ⑤ NAT Gateway + EIP(prevent_destroy)       ← 💰 9/18
-   ⑥ EKS 클러스터 + OIDC Provider              ← 💰 9/18
+✅ ②③④ 모듈 구조로 재작성 (코드만)            ← 무료             PR #18 머지 ✅
+   ⑤ NAT Gateway + EIP(prevent_destroy)       ← 💰 9/18          PR #19 (리뷰 반영 완료)
+   ⑥ EKS 클러스터 + OIDC Provider              ← 💰 9/18          PR #22
    ⑦ 노드그룹 (System/App/DB/GPU×2 — GPU는 desired=0)  ← 💰 9/18
    ⑧ KMS CMK + Parameter Store + IRSA 6종 + 🔴 EBS CSI Driver 애드온
-   ⑨ S3 버킷 5종 (prefix·lifecycle·CORS)
-   ⑩ ALB · WAF · Route53 · ACM
+   ⑨ S3 버킷 🔄 7종 (prefix·lifecycle·CORS·접근로그·WAF로그)
+   ⑩ ALB · WAF · Route53 · ACM · CloudFront   🔗 파트장 영역
 ```
 
 > 🔴 **①~④ 는 9/13 에 배포했으나 9/15 destroy 되었습니다.** ① State 백엔드(S3·DynamoDB)는 그대로 살아 있고, ②③④ AWS 리소스만 삭제됐습니다.
-> 🔄 **②③④ 재생성은 과금 $0** 이므로 규칙 17 대상이 아닙니다. **9/16 중 재apply 해야 9/18 에 ⑤ 이후를 얹을 수 있습니다.** (재apply 시점은 파트장 확인 필요)
+> 🔄 **09-16 정정: ②③④ 를 따로 재apply 하지 않습니다.** 파트장님이 *"apply 는 일괄 진행"* 으로 정하셔서 **9/18 에 ②~⑧ 을 한 번에** 올립니다.
+> (이전 판의 *"9/16 중 재apply"* 는 폐기됐습니다)
 > 💰 **⑤ 이후는 과금.** 9/17 까지 `plan` 까지만, **9/18 일괄 `apply`** (규칙 17)
+>
+> 🆕🔴 **⑦ 에 `AmazonSSMManagedInstanceCore` 를 빠뜨리지 마세요** (다정님 BE 접근 안내).
+> 노드 IAM 역할에 이 정책이 없으면 **SSM Session Manager 로 노드에 못 들어갑니다.**
+> Bastion 을 만들지 않기로 한 설계라, 이게 유일한 접근 경로입니다.
 >
 > 🔴 **⑧ EBS CSI Driver 가 9/18 범위에서 빠지면 안 됩니다.**
 > 박명수님이 `k8s/base/storage/gp3-cnpg-storageclass.yaml` 로 **gp3 StorageClass** 를 이미 올려두셨는데,
@@ -463,7 +637,7 @@ s3-logs/cloudtrail/   ← 장기보관 (멘토 요구)
 
 | # | 산출물 | 상태 |
 |---|---|---|
-| 1 | IaC 모듈 코드 + 환경 배포 + **IaC CI plan·정책 검증** | 🔄 CI 검증은 백로그에 없음 |
+| 1 | IaC 모듈 코드 + 환경 배포 + **IaC CI plan·정책 검증** | 🔄 **09-16: CN 은 `k8s-validate.yml` CI 를 이미 만듦**(PR #21). terraform CI 는 여전히 없음 → `fmt -check` + `validate` 워크플로 제안 예정 |
 | 2 | **클러스터 환경 인계 문서** (CN 협업) | ⬜ |
 | 3 | 구성 관리 자동화 스크립트 + 이미지 빌드 자동화 | ⬜ |
 | 4 | 백업·복원 검증 + **멀티 AZ HA 적용 결과** | 🔴 단일 AZ와 충돌 |
@@ -493,10 +667,11 @@ infra/
 ├── platform/                           🔗 CN(박명수) — cloudnative-pg / argo-rollouts Helm values
 └── terraform/
     ├── modules/                        ← 리소스 정의는 여기에만
-    │   ├── network/          VPC·Subnet·IGW·RouteTable·NAT      [인프라 ②⑤]
-    │   ├── security/         SG 4종 + Rule 15개                  [인프라 ③]
-    │   ├── endpoints/        S3 Gateway Endpoint                 [인프라 ④]
-    │   ├── eks/      ⬜ 스캐폴드  Cluster·OIDC·NodeGroup          [인프라 ⑥⑦]
+    │   ├── network/  ✅ 완료      VPC·Subnet·IGW·RouteTable        [인프라 ②]  무료
+    │   ├── nat/      🆕 09-16      NAT GW·EIP·Route·알람            [인프라 ⑤]  💰 유료
+    │   ├── security/ ✅ 완료      SG 4종 + Rule 15개                [인프라 ③]  무료
+    │   ├── endpoints/ ✅ 완료     S3 Gateway Endpoint               [인프라 ④]  무료
+    │   ├── eks/      🔄 PR #22    Cluster·OIDC                      [인프라 ⑥]  💰 유료
     │   ├── ecr/      ✅ 완료      ECR 레포·수명주기               🔗 [이창원 PR #12]
     │   ├── acm_alb/  ✅ 완료      ALB용 ACM + Route53 검증        🔗 [강윤주 PR #15]
     │   ├── acm_cloudfront/ ✅     CloudFront용 ACM (us-east-1)    🔗 [강윤주 PR #15]
@@ -507,6 +682,8 @@ infra/
         ├── prod/                       ← 🔴 module 호출만. 리소스 직접 선언 금지
         │   ├── versions.tf · backend.tf · providers.tf · locals.tf
         │   ├── vpc.tf                  ← module "network" 호출     ┐
+        │   ├── nat.tf         🆕 09-16 ← module "nat" 호출          │
+        │   ├── eks.tf                  ← module "eks" 호출          │
         │   ├── security.tf             ← module "security" 호출    │ 호출 파일은
         │   ├── endpoints.tf            ← module "endpoints" 호출   │ 리소스별로 분리
         │   ├── ecr.tf                  ← module "ecr" 호출         ┘
@@ -690,21 +867,83 @@ moved {
 
 ---
 
-## 🔴 배포 리소스 현황 (2026-09-15 기준)
+## 🔴 배포 리소스 현황 (2026-09-16 기준)
 
-> 계정 `750240012008` · SSO 프로필 `jangin` · Permission Set `Infra-Admin` · 리전 `ap-northeast-2`
+> 계정은 이 문서에 적지 않습니다 (작업 규칙 2). SSO 프로필 `jangin` · Permission Set `Infra-Admin` · 리전 `ap-northeast-2`
 
 | 구분 | 상태 |
 |---|---|
-| ① **State 백엔드** | ✅ **살아 있음** — `jangin-infra-s3-tfstate` / `jangin-infra-ddb-tfstate-lock` (TLS 강제 · 버전관리) |
-| ②③④ **VPC · SG · Endpoint** | 🔴 **없음** — 9/15 파트장님이 destroy. 9/13 에 만든 관리 리소스 41개 전부 삭제됨 |
+| ① **State 백엔드** | ✅ **살아 있음** — `jangin-infra-s3-tfstate` / `jangin-infra-ddb-tfstate-lock` |
+| ① **State 암호화** | 🔄 **09-16 SSE-KMS(CMK) 전환 완료** — 아래 상세 |
+| ②③④ **VPC · SG · Endpoint** | 🔴 **없음** — 9/15 destroy. 코드는 PR #18 로 `main` 에 머지됨. **apply 는 9/18** |
 | ⑤~⑩ | ⬜ 미생성 |
+
+### 🆕 ① State 백엔드 상세 (09-16 갱신)
+
+| 항목 | 값 | 비고 |
+|---|---|---|
+| 버킷 | `jangin-infra-s3-tfstate` | |
+| Lock | `jangin-infra-ddb-tfstate-lock` | |
+| 버전 관리 | `Enabled` | State 손상 시 **유일한** 복구 수단 |
+| 기본 암호화 | 🔄 **`aws:kms` (CMK)** | 구: `AES256` |
+| **KMS 키** | **`alias/jangin-infra-s3-tfstate`** | 🔴 **Terraform 이 관리하지 않음** |
+| 키 교체 | `True` (연 1회) | |
+| Bucket Key | `True` | 💰 KMS 요청 비용 절감 |
+| TLS 강제 | `DenyInsecureTransport` | |
+| Public Access Block | 4종 전부 `True` | |
+
+🔴 **State 용 CMK 를 Terraform 으로 만들지 않는 이유 — 순환 의존**
+
+```
+⑧ 에서 Terraform 이 만든 CMK 로 State 버킷을 암호화하면
+  → "State 를 담은 금고의 열쇠를 그 State 가 관리"
+  → terraform destroy (⑧) → 키 삭제 대기(7~30일)
+  → State 복호화 불가 → plan 도 destroy 도 못 함 → 🔴 복구 불가
+```
+
+그래서 **State 용 CMK 는 `scripts/bootstrap-tfstate.sh` 가 CLI 로 만들고, ⑧ 의 애플리케이션용 CMK 와 별개 키**로 유지합니다.
+
+🔴 **`backend.tf` 에 `kms_key_id` 가 반드시 있어야 합니다**
+
+`encrypt = true` 만 있고 `kms_key_id` 가 없으면 Terraform 이 PutObject 에 **AES256 헤더를 직접 붙여** 버킷 기본 암호화를 덮어씁니다.
+→ **콘솔엔 KMS 인데 State 실물은 SSE-S3** 가 됩니다. (09-16 실측으로 확인)
+
+```bash
+# 검증은 버킷 설정이 아니라 객체로 (작업 규칙 21)
+aws s3api head-object --bucket jangin-infra-s3-tfstate \
+  --key prod/terraform.tfstate --query ServerSideEncryption
+# → "aws:kms" 여야 정상
+```
+
+⚠️ **현재는 아직 `AES256` 입니다.** 기존 객체는 재암호화되지 않고, **9/18 첫 apply 에서 State 가 새로 쓰일 때** `aws:kms` 로 바뀝니다.
+→ 🔴 **9/18 apply 직후 위 명령 재확인이 완료 조건입니다.**
+→ 구버전 State 는 `AES256` 으로 남습니다. 지우면 복구 수단이 사라지므로 **잔여 위험으로 기록**하고 종료 시 정리합니다.
+
+🔴 **타 직군 영향**: 창원님 CI(GitHub Actions) 역할에 **`kms:Decrypt`(plan) · `kms:GenerateDataKey`(apply)** 가 필요합니다.
+키 정책은 계정 루트 위임이라 **IAM 정책 추가만으로 됩니다** (다정님 영역).
+💰 CMK 1개 = 월 약 **$1** — 비용 보고서 v1.0 미반영 항목.
+
+### 🔴🆕 09-16 발견 — 무효 ID 가 타 직군 문서에 살아 있습니다 (막힌 항목 17)
+
+명수님 PR #24 의 `k8s/README.md` 에 아래 값이 인용돼 있습니다. **팀 컨텍스트 v0.8 · DB 값·CI 설정 문서에서 가져오신 것**입니다.
+
+| 값 | 판정 | 이유 |
+|---|---|---|
+| `vpce-02f0b4007562d1132` (S3 Gateway Endpoint) | 🔴 **무효** | 9/15 destroy 됨. **9/18 apply 후 새 ID 가 생깁니다** |
+| `pl-78a54011` (S3 Prefix List) | ✅ **유효** | **AWS 관리형**이라 우리가 만든 게 아님. 계정·리전 고정값이라 destroy 와 무관 |
+
+> 🔑 **둘을 구분하는 게 핵심입니다.** *"9/15 에 다 지웠으니 둘 다 무효"* 로 뭉뚱그리면,
+> 실제로는 살아 있는 prefix list 를 다시 찾느라 시간을 씁니다.
+> **우리가 만든 것(`vpce-`)** 과 **AWS 가 주는 것(`pl-`)** 은 생명주기가 다릅니다.
+
+명수님은 *"이 기록을 실제 AWS 상태로 간주하지 않는다"* 고 신중하게 쓰셨지만,
+**다른 팀원은 그대로 쓸 수 있습니다.** → 🔴 **팀 컨텍스트 v0.8 과 DB 값 문서에서 `vpce-` 를 걷어내는 정정 공지가 필요합니다.**
 
 > 🔴 **이전 판(09-14)에 있던 리소스 ID 표는 전부 무효**라 삭제했습니다.
 > `vpc-014f8fb…` 등 예전 ID 를 타 직군 문서·설정에 쓰면 안 됩니다.
-> **9/16 재apply 후 새 ID 로 이 표를 다시 채웁니다.** (인계 문서 재료 — 완성도 30점)
+> **9/18 apply 후 새 ID 로 이 표를 채웁니다.** (인계 문서 재료 — 완성도 30점)
 
-**재apply 후 채울 항목**: VPC · subnet ×6 · route table ×3 · IGW · SG ×4 + default SG · S3 Gateway Endpoint · prefix list
+**9/18 apply 후 채울 항목**: VPC · subnet ×6 · route table ×3 · IGW · SG ×4 + default SG · S3 Gateway Endpoint · prefix list · **NAT EIP 공인 IP(🔑 스마트택배 allowlist)** · EKS 엔드포인트 · OIDC Provider ARN
 
 ---
 
@@ -724,6 +963,32 @@ moved {
 ---
 
 ## 변경 이력
+
+**09-16 (State KMS 전환 · S3 7종 · DNS 확정 · CN PR #21·#24 반영)**
+- ✅ **PR #13·#18·#21 머지** — CLAUDE.md 9/15판 / 네트워크 모듈화 B안 / CN 워크로드 배치
+- 🔄 **`modules/nat` 분리** (파트장 PR #19 리뷰) — "1 모듈 = 1 관심사" + **모듈 경계 = 과금 경계**
+  - `depends_on(IGW)` → `internet_gateway_id` output + **precondition** 으로 대체 (모듈 단위 `depends_on` 의 부작용 회피)
+  - 검증: `Plan: 46 to add, 0 to change, 0 to destroy` — 리팩터링 전과 동일
+- ✅ **State 암호화 SSE-KMS(CMK) 전환** (파트장 지적) — `alias/jangin-infra-s3-tfstate`
+  - 🔴 **추가 발견**: `backend.tf` 의 `encrypt = true` 가 버킷 기본 암호화를 덮어씀. `kms_key_id` 동반 필수
+  - 실측 확인: 헤더 없이 업로드 → `aws:kms` / `--sse AES256` 업로드 → `AES256`
+  - 🔴 State CMK 는 **Terraform 이 관리하지 않음** (⑧ CMK 로 쓰면 순환 의존 → destroy 시 복구 불가)
+- 🔄 **S3 버킷 5종 → 7종** (파트장 「엣지·S3 버킷 설계서」)
+  - 🆕 `jangin-{env}-s3-access` (**SSE-S3 필수** — KMS 면 접근 로그가 에러 없이 안 쌓임)
+  - 🆕 `aws-waf-logs-logs-jangin-{env}` (**네이밍 규칙의 유일한 예외** — AWS 하드 제약)
+  - `s3-logs` prefix 4종 → **3종** (`s3-access/`·`waf/` 폐지)
+- ✅ **DNS 전부 확정** — `stg.` 채택. 🆕 `api.stg.midam.store` · 🆕 `img.midam.store`
+  - ⚠️ **DNS 는 `stg.` / 리소스 접두사는 `staging`** — 별개 축 유지
+- 🔴 **DB 노드그룹 제약 확정** (명수님 PR #21 `podAntiAffinityType: required`)
+  - `min_size=3` · `ON_DEMAND` · Label `workload-type=db` + Taint `workload=db` (**키가 서로 다름**)
+- 🆕 **막힌 항목 15·16·17 신설** (14 는 확인 후 즉시 해소)
+  - 14 ✅ — 두 AI Deployment 가 `ai-worker-sa` 를 **공유**. IRSA 6번 그대로 유효
+  - 15 🔴 — **인프라가 CN 에 넘겨야 할 값 5종** (EKS API·STS·S3 CIDR·DNS·Gateway Endpoint)
+  - 16 🔴 — **VPC CNI `enableNetworkPolicy` 미활성화** → 정책이 에러 없이 무시됨
+  - 17 🔴 — **무효 `vpce-` ID 가 타 직군 문서에 살아 있음** (`pl-` 은 AWS 관리형이라 유효)
+- 🆕 **작업규칙 21·22 신설** — "설정이 아니라 실물 확인" · "생성/검증 구간 엄격도 분리" (둘 다 09-16 실제 사고)
+- 🔄 **일정 정정** — *"9/16 중 ②③④ 재apply"* 폐기. 파트장 지시로 **9/18 일괄 apply** 로 통합
+- 🆕 **⑦ 에 `AmazonSSMManagedInstanceCore` 명시** (다정님 요구 — 없으면 노드 접근 불가)
 
 **09-15 (모듈화 B안 최종 확정 · 리소스 destroy)**
 - ✅ **변수 컨벤션 B안 최종 확정** (파트장 19:21) — 「B안 변수 컨벤션」 신설
