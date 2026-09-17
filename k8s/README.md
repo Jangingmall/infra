@@ -246,7 +246,7 @@ kubectl kustomize k8s/base/network-policies/backend
 kubectl kustomize k8s/base/network-policies/ai
 ```
 
-공통 base, 두 overlay, 연결 대기 중인 DB Egress·Backend·AI 정책과 기존 세 플랫폼 Helm 차트를 함께 검증하려면 다음을 실행한다.
+공통 base, 두 overlay, 연결 대기 중인 DB Egress·Backend·AI 정책과 Argo CD를 포함한 네 플랫폼 Helm 차트를 함께 검증하려면 다음을 실행한다.
 
 ```bash
 bash scripts/validate-k8s.sh

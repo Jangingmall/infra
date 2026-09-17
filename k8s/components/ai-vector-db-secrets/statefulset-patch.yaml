@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ai-vector-db
+  namespace: ai
+spec:
+  template:
+    spec:
+      serviceAccountName: ai-vector-db-sa
+      containers:
+        - name: postgres
+          volumeMounts:
+            - name: ai-vector-db-secrets
+              mountPath: /mnt/secrets-store
+              readOnly: true
+      volumes:
+        - name: ai-vector-db-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: ai-vector-db-config

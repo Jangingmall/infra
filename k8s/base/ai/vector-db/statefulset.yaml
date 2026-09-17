@@ -40,16 +40,10 @@ spec:
           env:
             - name: POSTGRES_DB
               value: midam
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: ai-vector-db-auth
-                  key: postgres-password
-            - name: AI_DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: ai-vector-db-auth
-                  key: password
+            - name: POSTGRES_PASSWORD_FILE
+              value: /mnt/secrets-store/postgres-password
+            - name: AI_DB_PASSWORD_FILE
+              value: /mnt/secrets-store/password
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
           startupProbe:

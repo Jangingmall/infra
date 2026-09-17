@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-ollama
+  namespace: ai
+spec:
+  template:
+    spec:
+      containers:
+        - name: ai-ollama
+          volumeMounts:
+            - name: ai-chatbot-secrets
+              mountPath: /mnt/secrets-store
+              readOnly: true
+      volumes:
+        - name: ai-chatbot-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: ai-chatbot-config

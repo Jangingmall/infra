@@ -8,8 +8,8 @@ Usage: bash scripts/validate-k8s.sh [--help]
 Render k8s/base, k8s/overlays/stage, and k8s/overlays/prod.
 Render pending DB egress, Backend, and full AI policy bundles.
 DB/AI ingress and the AI vector DB isolation policy are enabled in the overlays.
-Lint/render the three configured platform Helm charts.
-Requires kubectl, Helm, and internet access to the public chart repositories.
+Render Argo CD Applications and lint/render four platform Helm charts.
+Requires kubectl, Helm, Ruby, and internet access to the public chart repositories.
 No cluster connection or AWS credentials are required.
 EOF
 }
@@ -23,7 +23,7 @@ if [[ $# -ne 0 ]]; then
   exit 2
 fi
 
-for tool in kubectl helm; do
+for tool in kubectl helm ruby; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     printf 'Required command not found: %s\n' "$tool" >&2
     exit 1
@@ -73,6 +73,15 @@ validate_chart() {
     > "$validation_dir/$release.yaml"
 }
 
+for environment in stage prod; do
+  kubectl kustomize "$repo_root/argocd/applications/$environment" \
+    > "$validation_dir/argocd-$environment.yaml"
+done
+
+validate_chart argocd argo-cd 10.9.1 argocd \
+  https://argoproj.github.io/argo-helm \
+  platform/argocd/values.yaml
+
 validate_chart cloudnative-pg cloudnative-pg 0.29.0 cnpg-system \
   https://cloudnative-pg.github.io/charts \
   platform/cloudnative-pg/values.yaml
@@ -84,5 +93,7 @@ validate_chart argo-rollouts argo-rollouts 2.43.1 argo-rollouts \
 validate_chart secrets-store-csi secrets-store-csi-driver-provider-aws 3.1.3 kube-system \
   https://aws.github.io/secrets-store-csi-driver-provider-aws \
   platform/secrets-store-csi/values.yaml
+
+ruby "$repo_root/scripts/validate-gitops.rb" "$validation_dir"
 
 printf '\nKubernetes configuration validation passed.\n'

@@ -27,7 +27,7 @@ tolerations:
 secrets-store-csi-driver:
   install: true
 
-  # Parameter Store 값을 Kubernetes Secret으로 별도 복제하지 않는다.
+  # Backend·AI·벡터DB 모두 파일 마운트만 사용한다.
   syncSecret:
     enabled: false
 

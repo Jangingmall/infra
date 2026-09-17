@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'k8s/**'
+      - 'argocd/**'
+      - 'scripts/validate-gitops.rb'
       - 'platform/**'
       - 'scripts/validate-k8s.sh'
       - '.github/workflows/k8s-validate.yml'

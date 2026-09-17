@@ -1,0 +1,89 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: prod-workloads
+  namespace: argocd
+spec:
+  sourceRepos:
+  - https://github.com/Jangingmall/infra.git
+  destinations:
+  - server: https://kubernetes.default.svc
+    namespace: app
+  - server: https://kubernetes.default.svc
+    namespace: database
+  - server: https://kubernetes.default.svc
+    namespace: ai
+  - server: https://kubernetes.default.svc
+    namespace: monitoring
+  - server: https://kubernetes.default.svc
+    namespace: argocd
+  - server: https://kubernetes.default.svc
+    namespace: cnpg-system
+  - server: https://kubernetes.default.svc
+    namespace: argo-rollouts
+  clusterResourceWhitelist:
+  - group: ''
+    kind: Namespace
+  - group: storage.k8s.io
+    kind: StorageClass
+  namespaceResourceWhitelist:
+  - group: ''
+    kind: Service
+  - group: ''
+    kind: ServiceAccount
+  - group: ''
+    kind: ConfigMap
+  - group: ''
+    kind: PersistentVolumeClaim
+  - group: apps
+    kind: Deployment
+  - group: apps
+    kind: StatefulSet
+  - group: autoscaling
+    kind: HorizontalPodAutoscaler
+  - group: argoproj.io
+    kind: Rollout
+  - group: postgresql.cnpg.io
+    kind: Cluster
+  - group: networking.k8s.io
+    kind: NetworkPolicy
+  - group: secrets-store.csi.x-k8s.io
+    kind: SecretProviderClass
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: prod-platform
+  namespace: argocd
+spec:
+  sourceRepos:
+  - https://github.com/Jangingmall/infra.git
+  - https://argoproj.github.io/argo-helm
+  - https://cloudnative-pg.github.io/charts
+  - https://aws.github.io/secrets-store-csi-driver-provider-aws
+  destinations:
+  - server: https://kubernetes.default.svc
+    namespace: cnpg-system
+  - server: https://kubernetes.default.svc
+    namespace: argo-rollouts
+  - server: https://kubernetes.default.svc
+    namespace: kube-system
+  clusterResourceWhitelist:
+  - group: apiextensions.k8s.io
+    kind: CustomResourceDefinition
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRoleBinding
+  - group: admissionregistration.k8s.io
+    kind: MutatingWebhookConfiguration
+  - group: admissionregistration.k8s.io
+    kind: ValidatingWebhookConfiguration
+  - group: storage.k8s.io
+    kind: CSIDriver
+  - group: ''
+    kind: Namespace
+  namespaceResourceWhitelist:
+  - group: "*"
+    kind: "*"
