@@ -57,3 +57,23 @@ ecr_keep_last_images     = 10
 ecr_untagged_expire_days = 7
 ecr_kms_key_arn          = null
 ecr_tags                 = {}
+
+# ---------- ⑦ 노드그룹 (nodes_ 접두사)  💰 유료 ----------
+#
+# 🔑 기본값(variables.tf)이 곧 확정 사양이라, 보통은 이 블록을 쓰지 않아도 됩니다.
+#    아래는 "무엇을 바꿀 수 있는지" 보여주는 예시입니다.
+#
+# 🔴 GPU 를 켤 때
+#      desired_size = 0 → 1 로만 바꾸고 apply 합니다.
+#      💰 g6e $2.29/h + g4dn $0.65/h. 테스트 끝나면 반드시 0 으로 되돌립니다.
+#
+# 🔴 10/1~10/4 노드 내릴 때
+#      system·app·db 의 desired_size·min_size 를 0 으로.
+#      ⚠️ DB 는 전부 내렸다 전부 올려야 합니다. 부분 축소는 복구가 안 됩니다
+#         (CNPG podAntiAffinityType=required).
+#      ⚠️ private only 상태에서 노드를 0 으로 만들면 SSM 으로 들어갈 노드가
+#         사라져 클러스터 접근이 끊깁니다. 컨트롤플레인만 유지한다는 뜻을 알고 내립니다.
+#
+# nodes_groups = { ... }          # variables.tf 의 default 를 통째로 덮어씁니다
+# nodes_extra_policy_arns = []
+# nodes_ssh_key_name      = null

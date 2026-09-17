@@ -321,3 +321,180 @@ variable "ecr_tags" {
   type        = map(string)
   default     = {}
 }
+
+# ------------------------------------------------------------
+# ⑦ 노드그룹 (nodes_ 접두사)   💰 유료
+# ------------------------------------------------------------
+
+variable "nodes_groups" {
+  description = <<-EOT
+    노드그룹 정의. 키가 노드그룹 이름의 접미사가 된다.
+
+    🔴 labels·taints 는 CN(박명수님) 매니페스트 실물에서 역산한 값입니다.
+       한 글자라도 다르면 해당 Pod 가 영원히 Pending 입니다.
+
+    ⚠️ DB 만 Label 키(workload-type)와 Taint 키(workload)가 다릅니다.
+       오타가 아니라 k8s/base/database/cluster.yaml 실물이 그렇습니다.
+
+    ⚠️ GPU 는 enabled = true · desired_size = 0 입니다.
+       노드그룹은 만들어두고 EC2 만 0대인 상태 — 값 하나로 즉시 기동합니다.
+       (enabled = false 는 노드그룹 자체를 안 만드는 것이라 다릅니다)
+  EOT
+
+  type = map(object({
+    enabled       = bool
+    instance_type = string
+    ami_type      = string
+    desired_size  = number
+    min_size      = number
+    max_size      = number
+    capacity_type = string
+    disk_size     = number
+    labels        = map(string)
+    taints = list(object({
+      key    = string
+      value  = string
+      effect = string
+    }))
+  }))
+
+  default = {
+    # ── System : 모니터링·ArgoCD·컨트롤러 ──────────────────────
+    # 🔄 09-17 변경: t3.medium × 2 → medium 1 + large 1
+    #    Redis 배치 논의 중 명수님 요청. EKS 관리형 노드그룹은 한 그룹에
+    #    인스턴스 타입 하나가 원칙이라, 타입이 다르면 그룹을 나눠야 합니다.
+    #    라벨은 둘 다 workload-type=system 이라 nodeSelector 는 그대로 동작합니다.
+    "system-md" = {
+      enabled       = true
+      instance_type = "t3.medium"
+      ami_type      = "AL2023_x86_64_STANDARD"
+      desired_size  = 1
+      min_size      = 1
+      max_size      = 2
+      capacity_type = "ON_DEMAND"
+      disk_size     = 30
+      labels        = { "workload-type" = "system" }
+      taints        = []
+    }
+    "system-lg" = {
+      enabled       = true
+      instance_type = "t3.large"
+      ami_type      = "AL2023_x86_64_STANDARD"
+      desired_size  = 1
+      min_size      = 1
+      max_size      = 2
+      capacity_type = "ON_DEMAND"
+      disk_size     = 30
+      labels        = { "workload-type" = "system" }
+      taints        = []
+    }
+
+    # ── App : Backend Pod ────────────────────────────────────
+    # 🔄 09-17 변경: 1대 → 2대 (Redis 대응)
+    # 🔑 BE 가 limits.memory 를 4Gi → 1.5Gi 로 낮추기로 해서
+    #    t3.medium(가용 약 3.4Gi)에 Pod 2개가 들어갑니다.
+    "app" = {
+      enabled       = true
+      instance_type = "t3.medium"
+      ami_type      = "AL2023_x86_64_STANDARD"
+      desired_size  = 2
+      min_size      = 2
+      max_size      = 3
+      capacity_type = "ON_DEMAND"
+      disk_size     = 30
+      labels        = { "workload-type" = "app" }
+      taints        = []
+    }
+
+    # ── DB : CloudNativePG (Primary 1 + Replica 2) ───────────
+    # 🔴 min_size 도 3 이어야 합니다.
+    #    CNPG podAntiAffinityType=required → Pod 3개가 서로 다른 노드를 요구.
+    #    Pod 3 : 노드 3 이라 여유가 0 이고, 1대만 줄어도 영구 Pending 입니다.
+    # 🔴 ON_DEMAND 고정. Spot 회수 시 갈 노드가 없어 복구되지 않습니다.
+    "db" = {
+      enabled       = true
+      instance_type = "t3.small"
+      ami_type      = "AL2023_x86_64_STANDARD"
+      desired_size  = 3
+      min_size      = 3
+      max_size      = 3
+      capacity_type = "ON_DEMAND"
+      disk_size     = 30
+      labels        = { "workload-type" = "db" }
+      taints = [{
+        key    = "workload" # ⚠️ Label 키(workload-type)와 다릅니다. 실물 그대로입니다
+        value  = "db"
+        effect = "NO_SCHEDULE"
+      }]
+    }
+
+    # ── GPU-A : 이미지·텍스트 (SGLang, L40S 48GB) ─────────────
+    # 🔴 desired_size = 0 · min_size = 0 로 시작합니다.
+    #    min 을 1 로 두면 AWS 가 자동으로 1대를 띄워 💰 시간당 $2.29 가 나갑니다.
+    # 💰 GPU 2대가 전체 비용의 약 63% 입니다. 안 켜면 $0.
+    "gpu-a" = {
+      enabled       = true
+      instance_type = "g6e.xlarge"
+      ami_type      = "AL2023_x86_64_NVIDIA"
+      desired_size  = 0
+      min_size      = 0
+      max_size      = 1
+      capacity_type = "ON_DEMAND"
+      # AI 모델을 컨테이너 이미지에 포함하기로 해서 이미지가 10GB 이상입니다.
+      # 기본 20GB 로는 이미지 하나도 못 받습니다.
+      disk_size = 200
+      labels = {
+        "workload-type" = "gpu"
+        "gpu-model"     = "l40s"
+      }
+      taints = [{
+        key    = "nvidia.com/gpu"
+        value  = "true"
+        effect = "NO_SCHEDULE"
+      }]
+    }
+
+    # ── GPU-B : 챗봇 (Ollama, T4 16GB) ───────────────────────
+    "gpu-b" = {
+      enabled       = true
+      instance_type = "g4dn.xlarge"
+      ami_type      = "AL2023_x86_64_NVIDIA"
+      desired_size  = 0
+      min_size      = 0
+      max_size      = 1
+      capacity_type = "ON_DEMAND"
+      disk_size     = 120
+      labels = {
+        "workload-type" = "gpu"
+        "gpu-model"     = "t4"
+      }
+      taints = [{
+        key    = "nvidia.com/gpu"
+        value  = "true"
+        effect = "NO_SCHEDULE"
+      }]
+    }
+  }
+}
+
+variable "nodes_extra_policy_arns" {
+  description = <<-EOT
+    노드 IAM 역할에 추가로 붙일 관리형 정책.
+    기본 4종(WorkerNode·CNI·ECR·SSM)은 모듈이 항상 붙이므로 여기 넣지 않는다.
+
+    🔴 비워 두는 것이 기본입니다. 노드 역할에 권한을 붙이면
+       그 노드에 뜬 모든 Pod 가 그 권한을 갖습니다.
+       Pod 단위 권한은 ⑧ IRSA 로 줍니다.
+  EOT
+  type        = list(string)
+  default     = []
+}
+
+variable "nodes_ssh_key_name" {
+  description = <<-EOT
+    노드에 넣을 EC2 키페어. null 유지가 원칙입니다.
+    🔴 SSH(22)는 설계상 차단이고 접근은 SSM Session Manager 로만 합니다.
+  EOT
+  type        = string
+  default     = null
+}
