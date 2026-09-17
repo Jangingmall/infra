@@ -1,3 +1,30 @@
+# staging 공통 입력과 ECR 입력. prod B안과 동일한 환경 통합 구조.
+variable "project" {
+  description = "프로젝트 식별자. 모든 리소스 이름의 맨 앞에 붙는다."
+  type        = string
+  default     = "jangin"
+}
+
+variable "env" {
+  description = "환경 구분. 리소스 이름과 Environment 태그에 쓰인다."
+  type        = string
+  default     = "staging"
+
+  # 오타 방지. "prd" 나 "production" 으로 잘못 쓰면
+  # jangin-prd-vpc 같은 리소스가 생기고, IAM 정책의
+  # jangin-prod-* 패턴에서 빠져나가 버린다.
+  validation {
+    condition     = contains(["prod", "staging"], var.env)
+    error_message = "env 는 prod 또는 staging 만 허용합니다."
+  }
+}
+
+variable "region" {
+  description = "AWS 리전. 작업 규칙 4에 따라 하드코딩하지 않는다."
+  type        = string
+  default     = "ap-northeast-2"
+}
+
 variable "ecr_enabled" {
   description = "공용 ECR의 단일 관리 환경 확정 후 그 환경에서만 true. 두 환경 동시 활성화 금지"
   type        = bool
@@ -6,17 +33,6 @@ variable "ecr_enabled" {
 }
 
 # [ECR] 담당 리소스 입력 변수 정의
-
-variable "ecr_env" {
-  description = "이 ECR을 관리하는 환경의 태그. 리소스 이름은 환경 공용"
-  default     = "staging"
-  nullable    = false
-  validation {
-    condition     = contains(["prod", "staging"], var.ecr_env)
-    error_message = "ecr_env는 prod 또는 staging이어야 합니다."
-  }
-  type = string
-}
 
 variable "ecr_repositories" {
   description = <<-EOT
