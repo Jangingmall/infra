@@ -1,0 +1,7 @@
+# 산정 전용. 배포 금지: 운영 pipeline/보안/저장소 설정 미완료.
+---
+tempo:
+  resources:
+    requests:
+      cpu: 250m
+      memory: 768Mi

@@ -258,8 +258,9 @@ GitHub Actions도 같은 스크립트를 실행한다. 도구 버전, 실행 조
 
 Stage·Prod 공통으로 Backend requests 700m/1Gi, limits 2 CPU/4Gi, HPA min 2/max 4,
 HikariCP 최대 10·최소 idle 5·연결 대기 3000ms, CNPG max_connections 200을 선언한다.
-CPU 목표 70%는 실측 전 초기값이다. Blue/Green 최대 운영 승격 시 단일 전환 기준 8개 Pod를 계획하며,
-현재 App 노드 한 대로는 수용할 수 없다. [자원 예산과 배포 전 조건](base/backend/README.md)을 확인한다.
+Java 힙은 현재 이미지의 MaxRAMPercentage=75를 사용해 약 3Gi로 계산하며 infra에서 Xmx를 지정하지 않는다.
+App t3.medium 2대는 운영 4개 상태의 Blue/Green을 수용하지 못한다. 메모리 제한도 실측 전 초기값이다.
+[자원 예산과 배포 전 조건](base/backend/README.md)을 확인한다.
 
 ## Backend configtree
 

@@ -1,0 +1,66 @@
+# OTel Collector 0.160.0용 독립 실행 설정. Helm values가 아니라 Collector config 파일이다.
+# traces/stage·prod Kustomize에서 Deployment/Service로 연결한다. Argo CD 자동 배포는 미연결이다.
+# TEMPO_OTLP_ENDPOINT는 실제 내부 gRPC 주소를 공급한다. 가짜 주소로 배포하지 않는다.
+# 추후 컨테이너 memory limit은 최소 256Mi 이상으로 잡아 아래 limiter(192Mi)와 여유를 둔다.
+# 이 limiter는 주기적 보호 장치이며 순간적인 메모리 급증/OOM을 완전히 막지는 못한다.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+        # 개별 gRPC 요청 폭증도 제한한다. SDK의 배치 크기와 호환되는지 실제 요청으로 확인한다.
+        max_recv_msg_size_mib: 2
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+processors:
+  # 반드시 batch보다 먼저 실행한다. 압박 시 새 데이터를 거부해 메모리 증가를 억제한다.
+  # 송신 SDK가 재시도하지 않으면 Trace가 유실될 수 있으므로 거부/실패 지표를 관측한다.
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 192
+    spike_limit_mib: 48
+  resource/environment:
+    attributes:
+      - key: deployment.environment.name
+        value: ${env:OBS_ENV}
+        action: upsert
+  batch:
+    # send_batch_size는 전송을 시작할 기준, send_batch_max_size는 묶음의 최대 Span 개수다.
+    # Span 개수 제한은 바이트 제한이 아니다. 큰 속성/Prompt/본문을 수집하지 않는 계약도 필요하다.
+    send_batch_size: 512
+    send_batch_max_size: 1024
+    timeout: 1s
+exporters:
+  otlp/tempo:
+    endpoint: ${env:TEMPO_OTLP_ENDPOINT}
+    tls:
+      # 내부 평문 gRPC 초기 구성. Prod TLS 합의 시 인증서/설정을 함께 변경한다.
+      insecure: true
+    timeout: 5s
+    sending_queue:
+      enabled: true
+      num_consumers: 2
+      # 단위는 export 요청 개수다. 32MiB 또는 32 Span이라는 뜻이 아니다.
+      # 메모리 큐이므로 Collector 재시작/가득 참에서 데이터가 유실될 수 있다.
+      queue_size: 32
+    retry_on_failure:
+      enabled: true
+      initial_interval: 1s
+      max_interval: 5s
+      max_elapsed_time: 15s
+service:
+  extensions: [health_check]
+  telemetry:
+    metrics:
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                port: 8888
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource/environment, batch]
+      exporters: [otlp/tempo]

@@ -1,0 +1,77 @@
+// Kubernetes API에서는 Pod의 메타데이터만 읽는다. 로그 본문은 이 노드의 containerd CRI 파일에서 읽는다.
+discovery.kubernetes "pods" {
+  role = "pod"
+  namespaces { names = ["app", "ai", "database", "argocd", "argo-rollouts", "cnpg-system", "kube-system", "monitoring"] }
+  selectors {
+    role = "pod"
+    field = "spec.nodeName=" + sys.env("HOSTNAME")
+  }
+}
+discovery.relabel "pods" {
+  targets = discovery.kubernetes.pods.targets
+  rule {
+    source_labels = ["__meta_kubernetes_namespace"]
+    target_label = "namespace"
+  }
+  // app.kubernetes.io/name 우선, 없으면 컨테이너 이름을 사용해 Pod 이름이 service 라벨이 되지 않게 한다.
+  rule {
+    source_labels = ["__meta_kubernetes_pod_container_name"]
+    target_label = "service"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+    regex = "(.+)"
+    target_label = "service"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_pod_container_name"]
+    target_label = "container"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_pod_name"]
+    target_label = "pod"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_pod_node_name"]
+    target_label = "node"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_pod_label_rollouts_pod_template_hash"]
+    target_label = "revision"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_pod_uid", "__meta_kubernetes_pod_container_name"]
+    separator = "/"
+    target_label = "__path__"
+    replacement = "/var/log/pods/*$1/*.log"
+  }
+}
+local.file_match "pods" {
+  path_targets = discovery.relabel.pods.output
+}
+loki.source.file "pods" {
+  targets = local.file_match.pods.targets
+  forward_to = [loki.process.pods.receiver]
+}
+loki.process "pods" {
+  stage.cri {}
+  stage.static_labels { values = { environment = sys.env("OBS_ENV") } }
+  // 앱 JSON을 파싱하며 비JSON Controller 로그도 버리지 않는다.
+  stage.json { expressions = { trace_id = "trace_id", span_id = "span_id", level = "level" } }
+  stage.structured_metadata { values = { trace_id = "trace_id", span_id = "span_id" } }
+  // Prod의 구조화 DEBUG/TRACE 로그만 제외한다. 앱에서도 Prod DEBUG를 비활성화한다.
+  stage.labels { values = { level = "level" } }
+  stage.match {
+    selector = "{environment=\"prod\",level=~\"(?i)(debug|trace)\"}"
+    action = "drop"
+    drop_counter_reason = "prod_debug_trace"
+  }
+  // 계속 증가하는 정보는 본문 JSON으로 이동하고 원문은 _entry에 보존한다.
+  // LogQL: {service="backend"} | json | revision="..."; hash만 보고 active/preview를 추측하지 않는다.
+  stage.pack {
+    labels = ["pod", "node", "revision"]
+    ingest_timestamp = false
+  }
+  stage.label_drop { values = ["filename", "stream", "level"] }
+  forward_to = [loki.write.default.receiver]
+}

@@ -1,0 +1,21 @@
+// Alloy v1.19.2 로그 전송 공통 컴포넌트. scripts/render-logs.sh가 Pod/Events 수집 설정에 합친다.
+// LOKI_PUSH_URL은 logs 렌더러가 내부 gateway URL로 제공한다. gateway는 유지한다.
+// EKS 배포는 IRSA·S3·전체 용량 준비 후 별도 연결한다.
+loki.write "default" {
+  // 활성 로그 스트림을 무제한 유지하지 않는다. 1000은 노드별 초기값이며 초과 시 로그 손실 가능.
+  // user_id/trace_id 같은 무한 증가 라벨을 넣지 않고, 실제 활성 스트림 수를 보고 조정한다.
+  max_streams = 1000
+  endpoint {
+    url = sys.env("LOKI_PUSH_URL")
+    // 보내기 전에 모으는 묶음을 기본 1MiB보다 작은 256KiB로 제한한다.
+    // 작은 묶음은 전송 횟수를 늘린다. 이 값은 Alloy 전체 메모리의 상한이 아니다.
+    batch_size = "256KiB"
+    batch_wait = "1s"
+    // Loki 장애 시 한 요청/재시도를 오래 붙잡지 않도록 제한한다.
+    // 재시도 소진 뒤 해당 로그는 버려질 수 있다. 무손실 전송을 보장하지 않는다.
+    remote_timeout = "5s"
+    min_backoff_period = "500ms"
+    max_backoff_period = "5s"
+    max_backoff_retries = 3
+  }
+}

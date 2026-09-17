@@ -1,0 +1,205 @@
+---
+rule_files:
+- rules.yaml
+evaluation_interval: 30s
+tests:
+- name: Backend pending firing recovery and controller dedup
+  interval: 1m
+  input_series:
+  - series: rollout_info_replicas_available{job="argo-rollouts",resource_namespace="app",name="backend",pod="controller-a"}
+    values: 0x5 2x10
+  - series: rollout_info_replicas_available{job="argo-rollouts",resource_namespace="app",name="backend",pod="controller-b"}
+    values: 0x5 2x10
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="BackendAvailableReplicasZero"})
+      or vector(0)
+    eval_time: 1m
+    exp_samples:
+    - labels: "{}"
+      value: 0
+  - expr: count(ALERTS{alertstate="firing",alertname="BackendAvailableReplicasZero"})
+      or vector(0)
+    eval_time: 3m
+    exp_samples:
+    - labels: "{}"
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="BackendAvailableReplicasZero"})
+      or vector(0)
+    eval_time: 8m
+    exp_samples:
+    - labels: "{}"
+      value: 0
+- name: Low traffic must not fire even with 100 percent errors
+  interval: 1m
+  input_series:
+  - series: http_server_requests_seconds_count{job="backend",namespace="app",revision="r1",uri="/api/items",status="500"}
+    values: 0+1x20
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="BackendHTTP5xxRateHigh"}) or
+      vector(0)
+    eval_time: 15m
+    exp_samples:
+    - labels: "{}"
+      value: 0
+- name: High errors fire both severities for Alertmanager inhibition
+  interval: 1m
+  input_series:
+  - series: http_server_requests_seconds_count{job="backend",namespace="app",revision="r1",uri="/api/items",status="200"}
+    values: 0+90x20
+  - series: http_server_requests_seconds_count{job="backend",namespace="app",revision="r1",uri="/api/items",status="500"}
+    values: 0+10x20
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="BackendHTTP5xxRateHigh"}) or
+      vector(0)
+    eval_time: 4m
+    exp_samples:
+    - labels: "{}"
+      value: 0
+  - expr: count(ALERTS{alertstate="firing",alertname="BackendHTTP5xxRateHigh",severity="warning"})
+      or vector(0)
+    eval_time: 10m
+    exp_samples:
+    - labels: "{}"
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="BackendHTTP5xxRateHigh",severity="critical"})
+      or vector(0)
+    eval_time: 10m
+    exp_samples:
+    - labels: "{}"
+      value: 1
+- name: Health probe failures excluded from HTTP error gate
+  interval: 1m
+  input_series:
+  - series: http_server_requests_seconds_count{job="backend",namespace="app",revision="r1",uri="/actuator/health",status="500"}
+    values: 0+100x20
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="BackendHTTP5xxRateHigh"}) or
+      vector(0)
+    eval_time: 15m
+    exp_samples:
+    - labels: "{}"
+      value: 0
+- name: Normal manual promotion pause is not a stalled rollout
+  interval: 1m
+  input_series:
+  - series: rollout_info{job="argo-rollouts",resource_namespace="app",name="backend",phase="Paused"}
+    values: 1x20
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="ArgoRolloutDegradedOrStalled"})
+      or vector(0)
+    eval_time: 15m
+    exp_samples:
+    - labels: "{}"
+      value: 0
+- name: Pinned Rollouts exporter uses Timeout phase
+  interval: 1m
+  input_series:
+  - series: rollout_info{job="argo-rollouts",resource_namespace="app",name="backend",phase="Timeout"}
+    values: 1x20
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="ArgoRolloutDegradedOrStalled"})
+      or vector(0)
+    eval_time: 3m
+    exp_samples:
+    - labels: "{}"
+      value: 1
+- name: Responding primary prevents DB availability alert
+  interval: 1m
+  input_series:
+  - series: cnpg_pg_replication_in_recovery{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres",pod="db-1"}
+    values: '0x20'
+  - series: cnpg_collector_up{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres",pod="db-1"}
+    values: 1x20
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="CNPGPrimaryUnavailable"}) or
+      vector(0)
+    eval_time: 3m
+    exp_samples:
+    - labels: "{}"
+      value: 0
+- name: Unreachable primary fires after failover grace
+  interval: 1m
+  input_series:
+  - series: cnpg_pg_replication_in_recovery{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres",pod="db-1"}
+    values: '0x20'
+  - series: cnpg_collector_up{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres",pod="db-1"}
+    values: '0x20'
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="CNPGPrimaryUnavailable"}) or
+      vector(0)
+    eval_time: 30s
+    exp_samples:
+    - labels: "{}"
+      value: 0
+  - expr: count(ALERTS{alertstate="firing",alertname="CNPGPrimaryUnavailable"}) or
+      vector(0)
+    eval_time: 2m
+    exp_samples:
+    - labels: "{}"
+      value: 1
+- name: Only replicas cannot satisfy primary health
+  interval: 1m
+  input_series:
+  - series: cnpg_pg_replication_in_recovery{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres",pod="db-1"}
+    values: 1x20
+  - series: cnpg_collector_up{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres",pod="db-1"}
+    values: 1x20
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="CNPGPrimaryUnavailable"}) or
+      vector(0)
+    eval_time: 2m
+    exp_samples:
+    - labels: "{}"
+      value: 1
+- name: GPU scale to zero and absent DB are telemetry gaps not fake device/DB states
+  interval: 1m
+  input_series: []
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname=~"GPUDeviceError|GPUMemoryHigh|CNPGPrimaryUnavailable"})
+      or vector(0)
+    eval_time: 15m
+    exp_samples:
+    - labels: "{}"
+      value: 0
+  - expr: count(ALERTS{alertstate="firing",alertname="MonitoringTargetMissing",job="cnpg"})
+      or vector(0)
+    eval_time: 15m
+    exp_samples:
+    - labels: "{}"
+      value: 1
+- name: PVC duplicate kubelet series do not double usage
+  interval: 1m
+  input_series:
+  - series: kubelet_volume_stats_used_bytes{namespace="database",persistentvolumeclaim="db-1",instance="a"}
+    values: 95x20
+  - series: kubelet_volume_stats_used_bytes{namespace="database",persistentvolumeclaim="db-1",instance="b"}
+    values: 95x20
+  - series: kubelet_volume_stats_capacity_bytes{namespace="database",persistentvolumeclaim="db-1",instance="a"}
+    values: 100x20
+  - series: kubelet_volume_stats_capacity_bytes{namespace="database",persistentvolumeclaim="db-1",instance="b"}
+    values: 100x20
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="PVCUsageHigh",severity="critical"})
+      or vector(0)
+    eval_time: 6m
+    exp_samples:
+    - labels: "{}"
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="PVCUsageHigh",severity="warning"})
+      or vector(0)
+    eval_time: 6m
+    exp_samples:
+    - labels: "{}"
+      value: 1
+- name: GPU utilization alone never fires memory or device alert
+  interval: 1m
+  input_series:
+  - series: DCGM_FI_DEV_GPU_UTIL{job="dcgm-exporter",node="gpu-a",UUID="gpu-1"}
+    values: 100x20
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname=~"GPUDeviceError|GPUMemoryHigh"})
+      or vector(0)
+    eval_time: 15m
+    exp_samples:
+    - labels: "{}"
+      value: 0

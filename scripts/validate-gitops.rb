@@ -39,6 +39,17 @@ render_dir = ARGV.fetch(0)
     check(ignores.any? { |r| r['kind']=='Service' && r['name']==name && r['jsonPointers']==['/spec/selector/rollouts-pod-template-hash'] }, 'Rollouts Service selector ownership missing')
   end
   managed = documents("#{render_dir}/#{environment}.yaml")
+  backend = managed.find { |r| r['kind']=='Rollout' && r.dig('metadata','name')=='backend' }.fetch('spec')
+  hpa = managed.find { |r| r['kind']=='HorizontalPodAutoscaler' && r.dig('metadata','name')=='backend' }.fetch('spec')
+  check(hpa['minReplicas']==2 && hpa['maxReplicas']==4, 'Backend HPA must retain the agreed 2..4 range')
+  check(backend['replicas']==2 && backend.dig('strategy','blueGreen','previewReplicaCount')==1, 'Backend rollout exceeds initial capacity contract')
+  pod = backend.dig('template','spec')
+  container = pod.fetch('containers').find { |c| c['name']=='backend' }
+  check(container.dig('resources','requests')=={'cpu'=>'700m','memory'=>'1Gi'}, 'Backend scheduling budget differs')
+  check(container.dig('resources','limits','memory')=='4Gi', 'Backend must retain the existing memory limit until load testing supports a change')
+  jvm_options = container.fetch('env').select { |e| %w[JAVA_TOOL_OPTIONS JDK_JAVA_OPTIONS _JAVA_OPTIONS].include?(e['name']) }
+  check(jvm_options.none? { |e| e.fetch('value', '').match?(/-Xmx|-XX:MaxHeapSize=/) }, 'Backend must use image percentage sizing without an infra fixed heap override')
+  warn "#{environment}: capacity warning: HPA 4 + Preview needs 5 Pods; two medium App nodes fit at most four 700m Backend Pods. Reserve rollout capacity before deployment."
 spc = managed.find { |r| r['kind']=='SecretProviderClass' && r.dig('metadata','name')=='ai-vector-db-config' }
 check(spc, 'AI vector DB SecretProviderClass missing')
 check(spc.dig('spec','parameters','usePodIdentity')=='false', 'AI vector DB must use IRSA')
@@ -82,3 +93,9 @@ check(!pods.empty?, 'Argo CD chart has no workloads')
 pods.each { |pod| check(pod.dig('nodeSelector','workload-type')=='system', 'Argo CD component not on System nodes') }
 check(chart.none? { |r| r['kind']=='Ingress' || (r['kind']=='Service' && %w[LoadBalancer NodePort].include?(r.dig('spec','type'))) }, 'Argo CD exposed publicly')
 puts 'Argo CD: System placement and internal-only services PASS'
+
+rollouts = documents("#{render_dir}/argo-rollouts.yaml")
+check(rollouts.none? { |r| %w[Deployment Service].include?(r['kind']) && r.dig('metadata', 'name').include?('dashboard') }, 'Rollouts Dashboard must not run continuously')
+controller = rollouts.find { |r| r['kind'] == 'Deployment' && !r.dig('metadata', 'name').include?('dashboard') }
+check(controller && controller.dig('spec', 'replicas') == 2, 'Rollouts Controller replicas must remain 2')
+puts 'Argo Rollouts: Controller retained, Dashboard disabled PASS'

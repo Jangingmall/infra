@@ -1,0 +1,26 @@
+# 팀원 659a6c2의 수집 의도를 실제 Backend Rollout 계약에 맞춘다.
+# Service 전환과 무관하게 Stable/Preview 전체 Pod를 수집한다.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: backend
+  namespace: monitoring
+  labels:
+    release: metrics
+spec:
+  namespaceSelector:
+    matchNames: [app]
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: backend
+  podMetricsEndpoints:
+    - port: management
+      path: /actuator/prometheus
+      interval: 30s
+      scrapeTimeout: 10s
+      relabelings:
+        - targetLabel: job
+          replacement: backend
+        # hash는 revision 구분용이다. active/preview 역할을 고정 라벨로 추측하지 않는다.
+        - sourceLabels: [__meta_kubernetes_pod_label_rollouts_pod_template_hash]
+          targetLabel: revision

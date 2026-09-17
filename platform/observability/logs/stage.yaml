@@ -1,0 +1,5 @@
+# Compactor가 주 삭제 주체다. S3 lifecycle은 인프라와 더 긴 보조 기간으로 별도 협의.
+loki:
+  structuredConfig:
+    limits_config:
+      retention_period: 168h

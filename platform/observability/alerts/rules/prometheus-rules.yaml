@@ -1,0 +1,349 @@
+# 초기 운영 후보값. 실제 EKS 검증/부하 기준 확정 전이며 자동 복구를 수행하지 않는다.
+# environment는 환경별 Prometheus externalLabels에서 Alertmanager로 전달한다.
+# 핵심 설계의 p95/AI 오류율/CloudWatch 규칙은 실제 메트릭 계약 준비 전이라 선언하지 않는다.
+# notify=discord만 외부 전송한다. chart 기본 규칙은 평가/UI를 유지하며 중복 전송하지 않는다.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: workload-alerts
+  namespace: monitoring
+  labels:
+    release: metrics
+spec:
+  groups:
+  - name: janging.workloads
+    interval: 30s
+    rules:
+    - alert: BackendAvailableReplicasZero
+      expr: max by (resource_namespace,name) (rollout_info_replicas_available{job="argo-rollouts",resource_namespace="app",name="backend"})
+        == 0
+      for: 2m
+      labels:
+        severity: critical
+        component: backend
+        owner: cloud-native
+        notify: discord
+      annotations:
+        summary: Backend 가용 Pod가 없습니다
+        description: Rollout 보고값 기준 가용 Pod 0이 2분 지속. Active Service와 Readiness, 최근
+          이미지 변경을 확인합니다. 현재 값={{ $value }}
+        dashboard: Argo CD · Rollouts 상태
+        runbook_url: https://app.notion.com/p/1130842d874f82ec8acf813ebbfe5e75
+        dashboard_url: "/d/janging-argo"
+    - alert: BackendHTTP5xxRateHigh
+      expr: (sum by (namespace,revision) (increase(http_server_requests_seconds_count{job="backend",namespace="app",uri!~"/actuator.*|/health.*|/metrics",status=~"5.."}[5m]))
+        / sum by (namespace,revision) (increase(http_server_requests_seconds_count{job="backend",namespace="app",uri!~"/actuator.*|/health.*|/metrics"}[5m]))
+        >= 0.02) and on (namespace,revision) (sum by (namespace,revision) (increase(http_server_requests_seconds_count{job="backend",namespace="app",uri!~"/actuator.*|/health.*|/metrics"}[5m]))
+        >= 100)
+      for: 5m
+      labels:
+        severity: warning
+        component: backend
+        owner: backend
+        notify: discord
+      annotations:
+        summary: Backend 5xx 오류율 증가
+        description: revision별 최근 5분 유효 요청 100건 이상에서 오류 비율 2.0% 이상이 5분 지속. 최근 배포와
+          DB/AI 의존성을 확인합니다. 현재 오류율={{ $value | humanizePercentage }}
+        dashboard: Backend 런타임
+        runbook_url: https://app.notion.com/p/1130842d874f82ec8acf813ebbfe5e75
+        dashboard_url: "/d/janging-backend-runtime"
+    - alert: BackendHTTP5xxRateHigh
+      expr: (sum by (namespace,revision) (increase(http_server_requests_seconds_count{job="backend",namespace="app",uri!~"/actuator.*|/health.*|/metrics",status=~"5.."}[5m]))
+        / sum by (namespace,revision) (increase(http_server_requests_seconds_count{job="backend",namespace="app",uri!~"/actuator.*|/health.*|/metrics"}[5m]))
+        >= 0.05) and on (namespace,revision) (sum by (namespace,revision) (increase(http_server_requests_seconds_count{job="backend",namespace="app",uri!~"/actuator.*|/health.*|/metrics"}[5m]))
+        >= 100)
+      for: 5m
+      labels:
+        severity: critical
+        component: backend
+        owner: backend
+        notify: discord
+      annotations:
+        summary: Backend 5xx 오류율 증가
+        description: revision별 최근 5분 유효 요청 100건 이상에서 오류 비율 5.0% 이상이 5분 지속. 최근 배포와
+          DB/AI 의존성을 확인합니다. 현재 오류율={{ $value | humanizePercentage }}
+        dashboard: Backend 런타임
+        runbook_url: https://app.notion.com/p/1130842d874f82ec8acf813ebbfe5e75
+        dashboard_url: "/d/janging-backend-runtime"
+    - alert: BackendPodRestartHigh
+      expr: max by (namespace,pod,container) (increase(kube_pod_container_status_restarts_total{namespace="app",pod=~"backend-.*",container="backend"}[10m]))
+        >= 3
+      for: 2m
+      labels:
+        severity: warning
+        component: backend
+        owner: cloud-native
+        notify: discord
+      annotations:
+        summary: Backend 컨테이너 재시작 반복
+        description: 10분간 3회 이상 재시작이 2분 지속. OOM, Probe, 직전 로그와 배포 revision을 확인합니다.
+          현재 값={{ $value }}
+        dashboard: Backend 런타임
+        runbook_url: https://app.notion.com/p/1130842d874f82ec8acf813ebbfe5e75
+        dashboard_url: "/d/janging-backend-runtime"
+    - alert: ArgoRolloutDegradedOrStalled
+      expr: max by (resource_namespace,name,phase) (rollout_info{job="argo-rollouts",resource_namespace="app",name="backend",phase=~"Error|Timeout|InvalidSpec|Abort"})
+        == 1
+      for: 2m
+      labels:
+        severity: critical
+        component: release
+        owner: cloud-native
+        notify: discord
+      annotations:
+        summary: Backend 배포가 비정상 상태입니다
+        description: Error/Timeout/InvalidSpec/Abort가 2분 지속. 정상 Manual Pause는 제외합니다.
+          Progressing만으로 장애를 추정하지 않습니다. 현재 값={{ $value }}
+        dashboard: Argo CD · Rollouts 상태
+        runbook_url: https://app.notion.com/p/1130842d874f82ec8acf813ebbfe5e75
+        dashboard_url: "/d/janging-argo"
+    - alert: CNPGPrimaryUnavailable
+      expr: sum by (namespace,cnpg_cluster) ((cnpg_pg_replication_in_recovery{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres"}
+        == bool 0) * on (namespace,pod,cnpg_cluster) (cnpg_collector_up{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres"}
+        == bool 1)) == 0
+      for: 1m
+      labels:
+        severity: critical
+        component: database
+        owner: db-dr
+        notify: discord
+      annotations:
+        summary: 정상 CNPG Primary를 확인하지 못했습니다
+        description: 관측된 DB 중 응답 가능한 Primary가 없습니다. 자동 Failover, rw Service, Replica와
+          PVC를 확인합니다. 수집 자체 누락은 별도 경보입니다. 현재 값={{ $value }}
+        dashboard: CloudNativePG 상태
+        runbook_url: https://app.notion.com/p/1130842d874f82ec8acf813ebbfe5e75
+        dashboard_url: "/d/janging-cnpg"
+    - alert: CNPGReplicationLagHigh
+      expr: max by (namespace,pod,cnpg_cluster) (cnpg_pg_replication_lag{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres"})
+        >= 30
+      for: 5m
+      labels:
+        severity: warning
+        component: database
+        owner: db-dr
+        notify: discord
+      annotations:
+        summary: CNPG 복제 지연 증가
+        description: 복제 지연 30초 이상이 5분 지속. Replica 복구 진행과 WAL/스토리지/네트워크 상태를 확인합니다.
+          현재 값={{ $value }}
+        dashboard: CloudNativePG 상태
+        runbook_url: https://app.notion.com/p/1130842d874f82ec8acf813ebbfe5e75
+        dashboard_url: "/d/janging-cnpg"
+    - alert: PVCUsageHigh
+      expr: 100 * max by (namespace,persistentvolumeclaim) (kubelet_volume_stats_used_bytes{namespace="database"})
+        / max by (namespace,persistentvolumeclaim) (kubelet_volume_stats_capacity_bytes{namespace="database"})
+        >= 80
+      for: 5m
+      labels:
+        severity: warning
+        component: database
+        owner: db-dr
+        notify: discord
+      annotations:
+        summary: PVC 여유 공간이 부족합니다
+        description: 사용률 80% 이상이 5분 지속. 데이터/WAL 임의 삭제 대신 보존 정책과 확장 경로를 확인합니다. 현재 값={{
+          $value }}
+        dashboard: CloudNativePG 상태 / Kubernetes
+        runbook_url: https://app.notion.com/p/1130842d874f82ec8acf813ebbfe5e75
+        dashboard_url: "/d/janging-cnpg"
+    - alert: PVCUsageHigh
+      expr: 100 * max by (namespace,persistentvolumeclaim) (kubelet_volume_stats_used_bytes{namespace="database"})
+        / max by (namespace,persistentvolumeclaim) (kubelet_volume_stats_capacity_bytes{namespace="database"})
+        >= 90
+      for: 5m
+      labels:
+        severity: critical
+        component: database
+        owner: db-dr
+        notify: discord
+      annotations:
+        summary: PVC 여유 공간이 부족합니다
+        description: 사용률 90% 이상이 5분 지속. 데이터/WAL 임의 삭제 대신 보존 정책과 확장 경로를 확인합니다. 현재 값={{
+          $value }}
+        dashboard: CloudNativePG 상태 / Kubernetes
+        runbook_url: https://app.notion.com/p/1130842d874f82ec8acf813ebbfe5e75
+        dashboard_url: "/d/janging-cnpg"
+    - alert: PVCUsageHigh
+      expr: 100 * max by (namespace,persistentvolumeclaim) (kubelet_volume_stats_used_bytes{namespace="monitoring"})
+        / max by (namespace,persistentvolumeclaim) (kubelet_volume_stats_capacity_bytes{namespace="monitoring"})
+        >= 80
+      for: 5m
+      labels:
+        severity: warning
+        component: monitoring
+        owner: cloud-native
+        notify: discord
+      annotations:
+        summary: PVC 여유 공간이 부족합니다
+        description: 사용률 80% 이상이 5분 지속. 데이터/WAL 임의 삭제 대신 보존 정책과 확장 경로를 확인합니다. 현재 값={{
+          $value }}
+        dashboard: CloudNativePG 상태 / Kubernetes
+        runbook_url: https://app.notion.com/p/1130842d874f82ec8acf813ebbfe5e75
+        dashboard_url: "/dashboards"
+    - alert: PVCUsageHigh
+      expr: 100 * max by (namespace,persistentvolumeclaim) (kubelet_volume_stats_used_bytes{namespace="monitoring"})
+        / max by (namespace,persistentvolumeclaim) (kubelet_volume_stats_capacity_bytes{namespace="monitoring"})
+        >= 90
+      for: 5m
+      labels:
+        severity: critical
+        component: monitoring
+        owner: cloud-native
+        notify: discord
+      annotations:
+        summary: PVC 여유 공간이 부족합니다
+        description: 사용률 90% 이상이 5분 지속. 데이터/WAL 임의 삭제 대신 보존 정책과 확장 경로를 확인합니다. 현재 값={{
+          $value }}
+        dashboard: CloudNativePG 상태 / Kubernetes
+        runbook_url: https://app.notion.com/p/1130842d874f82ec8acf813ebbfe5e75
+        dashboard_url: "/dashboards"
+    - alert: CNPGConnectionsHigh
+      expr: 100 * sum by (namespace,pod,cnpg_cluster) (cnpg_backends_total{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres"})
+        / on (namespace,pod,cnpg_cluster) max by (namespace,pod,cnpg_cluster) (cnpg_pg_settings_setting{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres",name="max_connections"})
+        >= 80
+      for: 5m
+      labels:
+        severity: warning
+        component: database
+        owner: db-dr
+        notify: discord
+      annotations:
+        summary: DB 연결 사용률 증가
+        description: 실제 max_connections 대비 80% 이상이 5분 지속. Hikari 풀, 오래 실행되는 쿼리와 불필요한
+          연결을 확인합니다. 현재 값={{ $value }}
+        dashboard: CloudNativePG 상태
+        runbook_url: https://app.notion.com/p/1130842d874f82ec8acf813ebbfe5e75
+        dashboard_url: "/d/janging-cnpg"
+    - alert: NodeNotReady
+      expr: max by (node) (kube_node_status_condition{condition="Ready",status="true"})
+        == 0
+      for: 5m
+      labels:
+        severity: critical
+        component: kubernetes
+        owner: cloud-native
+        notify: discord
+      annotations:
+        summary: 노드가 Ready 상태가 아닙니다
+        description: 5분 지속. 노드 및 네트워크 상태, 해당 노드의 Pod 영향을 인프라팀과 확인합니다. 현재 값={{ $value
+          }}
+        dashboard: Kubernetes
+        runbook_url: https://app.notion.com/p/1130842d874f82ec8acf813ebbfe5e75
+        dashboard_url: "/dashboards"
+    - alert: WorkloadPodPending
+      expr: max by (namespace,pod) (kube_pod_status_phase{namespace=~"app|database|ai|monitoring",phase="Pending"})
+        == 1
+      for: 15m
+      labels:
+        severity: warning
+        component: kubernetes
+        owner: cloud-native
+        notify: discord
+      annotations:
+        summary: Pod가 오랫동안 Pending입니다
+        description: 15분 지속. 자원/taint/selector/PVC와 GPU 노드 준비 상태를 확인합니다. GPU 기동 초기
+          지연과 구분합니다. 현재 값={{ $value }}
+        dashboard: Kubernetes
+        runbook_url: https://app.notion.com/p/1130842d874f82ec8acf813ebbfe5e75
+        dashboard_url: "/dashboards"
+    - alert: MonitoringTargetDown
+      expr: up{job=~"backend|cnpg|cnpg-operator|argocd-controller|argocd-server|argocd-repo-server|argocd-applicationset|argo-rollouts|dcgm-exporter"}
+        == 0
+      for: 5m
+      labels:
+        severity: warning
+        component: monitoring
+        owner: cloud-native
+        notify: discord
+      annotations:
+        summary: 메트릭 수집 실패
+        description: 발견된 Endpoint에서 5분간 scrape 실패. Pod, 포트, Monitor와 NetworkPolicy를
+          확인합니다. 앱 장애를 단정하지 않습니다. 현재 값={{ $value }}
+        dashboard: Platform / GPU-AI / Backend
+        runbook_url: https://app.notion.com/p/1130842d874f82ec8acf813ebbfe5e75
+        dashboard_url: "/dashboards"
+    - alert: MonitoringTargetMissing
+      expr: absent(up{job="backend"})
+      for: 10m
+      labels:
+        severity: warning
+        component: monitoring
+        owner: cloud-native
+        notify: discord
+        job: backend
+      annotations:
+        summary: 필수 메트릭 수집 대상이 없습니다
+        description: backend의 수집 대상 자체가 10분간 없습니다. 관련 Monitor를 먼저 적용해야 합니다. GPU 0노드
+          환경에는 이 규칙을 적용하지 않습니다. 현재 값={{ $value }}
+        dashboard: Platform / Backend
+        runbook_url: https://app.notion.com/p/1130842d874f82ec8acf813ebbfe5e75
+        dashboard_url: "/dashboards"
+    - alert: MonitoringTargetMissing
+      expr: absent(up{job="cnpg"})
+      for: 10m
+      labels:
+        severity: warning
+        component: monitoring
+        owner: cloud-native
+        notify: discord
+        job: cnpg
+      annotations:
+        summary: 필수 메트릭 수집 대상이 없습니다
+        description: cnpg의 수집 대상 자체가 10분간 없습니다. 관련 Monitor를 먼저 적용해야 합니다. GPU 0노드 환경에는
+          이 규칙을 적용하지 않습니다. 현재 값={{ $value }}
+        dashboard: Platform / Backend
+        runbook_url: https://app.notion.com/p/1130842d874f82ec8acf813ebbfe5e75
+        dashboard_url: "/dashboards"
+    - alert: MonitoringTargetMissing
+      expr: absent(up{job="argo-rollouts"})
+      for: 10m
+      labels:
+        severity: warning
+        component: monitoring
+        owner: cloud-native
+        notify: discord
+        job: argo-rollouts
+      annotations:
+        summary: 필수 메트릭 수집 대상이 없습니다
+        description: argo-rollouts의 수집 대상 자체가 10분간 없습니다. 관련 Monitor를 먼저 적용해야 합니다.
+          GPU 0노드 환경에는 이 규칙을 적용하지 않습니다. 현재 값={{ $value }}
+        dashboard: Platform / Backend
+        runbook_url: https://app.notion.com/p/1130842d874f82ec8acf813ebbfe5e75
+        dashboard_url: "/dashboards"
+    - alert: GPUDeviceError
+      expr: max by (node,UUID) (DCGM_FI_DEV_XID_ERRORS{job="dcgm-exporter"} > 0 and
+        DCGM_FI_DEV_XID_ERRORS{job="dcgm-exporter"} < 10000)
+      for: 1m
+      labels:
+        severity: critical
+        component: gpu
+        owner: cloud-native
+        notify: discord
+      annotations:
+        summary: GPU XID 오류 코드가 보고되었습니다
+        description: 최근 XID 코드가 0이 아닙니다. 발생 횟수가 아니며 드라이버에 남은 코드일 수 있습니다. AI 영향과 드라이버
+          로그를 함께 확인합니다. 현재 값={{ $value }}
+        dashboard: GPU·AI
+        runbook_url: https://app.notion.com/p/1130842d874f82ec8acf813ebbfe5e75
+        dashboard_url: "/d/janging-gpu-ai"
+    - alert: GPUMemoryHigh
+      expr: 100 * max by (node,UUID) (DCGM_FI_DEV_FB_USED{job="dcgm-exporter"} < 1000000)
+        / (max by (node,UUID) (DCGM_FI_DEV_FB_USED{job="dcgm-exporter"} < 1000000)
+        + max by (node,UUID) (DCGM_FI_DEV_FB_FREE{job="dcgm-exporter"} < 1000000))
+        >= 95
+      for: 10m
+      labels:
+        severity: warning
+        component: gpu
+        owner: ai
+        notify: discord
+      annotations:
+        summary: GPU 메모리 사용률이 높습니다
+        description: 95% 이상이 10분 지속. 모델 상주 메모리일 수 있으므로 OOM/추론 실패와 함께 판단하고 Stage 기준으로
+          튜닝합니다. GPU 연산 사용률 100%는 장애 조건이 아닙니다. 현재 값={{ $value }}
+        dashboard: GPU·AI
+        runbook_url: https://app.notion.com/p/1130842d874f82ec8acf813ebbfe5e75
+        dashboard_url: "/d/janging-gpu-ai"

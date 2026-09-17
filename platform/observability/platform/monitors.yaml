@@ -1,0 +1,237 @@
+# Stage/Prod 각각의 로컬 EKS에 같은 수집 계약을 사용한다. 모든 Monitor는 monitoring/release=metrics.
+# DB:9187, Operator:8080, Argo controller:8082/server:8083/repo:8084/appset:8080, Rollouts:8090.
+# resource_namespace는 관측 대상 namespace, namespace/pod는 수집 대상 Controller 위치를 나타낸다.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: cnpg-database
+  namespace: monitoring
+  labels:
+    release: metrics
+spec:
+  namespaceSelector:
+    matchNames:
+    - database
+  selector:
+    matchLabels:
+      cnpg.io/cluster: jangingmall-postgres
+  podMetricsEndpoints:
+  - port: metrics
+    path: "/metrics"
+    scheme: http
+    interval: 30s
+    scrapeTimeout: 10s
+    honorLabels: false
+    relabelings:
+    - targetLabel: job
+      replacement: cnpg
+    - sourceLabels:
+      - __meta_kubernetes_pod_label_cnpg_io_cluster
+      targetLabel: cnpg_cluster
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: cnpg-operator
+  namespace: monitoring
+  labels:
+    release: metrics
+spec:
+  namespaceSelector:
+    matchNames:
+    - cnpg-system
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloudnative-pg
+      app.kubernetes.io/instance: cloudnative-pg
+  podMetricsEndpoints:
+  - port: metrics
+    path: "/metrics"
+    scheme: http
+    interval: 30s
+    scrapeTimeout: 10s
+    honorLabels: false
+    relabelings:
+    - targetLabel: job
+      replacement: cnpg-operator
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: argocd-controller
+  namespace: monitoring
+  labels:
+    release: metrics
+spec:
+  namespaceSelector:
+    matchNames:
+    - argocd
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-metrics
+      app.kubernetes.io/instance: argocd
+      app.kubernetes.io/component: application-controller
+  endpoints:
+  - port: http-metrics
+    path: "/metrics"
+    scheme: http
+    interval: 30s
+    scrapeTimeout: 10s
+    honorLabels: false
+    relabelings:
+    - targetLabel: job
+      replacement: argocd-controller
+    metricRelabelings:
+    - sourceLabels:
+      - namespace
+      regex: "(.+)"
+      targetLabel: resource_namespace
+    - sourceLabels:
+      - exported_namespace
+      regex: "(.+)"
+      targetLabel: resource_namespace
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: argocd-server
+  namespace: monitoring
+  labels:
+    release: metrics
+spec:
+  namespaceSelector:
+    matchNames:
+    - argocd
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-server-metrics
+      app.kubernetes.io/instance: argocd
+      app.kubernetes.io/component: server
+  endpoints:
+  - port: http-metrics
+    path: "/metrics"
+    scheme: http
+    interval: 30s
+    scrapeTimeout: 10s
+    honorLabels: false
+    relabelings:
+    - targetLabel: job
+      replacement: argocd-server
+    metricRelabelings:
+    - sourceLabels:
+      - namespace
+      regex: "(.+)"
+      targetLabel: resource_namespace
+    - sourceLabels:
+      - exported_namespace
+      regex: "(.+)"
+      targetLabel: resource_namespace
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: argocd-repo-server
+  namespace: monitoring
+  labels:
+    release: metrics
+spec:
+  namespaceSelector:
+    matchNames:
+    - argocd
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-repo-server-metrics
+      app.kubernetes.io/instance: argocd
+      app.kubernetes.io/component: repo-server
+  endpoints:
+  - port: http-metrics
+    path: "/metrics"
+    scheme: http
+    interval: 30s
+    scrapeTimeout: 10s
+    honorLabels: false
+    relabelings:
+    - targetLabel: job
+      replacement: argocd-repo-server
+    metricRelabelings:
+    - sourceLabels:
+      - namespace
+      regex: "(.+)"
+      targetLabel: resource_namespace
+    - sourceLabels:
+      - exported_namespace
+      regex: "(.+)"
+      targetLabel: resource_namespace
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: argocd-applicationset
+  namespace: monitoring
+  labels:
+    release: metrics
+spec:
+  namespaceSelector:
+    matchNames:
+    - argocd
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-metrics
+      app.kubernetes.io/instance: argocd
+      app.kubernetes.io/component: applicationset-controller
+  endpoints:
+  - port: http-metrics
+    path: "/metrics"
+    scheme: http
+    interval: 30s
+    scrapeTimeout: 10s
+    honorLabels: false
+    relabelings:
+    - targetLabel: job
+      replacement: argocd-applicationset
+    metricRelabelings:
+    - sourceLabels:
+      - namespace
+      regex: "(.+)"
+      targetLabel: resource_namespace
+    - sourceLabels:
+      - exported_namespace
+      regex: "(.+)"
+      targetLabel: resource_namespace
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: argo-rollouts
+  namespace: monitoring
+  labels:
+    release: metrics
+spec:
+  namespaceSelector:
+    matchNames:
+    - argo-rollouts
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argo-rollouts
+      app.kubernetes.io/instance: argo-rollouts
+      app.kubernetes.io/component: rollouts-controller
+  endpoints:
+  - port: metrics
+    path: "/metrics"
+    scheme: http
+    interval: 30s
+    scrapeTimeout: 10s
+    honorLabels: false
+    relabelings:
+    - targetLabel: job
+      replacement: argo-rollouts
+    metricRelabelings:
+    - sourceLabels:
+      - namespace
+      regex: "(.+)"
+      targetLabel: resource_namespace
+    - sourceLabels:
+      - exported_namespace
+      regex: "(.+)"
+      targetLabel: resource_namespace

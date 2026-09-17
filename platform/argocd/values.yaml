@@ -12,6 +12,12 @@ configs:
   rbac:
     policy.default: role:readonly
 controller:
+  # 기존 프로세스의 내부 메트릭 Service만 생성한다. 별도 Exporter Pod는 없다.
+  # ServiceMonitor는 Prometheus CRD 설치 후 observability/platform에서 별도로 관리한다.
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: false
   replicas: 1
   resources:
     requests:
@@ -20,6 +26,12 @@ controller:
     limits:
       memory: 1Gi
 server:
+  # 기존 프로세스의 내부 메트릭 Service만 생성한다. 별도 Exporter Pod는 없다.
+  # ServiceMonitor는 Prometheus CRD 설치 후 observability/platform에서 별도로 관리한다.
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: false
   replicas: 1
   service:
     type: ClusterIP
@@ -32,6 +44,12 @@ server:
     limits:
       memory: 256Mi
 repoServer:
+  # 기존 프로세스의 내부 메트릭 Service만 생성한다. 별도 Exporter Pod는 없다.
+  # ServiceMonitor는 Prometheus CRD 설치 후 observability/platform에서 별도로 관리한다.
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: false
   replicas: 1
   resources:
     requests:
@@ -57,6 +75,12 @@ redisSecretInit:
 dex:
   enabled: false
 applicationSet:
+  # 기존 프로세스의 내부 메트릭 Service만 생성한다. 별도 Exporter Pod는 없다.
+  # ServiceMonitor는 Prometheus CRD 설치 후 observability/platform에서 별도로 관리한다.
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: false
   replicas: 1
   resources:
     requests:

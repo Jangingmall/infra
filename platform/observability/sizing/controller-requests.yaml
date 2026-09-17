@@ -1,0 +1,13 @@
+# 산정 제안값. 실제 platform values에는 아직 적용하지 않음.
+cloudnative-pg:
+  replicas: 1
+  cpu_m: 100
+  memory_mi: 128
+argo-rollouts:
+  replicas: 2
+  cpu_m: 100
+  memory_mi: 128
+argo-rollouts-dashboard:
+  replicas: 1
+  cpu_m: 50
+  memory_mi: 128

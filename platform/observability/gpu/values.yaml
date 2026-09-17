@@ -1,0 +1,73 @@
+# NVIDIA 공식 dcgm-exporter chart 4.8.3. AI 이미지나 GPU 할당을 변경하지 않는다.
+# GPU 노드마다 1개가 따라가므로 Stage 노드가 0개면 Exporter도 0개다.
+fullnameOverride: dcgm-exporter
+image:
+  repository: nvcr.io/nvidia/k8s/dcgm-exporter
+  tag: 4.6.0-4.8.3-distroless
+nodeSelector:
+  workload-type: gpu
+  kubernetes.io/os: linux
+tolerations:
+  - key: nvidia.com/gpu
+    operator: Equal
+    value: "true"
+    effect: NoSchedule
+# AI에 할당할 GPU 1개를 Exporter가 예약하면 AI가 Pending 되므로 GPU requests/limits는 넣지 않는다.
+resources:
+  requests: {cpu: 100m, memory: 128Mi}
+  limits: {cpu: 200m, memory: 512Mi}
+priorityClassName: ""
+hostNetwork: false
+hostPID: false
+serviceAccount:
+  create: true
+  name: dcgm-exporter
+  automountServiceAccountToken: false
+kubernetes:
+  enablePodLabels: false
+  enablePodUID: false
+  rbac:
+    create: false
+# Pod 연결은 kubelet의 로컬 pod-resources 소켓을 읽는다. API 전체 조회 권한은 주지 않는다.
+# 기본 장치 지표만 사용하므로 profiling용 SYS_ADMIN capability는 부여하지 않는다.
+securityContext:
+  runAsNonRoot: false
+  runAsUser: 0
+  capabilities:
+    drop: [ALL]
+    add: []
+  allowPrivilegeEscalation: false
+extraEnv:
+  - name: NVIDIA_VISIBLE_DEVICES
+    value: all
+  - name: NVIDIA_DRIVER_CAPABILITIES
+    value: utility
+  - name: DCGM_EXPORTER_INTERVAL
+    value: "30000"
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  scrapeTimeout: 10s
+  honorLabels: false
+  additionalLabels:
+    release: metrics
+  relabelings:
+    - targetLabel: job
+      replacement: dcgm-exporter
+    - sourceLabels: [__meta_kubernetes_pod_node_name]
+      targetLabel: node
+  # Prometheus의 namespace/pod는 Exporter 자신이다. GPU 사용 Pod와 혼동하지 않는다.
+  metricRelabelings:
+    - sourceLabels: [exported_namespace]
+      regex: (.+)
+      targetLabel: workload_namespace
+    - sourceLabels: [exported_pod]
+      regex: (.+)
+      targetLabel: workload_pod
+customMetrics: |
+  DCGM_FI_DEV_GPU_UTIL, gauge, GPU utilization (percent).
+  DCGM_FI_DEV_FB_USED, gauge, Framebuffer memory used (MiB).
+  DCGM_FI_DEV_FB_FREE, gauge, Framebuffer memory free (MiB).
+  DCGM_FI_DEV_GPU_TEMP, gauge, GPU temperature (Celsius).
+  DCGM_FI_DEV_POWER_USAGE, gauge, Power draw (Watts).
+  DCGM_FI_DEV_XID_ERRORS, gauge, Last XID error code (not an error count).

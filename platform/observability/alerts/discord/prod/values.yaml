@@ -1,0 +1,17 @@
+# prod: 상대 환경 또는 environment 누락 경보는 전송하지 않는다. Warning 2h / Critical 30m 반복.
+# TODO(인프라 인계 후): alertmanager.serviceAccount.annotations의 eks.amazonaws.com/role-arn을 실제 ARN으로 주입.
+---
+alertmanager:
+  config:
+    route:
+      routes:
+      - matchers:
+        - environment="prod"
+        - notify="discord"
+        - severity=~"warning|critical"
+        receiver: discord
+        routes:
+        - matchers:
+          - severity="critical"
+          receiver: discord
+          repeat_interval: 30m

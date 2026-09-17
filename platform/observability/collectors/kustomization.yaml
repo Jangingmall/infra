@@ -1,0 +1,13 @@
+# Trace 전용. 로그 Alloy는 logs/의 독립 배포 경로를 유지한다.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - trace-deployment.yaml
+  - trace-network-policy.yaml
+  - trace-monitor.yaml
+configMapGenerator:
+  - name: otel-collector-config
+    namespace: monitoring
+    files:
+      - config.yaml=trace-buffer.yaml
+# 기본 hash suffix를 유지한다. 설정 변경 시 Deployment 참조가 바뀌어 재시작된다.
