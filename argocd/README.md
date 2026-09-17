@@ -29,7 +29,7 @@ AppProject는 Argo CD 내부 제한이며 Kubernetes 사용자 RBAC 또는 GitHu
 | argo-rollouts | chart 2.43.1 + infra/main values | Rollouts Controller/CRD |
 | secrets-store-csi | chart 3.1.3 + infra/main values | CSI Driver + AWS Provider |
 | workloads | k8s/overlays/stage 또는 prod | Backend·업무 DB·AI·공통 리소스 |
-| observability-* | observability.yaml의 chart + Git sources | 환경당 관측성 Application 9개, 최초 수동 sync |
+| observability-* | observability.yaml·tempo.yaml의 chart + Git sources | 환경당 관측성 Application 10개, 최초 수동 sync |
 
 Helm Application은 multi-source의 `$values`로 현재 저장소 values를 사용한다.
 CNPG releaseName은 cloudnative-pg로 유지한다. 이 이름은 기존 NetworkPolicy의 Operator 라벨과 연결된다.

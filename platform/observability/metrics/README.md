@@ -48,7 +48,7 @@ Grafana는 단일 RWO PVC이므로 Recreate 방식이다. 업데이트 중 조�
 중앙 구성과 인증서 초기화 Job은 `workload-type=system`으로 배치한다.
 node-exporter는 Linux 노드에서 실행하고 DB/GPU의 NoSchedule taint도 허용한다.
 GPU 장치 메트릭은 별도 [DCGM Exporter 구성](../gpu/README.md)으로 수집하도록 작성했다.
-System은 t3.medium 1대 + t3.large 1대다. Prometheus는 large에 지정하고 Loki는 medium 우선 및 저장 Pod 간 soft anti-affinity를 적용한다. Tempo는 미구현이며 분산·HA를 보장하지 않는다.
+System은 t3.medium 1대 + t3.large 1대다. Prometheus는 large에 지정하고 Loki는 medium 우선 및 저장 Pod 간 soft anti-affinity를 적용한다. Tempo 배포 기반은 별도 Application으로 작성했으며 전체 분산·HA를 보장하지 않는다.
 
 System 노드 2대 기준 공통 메트릭 요청량은 **880m / 2404Mi**다.
 Prometheus/Alertmanager에 Operator가 생성하는 reloader 2개(20m/100Mi)를 포함한 계산이며 실제 Pod 생성 후 재확인한다.
@@ -120,7 +120,7 @@ Dashboard 제외 기존 플랫폼·제안 Controller 요청량 2016Mi와 합하�
 - Dashboard provider가 30초마다 파일을 다시 읽는다. kubelet의 ConfigMap 갱신 지연은 별도다. datasource/provider 설정은 Helm의 checksum/config 변경으로 재시작한다.
 - 기본 대시보드 원본은 고정 Helm chart에 있다. 팀 JSON을 추가할 때 ConfigMap과 마운트를 함께 추가한다. 모든 ConfigMap이 마운트되었는지 CI가 검증한다.
 - Rollouts Dashboard만 끈다. Controller 2개는 유지한다. 필요 시 로컬 `kubectl argo rollouts dashboard` 또는 CLI로 조회한다.
-- `../collectors/log-buffer.alloy`는 로그 렌더러에서 Pod/Events 수집 경로에 연결했다. `trace-buffer.yaml`은 `../traces/stage`·`prod`의 OTel Collector 배포 설정에 연결했고, 실제 Tempo 저장소와 자동 배포는 아직 연결하지 않았다. 둘 다 실제 EKS 적용을 뜻하지 않는다.
+- `../collectors/log-buffer.alloy`는 로그 렌더러에서 Pod/Events 수집 경로에 연결했다. `trace-buffer.yaml`은 `../traces/stage`·`prod`의 OTel Collector 배포 설정에 연결했고, Tempo Service로 전달하며 Grafana에 Tempo 데이터소스를 파일로 제공한다. 배포는 수동 Sync다. 둘 다 실제 EKS 적용을 뜻하지 않는다.
 - 로그 batch 256KiB, 활성 stream 1000, 재시도 3회. 전체 프로세스 메모리 상한을 뜻하지 않는다.
 - 추적은 memory limiter 192Mi, batch 최대 1024 Span, 전송 큐 32요청, 재시도 최대 15초다. Span 크기는 가변이며 큐의 단위는 바이트가 아니다.
 - Loki gateway/rules sidecar와 쿼리 동시 실행 수는 이번 변경 대상에서 제외했다.

@@ -219,6 +219,12 @@ grafana:
           editable: false
           jsonData:
             implementation: prometheus
+        - name: Tempo
+          uid: tempo
+          type: tempo
+          access: proxy
+          url: http://tempo.monitoring.svc.cluster.local:3200
+          editable: false
         - name: Loki
           uid: loki
           type: loki

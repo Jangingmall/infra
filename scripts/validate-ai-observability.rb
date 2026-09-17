@@ -38,7 +38,10 @@ check(app_egress.map { |r| r.dig('metadata','namespace') }.sort == %w[ai app], '
   check(settings.dig('exporters','otlp/tempo','sending_queue','queue_size') == 32, 'bounded queue changed')
   env_cm = resources.find { |r| r['kind']=='ConfigMap' && r.fetch('data',{}).key?('OBS_ENV') }
   check(env_cm.dig('data','OBS_ENV') == env, 'trace environment mismatch')
-  check(resources.none? { |r| r.dig('metadata','name') == 'traces-runtime' }, 'do not fabricate Tempo endpoint')
+  runtime = resources.find { |r| r['kind'] == 'ConfigMap' && r.fetch('data', {}).key?('TEMPO_OTLP_ENDPOINT') }
+  check(runtime && runtime.dig('data', 'TEMPO_OTLP_ENDPOINT') == 'tempo.monitoring.svc.cluster.local:4317', 'Collector must target the deployed Tempo gRPC service')
+  endpoint_env = spec['containers'].first['env'].find { |e| e['name'] == 'TEMPO_OTLP_ENDPOINT' }
+  check(endpoint_env.dig('valueFrom', 'configMapKeyRef', 'name') == runtime.dig('metadata', 'name'), 'Tempo endpoint config hash not wired')
   check(resources.none? { |r| %w[app ai].include?(r.dig('metadata','namespace')) }, 'Collector bundle must not newly isolate application egress')
   check(resources.none? { |r| r['kind']=='Ingress' }, 'no public trace ingress')
 end

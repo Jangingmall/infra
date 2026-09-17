@@ -15,7 +15,7 @@ render_dir = ARGV.fetch(0)
   resources = documents("#{render_dir}/argocd-#{environment}.yaml")
   applications = resources.select { |r| r['kind'] == 'Application' }
   expected_names = %w[workloads cloudnative-pg argo-rollouts secrets-store-csi].map { |n| "#{environment}-#{n}" } +
-    %w[storage metrics loki alloy-pods alloy-events targets gpu ai-metrics traces].map { |n| "#{environment}-observability-#{n}" }
+    %w[storage metrics loki alloy-pods alloy-events targets gpu ai-metrics traces tempo].map { |n| "#{environment}-observability-#{n}" }
   check(applications.map { |a| a.dig('metadata', 'name') }.sort == expected_names.sort, "#{environment}: Application inventory differs")
   applications.each do |app|
     spec = app.fetch('spec')

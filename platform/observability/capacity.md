@@ -6,6 +6,15 @@
 
 **이 절이 아래의 이전 medium 2대 계산보다 우선한다. 아래 기록과 sizing/는 변경 전 비교 자료다.**
 
+### Tempo 배포 기반 추가
+
+`tempo/values.yaml`에 community chart 2.4.0 / Tempo 2.10.8 단일 컨테이너를 작성했다.
+requests 250m/768Mi는 기존 전체 후보에 포함된 Tempo 예산을 사용하므로 합계에 중복 가산하지 않는다.
+limit은 CPU 1 / 1536Mi이며, 1Gi 기본 memory ballast는 끄고 Go 메모리 목표는 1152MiB로 제한했다.
+WAL용 gp3 10Gi는 초기 제안이다. S3 전체 보존 데이터 크기와 다르며 유입량/장애 기간으로 검증해야 한다.
+System selector와 저장 Pod 간 soft 분산만 사용한다. medium/large 어느 노드에 실제로 들어갈지는 기존 Pod·allocatable·PVC AZ에 달려 있다.
+아래의 '미구현 Tempo'와 deprecated chart 기록은 이 변경 전 산정 이력이다. 실제 EKS 용량·HA 검증 완료를 의미하지 않는다.
+
 | 구분 | 환경별 노드 | 물리 메모리 | 물리 CPU |
 | --- | --- | ---: | ---: |
 | System | t3.medium 1 + t3.large 1 | 12GiB | 4 vCPU |

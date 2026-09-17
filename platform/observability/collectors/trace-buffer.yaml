@@ -1,6 +1,6 @@
 # OTel Collector 0.160.0용 독립 실행 설정. Helm values가 아니라 Collector config 파일이다.
-# traces/stage·prod Kustomize에서 Deployment/Service로 연결한다. Argo CD 자동 배포는 미연결이다.
-# TEMPO_OTLP_ENDPOINT는 실제 내부 gRPC 주소를 공급한다. 가짜 주소로 배포하지 않는다.
+# traces/stage·prod Kustomize에서 Deployment/Service로 연결한다. Argo CD 수동 Sync로 배포한다.
+# TEMPO_OTLP_ENDPOINT는 실제 내부 gRPC 주소를 공급한다. Kustomize가 Tempo Service 주소를 제공한다.
 # 추후 컨테이너 memory limit은 최소 256Mi 이상으로 잡아 아래 limiter(192Mi)와 여유를 둔다.
 # 이 limiter는 주기적 보호 장치이며 순간적인 메모리 급증/OOM을 완전히 막지는 못한다.
 receivers:

@@ -20,7 +20,7 @@ Stage·Prod는 서로 다른 EKS와 Argo CD를 사용한다. 한 클러스터에
 `selfHeal: true`도 automated가 꺼져 있을 동안에는 자동 복구를 시작하지 않는다.
 설정 준비와 Stage 검증 후 필요한 Application만 Git에서 `enabled: true`로 바꿀 수 있다. 자동 prune은 계속 꺼둔다.
 
-## 환경당 Application 9개
+## 환경당 Application 10개
 
 이름 앞에는 `stage-observability-` 또는 `prod-observability-`가 붙는다.
 
@@ -33,8 +33,9 @@ Stage·Prod는 서로 다른 EKS와 Argo CD를 사용한다. 한 클러스터에
 | alloy-pods | 노드별 Pod 로그 수집기와 설정 | Loki 준비, containerd 로그 경로 및 읽기 권한 확인 |
 | alloy-events | Kubernetes Events 수집기 1개와 설정 | Loki 및 Kubernetes API 접근 준비 |
 | gpu | DCGM Exporter와 수집 정책 | metrics CRD, NVIDIA 드라이버·runtime 준비 |
+| tempo | 단일 Tempo·WAL PVC·IRSA SA·Monitor·NetworkPolicy | metrics CRD, EBS, 실제 S3/IRSA 및 S3·STS egress 인계 후 수동 Sync |
 | ai-metrics | AI API PodMonitor와 TCP 8000 수집 정책 | AI팀의 양쪽 API `/metrics` 제공 확인 후 선택 Sync |
-| traces | OTel Collector·설정·수집기 정책·Monitor | 실제 Tempo와 traces-runtime ConfigMap 준비 후 선택 Sync |
+| traces | OTel Collector·설정·수집기 정책·Monitor | Tempo Ready 확인 후 수동 Sync; 주소 ConfigMap은 Git에서 생성 |
 
 GPU 노드 수가 0이면 DCGM DaemonSet의 실행 Pod도 0이다. 이것을 GPU 장치 수집 성공으로 판단하지 않는다.
 AI API 메트릭과 GPU 장치 메트릭은 별개다. DCGM만으로 AI 요청 성공률·응답 지연을 알 수 없다.
@@ -81,7 +82,8 @@ Application 간 중복 소유는 `FailOnSharedResource=true`로 차단하며, �
 | Grafana 로그인 정보 | monitoring/grafana-admin Secret의 admin-user, admin-password | 안전한 별도 공급 절차로 준비. Git에 값 저장 금지 |
 | Discord IRSA Role ARN | 같은 runtime 파일의 alertmanager.serviceAccount.annotations.eks.amazonaws.com/role-arn | Discord 선택 활성화 전에 준비 |
 | Discord webhook | SSM SecureString, 제안 경로 /staging 또는 /prod/monitoring/discord-webhook-url | Git·CI·values에 실제 URL 저장 금지 |
-| Tempo 주소 | monitoring/traces-runtime의 TEMPO_OTLP_ENDPOINT | 실제 Tempo 준비 후 host:4317 형식. 이 작업은 Tempo를 배포하지 않음 |
+| Tempo S3·IRSA·egress | tempo/runtime/stage.yaml 또는 prod.yaml | [Tempo 배포 기반](tempo/README.md)의 준비 항목을 모두 충족한 뒤 Sync |
+| Tempo 주소 | Kustomize가 생성하는 traces-runtime-<hash>의 TEMPO_OTLP_ENDPOINT | tempo.monitoring.svc.cluster.local:4317, Stage·Prod 각각의 내부 Service |
 
 runtime 파일은 기본 `{}`다. 가짜 버킷·ARN·Webhook은 넣지 않았다.
 Loki 버킷을 입력하면 assets chart가 `logs-runtime` ConfigMap을 만든다. ARN은 외부 chart가 만드는 `loki-sa` annotation에 반영한다.
@@ -143,7 +145,7 @@ workloads 전체가 아직 배포 불가능하면 담당자와 Namespace만 선�
 6. 실제 버킷·IRSA를 넣고 `stage-observability-loki`를 Sync한다. gateway Ready와 S3 접근을 확인한다.
 7. `stage-observability-alloy-pods`, `stage-observability-alloy-events`를 Sync한다. 로그와 Events가 조회되는지 확인한다.
 8. NVIDIA 환경 준비 후 `stage-observability-gpu`를 Sync한다. L40S·T4 메트릭을 확인한다.
-9. AI API와 Tempo가 준비된 경우에만 각각 `ai-metrics`, `traces`를 Sync한다. 준비 전에는 OutOfSync/Missing 상태로 남아 있어도 배포하지 않는다.
+9. 실제 S3·IRSA·네트워크를 확인한 뒤 `tempo`를 Sync한다. PVC Bound와 Tempo Ready/저장·조회 검증을 마친다. `ai-metrics`는 AI API 준비 후, `traces`는 Tempo Ready 확인 후 각각 Sync한다. 준비 전에는 OutOfSync/Missing 상태로 남아 있어도 배포하지 않는다.
 10. Discord는 앞의 선택 component로 켠 뒤 시험 경보 발생·복구와 잘못된 환경 경보 차단을 확인한다.
 11. Stage에서 통과한 설정을 Prod의 실제 ARN·버킷·Secret과 대조하여 같은 순서로 진행한다.
 
@@ -184,11 +186,11 @@ Argo CD용 설치 플러그인이 아니라 개발자/CI의 검증 도구다. Ar
 - 기존 공통 경보와 알림 규칙 검사 유지.
 
 실제 EKS에서 남은 검증: Argo CD reconcile/health, CRD webhook, IRSA·SSM·S3, CSI/PVC, NetworkPolicy 허용·차단, 실제 Backend/GPU 수집, 경보 발생·수신·복구, 장애 및 데이터 보존.
-Tempo 저장소·CloudWatch·앱 계측·통합 추적은 이번 배포 연결만으로 완료되지 않는다.
+Tempo 배포 기반은 추가했지만 실제 AWS 저장 검증, CloudWatch·앱 계측·통합 추적은 아직 남아 있다.
 
 근거: [Argo CD multiple sources](https://argo-cd.readthedocs.io/en/stable/user-guide/multiple_sources/), [Helm integration](https://argo-cd.readthedocs.io/en/stable/user-guide/helm/), [Sync options](https://argo-cd.readthedocs.io/en/stable/user-guide/sync-options/).
 
-### 이번 연결 작업의 로컬 확인 결과
+### 기존 관측성 연결 작업의 로컬 확인 결과 (Tempo 추가 전)
 
 - `bash scripts/validate-k8s.sh` 전체 검사 통과. Stage·Prod별 관측성 Application 9개의 실제 소스를 렌더링했다.
 - Discord 선택 구성, 공통 경보 20개 및 발생/복구·환경 라우팅 검사를 통과했다.

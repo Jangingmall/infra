@@ -1,5 +1,5 @@
 # Collector 자신의 ingress/egress만 제한한다. 앱의 기존 통신은 변경하지 않는다.
-# TODO: Tempo 수신 정책과 app.kubernetes.io/name=tempo 라벨을 실제 배포 시 맞춘다.
+# Tempo Application의 수신 정책과 대응한다. 실제 CNI 허용·차단은 EKS에서 검증한다.
 # DNS는 CoreDNS 기준이다. NodeLocal DNS 사용 시 실제 경로를 별도 반영한다.
 ---
 apiVersion: networking.k8s.io/v1

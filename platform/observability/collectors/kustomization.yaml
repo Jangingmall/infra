@@ -11,3 +11,7 @@ configMapGenerator:
     files:
       - config.yaml=trace-buffer.yaml
 # 기본 hash suffix를 유지한다. 설정 변경 시 Deployment 참조가 바뀌어 재시작된다.
+  - name: traces-runtime
+    namespace: monitoring
+    literals:
+      - TEMPO_OTLP_ENDPOINT=tempo.monitoring.svc.cluster.local:4317

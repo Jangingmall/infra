@@ -116,3 +116,4 @@ kubeconfig
 !k8s/base/backend/README.md
 
 !platform/observability/README.md
+!platform/observability/tempo/README.md

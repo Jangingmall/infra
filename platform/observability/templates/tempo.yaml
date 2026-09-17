@@ -1,0 +1,90 @@
+{{- if eq .Values.bundle "tempo" }}
+{{- $role := dig "serviceAccount" "annotations" "eks.amazonaws.com/role-arn" "" .Values.AsMap }}
+{{- if or .Values.tempoBucket $role .Values.tempoEgressCidrs }}
+{{- if not (and .Values.tempoBucket $role .Values.tempoEgressCidrs) }}
+{{- fail "Tempo requires tempoBucket, serviceAccount.annotations.eks.amazonaws.com/role-arn and tempoEgressCidrs together" }}
+{{- end }}
+{{- if not (regexMatch "^arn:aws:iam::[0-9]{12}:role/.+$" $role) }}
+{{- fail "Tempo IRSA role ARN is invalid" }}
+{{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tempo-runtime
+  namespace: {{ .Release.Namespace }}
+data:
+  TEMPO_S3_BUCKET: {{ .Values.tempoBucket | quote }}
+{{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tempo
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: tempo
+      app.kubernetes.io/instance: tempo
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: otel-collector
+      ports:
+        - {protocol: TCP, port: 4317}
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: grafana
+              app.kubernetes.io/instance: metrics
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+              operator.prometheus.io/name: metrics-prometheus
+      ports:
+        - {protocol: TCP, port: 3200}
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: tempo
+              app.kubernetes.io/instance: tempo
+      ports:
+        - {protocol: TCP, port: 9095}
+        - {protocol: TCP, port: 7946}
+        - {protocol: UDP, port: 7946}
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - {protocol: TCP, port: 53}
+        - {protocol: UDP, port: 53}
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: tempo
+              app.kubernetes.io/instance: tempo
+      ports:
+        - {protocol: TCP, port: 9095}
+        - {protocol: TCP, port: 7946}
+        - {protocol: UDP, port: 7946}
+    {{- if .Values.tempoEgressCidrs }}
+    - to:
+      {{- range .Values.tempoEgressCidrs }}
+      {{- if or (eq . "0.0.0.0/0") (eq . "::/0") }}
+      {{- fail "Tempo egress must use approved S3/STS CIDRs, not all destinations" }}
+      {{- end }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+      {{- end }}
+      ports:
+        - {protocol: TCP, port: 443}
+    {{- end }}
+{{- end }}

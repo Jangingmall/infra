@@ -1,0 +1,6 @@
+tempo:
+  retention: 72h
+  storage:
+    trace:
+      s3:
+        prefix: tempo/staging

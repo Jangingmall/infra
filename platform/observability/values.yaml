@@ -4,3 +4,5 @@ environment: ""
 discord:
   enabled: false
 lokiBucket: ""
+tempoBucket: ""
+tempoEgressCidrs: []

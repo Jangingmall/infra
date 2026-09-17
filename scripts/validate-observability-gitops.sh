@@ -14,6 +14,7 @@ trap 'rm -rf "$work"' EXIT
 export OBSERVABILITY_CHART_CACHE="${OBSERVABILITY_CHART_CACHE:-$work/charts}"
 for environment in stage prod; do
   ruby "$root/scripts/render-observability.rb" "$environment" "$work/$environment"
+  ruby "$root/scripts/validate-tempo.rb" "$environment" "$work/$environment"
   cat "$work/$environment/metrics.yaml" "$work/$environment/targets.yaml" > "$work/$environment-metrics.yaml"
   ruby "$root/scripts/validate-observability.rb" "$environment" "$work/$environment-metrics.yaml"
   ruby "$root/scripts/validate-logs.rb" "$environment" "$work/$environment"
