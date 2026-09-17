@@ -1,4 +1,3 @@
-# 공용 ECR은 확정된 단일 state에서만 활성화한다.
 module "ecr" {
   source = "../../modules/ecr"
 
