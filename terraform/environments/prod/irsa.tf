@@ -11,7 +11,7 @@ data "aws_iam_policy_document" "backend" {
     sid       = "KMSDecrypt"
     effect    = "Allow"
     actions   = ["kms:Decrypt", "kms:GenerateDataKey"]
-    resources = [var.aws_kms_key.shared.arn]
+    #resources = [var.aws_kms_key.shared.arn]
 
     condition {
       test     = "StringEquals"
@@ -64,7 +64,7 @@ data "aws_iam_policy_document" "cnpg" {
     sid       = "KMSForBackup"
     effect    = "Allow"
     actions   = ["kms:GenerateDataKey", "kms:Decrypt"]
-    resources = [var.aws_kms_key.shared.arn]
+    #resources = [var.aws_kms_key.shared.arn]
 
     condition {
       test     = "StringEquals"
