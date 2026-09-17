@@ -96,3 +96,6 @@ kubeconfig
 # 이미 추적 중인 팀 README/CLAUDE/CONVENTION/PR 템플릿은 그대로 유지한다.
 *.[mM][dD]
 !ci-cd/README.md
+
+# AI Secret 공급 운영 문서는 코드와 함께 관리한다.
+!k8s/components/ai-vector-db-secrets/README.md

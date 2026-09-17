@@ -127,3 +127,11 @@ SSO, 원격 Git 자격증명 공급, branch protection/reviewer 설정은 실제
 - 원본 설정으로 복원한 뒤 동일 검증 통과.
 - 검증 CLI 도움말·잘못된 옵션(exit 2), Bash/Ruby 문법 및 git diff --check 통과.
 - AWS/EKS 변경, Argo CD 실제 sync, 커밋·push는 수행하지 않음.
+
+### AI 벡터DB Secret 공급 연결
+
+Stage·Prod에 `ai-vector-db-config`와 전용 ServiceAccount/CSI 마운트를 추가했다.
+CSI 플랫폼의 Secret 동기화를 활성화하며 Backend configtree는 파일 방식으로 유지한다.
+[AI Secret 인계·운영 절차](../k8s/components/ai-vector-db-secrets/README.md)를 따른다.
+실제 환경별 IRSA ARN과 SSM 파라미터가 준비되기 전에는 workloads를 등록하지 않는다.
+2026-09-17 로컬 Helm/Kustomize 및 Secret 경로·키·마운트 계약 검증은 통과했으며 실제 EKS 검증은 미실시다.

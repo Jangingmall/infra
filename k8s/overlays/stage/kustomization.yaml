@@ -6,7 +6,9 @@ resources:
   - ../../base/network-policies/database
   - ../../base/network-policies/ai/ingress
   - backend-secret-provider.yaml
+  - ai-vector-db-secret-provider.yaml
 
 components:
   - ../../components/backend-configtree
   - ../../components/gitops-protection
+  - ../../components/ai-vector-db-secrets

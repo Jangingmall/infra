@@ -27,9 +27,9 @@ tolerations:
 secrets-store-csi-driver:
   install: true
 
-  # Parameter Store 값을 Kubernetes Secret으로 별도 복제하지 않는다.
+  # AI 벡터DB의 secretObjects만 Kubernetes Secret으로 동기화한다. Backend는 파일 마운트 유지.
   syncSecret:
-    enabled: false
+    enabled: true
 
   # Backend의 Secret reload 정책 확정 전까지 자동 Rotation은 비활성화한다.
   enableSecretRotation: false

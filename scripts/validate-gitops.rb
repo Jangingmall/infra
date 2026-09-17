@@ -39,6 +39,19 @@ render_dir = ARGV.fetch(0)
     check(ignores.any? { |r| r['kind']=='Service' && r['name']==name && r['jsonPointers']==['/spec/selector/rollouts-pod-template-hash'] }, 'Rollouts Service selector ownership missing')
   end
   managed = documents("#{render_dir}/#{environment}.yaml")
+spc = managed.find { |r| r['kind']=='SecretProviderClass' && r.dig('metadata','name')=='ai-vector-db-config' }
+check(spc, 'AI vector DB SecretProviderClass missing')
+check(spc.dig('spec','parameters','usePodIdentity')=='false', 'AI vector DB must use IRSA')
+objects = YAML.load(spc.dig('spec','parameters','objects'))
+prefix = environment=='stage' ? 'staging' : 'prod'
+check(objects.map { |o| o['objectName'] }.sort == %W[/#{prefix}/ai/vector-db/password /#{prefix}/ai/vector-db/postgres-password], 'AI secret environment paths differ')
+synced = spc.dig('spec','secretObjects').first
+check(synced['secretName']=='ai-vector-db-auth', 'AI Secret name differs')
+check(synced['data'].map { |d| [d['objectName'],d['key']] }.sort == [['password','password'],['postgres-password','postgres-password']], 'AI Secret alias/key mismatch')
+db = managed.find { |r| r['kind']=='StatefulSet' && r.dig('metadata','name')=='ai-vector-db' }.dig('spec','template','spec')
+check(db['serviceAccountName']=='ai-vector-db-sa', 'AI DB IRSA ServiceAccount missing')
+check(db['volumes'].any? { |v| v.dig('csi','volumeAttributes','secretProviderClass')=='ai-vector-db-config' }, 'AI secret sync needs CSI volume')
+check(db['containers'].first['volumeMounts'].any? { |v| v['name']=='ai-vector-db-secrets' && v['readOnly']==true }, 'AI secret sync needs mounted volume')
   managed.each do |r|
     group = r['apiVersion'].include?('/') ? r['apiVersion'].split('/').first : ''
     scope = r.dig('metadata','namespace') ? 'namespaceResourceWhitelist' : 'clusterResourceWhitelist'
