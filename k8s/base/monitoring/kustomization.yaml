@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# ⚠️ 각 리소스 파일에 namespace: monitoring 이 이미 명시되어 있어서
+#    여기서 namespace: 필드를 별도로 지정하지 않음(중복 방지).
+#    만약 나중에 배포 환경별로 네임스페이스를 다르게 오버레이하고 싶으면
+#    여기 namespace: monitoring 을 추가하고 각 리소스의 metadata.namespace는 지워도 됨.
+
+resources:
+  - configmaps/prometheus-scrape-config.yaml
+  - configmaps/grafana-dashboards/janginmall-cpu-mem-dashboard.yaml
+  - alert-rules/backend-alerts.yaml
+  - alertmanager/alertmanager-config.yaml
+  #  - alertmanager/discord-webhook-secret.yaml
+  # ⚠️ 위 줄은 .example로 남겨두고 주석처리함. 실제 Secret은
+  #    kubectl create secret 으로 직접 만들거나 secrets-store-csi로 동기화.
+  #    파일명: alertmanager/discord-webhook-secret.yaml.example
+
+# ⚠️ 이 파일의 위치: k8s/base/monitoring/kustomization.yaml
+#    (platform/monitoring/ 에는 kube-prometheus-stack-values.yaml만 남음 — Helm 차트 본체)
+#    k8s/base/kustomization.yaml 에 아래 한 줄을 추가해야 실제로 이 리소스들이 base에 포함됨:
+#      resources:
+#        - monitoring/
+#    stage/prod마다 달라지는 값(디스코드 webhook secret, 알림 임계값)은
+#    k8s/overlays/{stage,prod}/monitoring/ 의 patch로 별도 관리 (kustomization.stage.yaml.example,
+#    kustomization.prod.yaml.example 참고).

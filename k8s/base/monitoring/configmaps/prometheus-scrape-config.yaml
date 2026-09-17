@@ -1,0 +1,48 @@
+# ⚠️ 전제: alertmanager/grafana/prometheus를 kube-prometheus-stack(Prometheus Operator)으로 쓰고 있다고 가정함
+#     (저번에 만든 그라파나 대시보드 ConfigMap이 sidecar 방식이라 이걸 전제로 함)
+#     이 경우 Prometheus는 raw scrape_configs가 아니라 ServiceMonitor/PodMonitor CR을 selector로 찾아서 자동 스크레이프함.
+#     → 순수 Prometheus(Operator 없이 ConfigMap+prometheus.yml 마운트 방식)라면 이 파일 대신 알려줘, additionalScrapeConfigs 방식으로 다시 작성해줄게.
+
+---
+# 1) 백엔드(Spring Boot) 앱 - /actuator/prometheus 스크레이프
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: janginmall-backend
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack   # ⚠️ Prometheus CR의 serviceMonitorSelector와 매칭되는 라벨로 교체
+                                      #    (kube-prometheus-stack 기본값은 helm release 이름. helm list로 확인)
+spec:
+  namespaceSelector:
+    matchNames:
+      - <NAMESPACE>                  # ⚠️ backend 앱이 실제 배포된 네임스페이스
+  selector:
+    matchLabels:
+      app: <BACKEND_SERVICE_LABEL>   # ⚠️ backend Service의 실제 label(예: app.kubernetes.io/name)로 교체
+  endpoints:
+    - port: management               # ⚠️ 확정: management.server.port=9090 분리 사용 중. Service에 9090을 이 이름(예: management)으로 노출해야 함 — 실제 Service manifest의 포트 이름과 맞춰서 교체
+      path: /actuator/prometheus
+      interval: 15s
+      scrapeTimeout: 10s
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+
+# ── GPU(dcgm-exporter)는 배포 안 하는 걸로 확정 — 운영 부담 이유로 배제.
+#    나중에 필요해지면 이 자리에 ServiceMonitor 추가하면 됨.
+#    (GPU 노드 자체 CPU/메모리는 node-exporter로 계속 보이지만, GPU 사용률/VRAM은 이 상태로는 안 보임)
+
+# ── 참고: 아래는 이미 자동으로 스크레이프되고 있어서 여기서 별도로 안 만들어도 됨 ──
+#
+# - PostgreSQL(CloudNativePG): cnpg 오퍼레이터가 Cluster 리소스에
+#   .spec.monitoring.enablePodMonitor: true 설정만 해주면 PodMonitor를 자동 생성함.
+#   → cnpg-cluster manifest 쪽에서 그 옵션만 켜져 있는지 확인.
+#
+# - node-exporter / kube-state-metrics: kube-prometheus-stack 설치 시 기본 포함,
+#   각자 ServiceMonitor가 이미 딸려 있음 (패널1,2에서 쓰는 node_cpu_seconds_total,
+#   kube_node_labels 등이 여기서 나옴).
+#
+# - 큐(RabbitMQ/SQS/Kafka) exporter: 큐 자체를 도입 안 하는 걸로 확정 — 배제.
