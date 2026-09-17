@@ -194,7 +194,7 @@ output "eks_cluster_security_group_id" {
     3-tier 방어 논리의 근거 — 같은 클러스터 노드끼리는 이 SG 로 이미 열려 있으므로
     계층 격리는 서브넷이 아니라 노드그룹·Taint·SG·NetworkPolicy 축으로 이뤄집니다.
   EOT
-  value = module.eks.cluster_security_group_id
+  value       = module.eks.cluster_security_group_id
 }
 
 output "eks_oidc_provider_arn" {
@@ -231,4 +231,8 @@ output "ecr_repository_arns" {
 output "ecr_registry_id" {
   description = "ECR 레지스트리(계정) ID"
   value       = module.ecr.registry_id
+}
+
+output "irsa_role_arns" {
+  value = { for k, m in module.irsa : k => m.role_arn }
 }

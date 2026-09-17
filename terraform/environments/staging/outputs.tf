@@ -14,3 +14,7 @@ output "ecr_registry_id" {
   description = "ECR 레지스트리(계정) ID"
   value       = module.ecr.registry_id
 }
+
+output "irsa_role_arns" {
+  value = { for k, m in module.irsa : k => m.role_arn }
+}

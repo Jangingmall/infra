@@ -1,0 +1,54 @@
+# ⚠️ 로컬 테스트(kind) 전용 파일 — 절대 staging/prod에 쓰지 말 것.
+#    kube-prometheus-stack-values.yaml(원본, EKS용)에서 로컬 클러스터엔 없는
+#    EKS 전용 값들(nodeSelector, gp3 StorageClass)만 제거/대체한 버전.
+#
+# ⚠️ Helm은 여러 -f 파일을 병합할 때, 빈 맵({})을 주면 원본 값을 안 지우고 그대로 둠
+#    (deep merge라 "덮어쓸 게 없다"는 뜻이 됨). 실제로 키를 지우려면 반드시 null을 명시해야 함 —
+#    아래 nodeSelector들이 전부 null인 이유가 이거임. {}로 하면 원본 EKS nodeSelector가 그대로 남아서
+#    Pod가 로컬 노드에 스케줄 안 되고 Pending에 멈춤.
+
+kubeEtcd:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeProxy:
+  enabled: false   # kind는 컨트롤플레인 구조가 달라서 이것도 꺼두는 게 안전 (TargetDown 노이즈 방지)
+
+defaultRules:
+  rules:
+    etcd: false
+    kubeScheduler: false
+    kubeControllerManager: false
+
+prometheus:
+  prometheusSpec:
+    retention: 1d           # 로컬 테스트는 짧게 — 어차피 클러스터째로 버릴 거라 15d는 의미 없음
+    retentionSize: "1GB"
+
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: standard   # kind 기본 StorageClass(local-path-provisioner)
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 2Gi
+
+    nodeSelector: null   # ⚠️ 원본의 eks.amazonaws.com/nodegroup 제거용. 반드시 null
+
+alertmanager:
+  alertmanagerSpec:
+    nodeSelector: null
+
+grafana:
+  nodeSelector: null
+
+  admin:
+    # ⚠️ 로컬 테스트 전용 — 실제 환경에서는 절대 이렇게 평문 쓰지 말 것.
+    existingSecret: ""
+    adminPassword: "local-test-only"
+
+kube-state-metrics:
+  nodeSelector: null
