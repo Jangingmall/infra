@@ -185,6 +185,9 @@ output "ecr_registry_id" {
   value       = module.ecr.registry_id
 }
 
+output "irsa_role_arns" {
+  value = { for k, m in module.irsa : k => m.role_arn }
+}
 # ------------------------------------------------------------
 # ⑦ 노드그룹
 # ------------------------------------------------------------
