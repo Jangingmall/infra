@@ -1,17 +1,3 @@
-# ============================================================
-# outputs.tf — 이 환경이 밖으로 내보내는 값
-# ------------------------------------------------------------
-# 🔄 2026-09-15 모듈 이관: 리소스를 직접 참조하던 것을
-#    module.<이름>.<output> 참조로 바꿨다.
-#    output 이름은 그대로 유지한다 — 이름을 바꾸면 이 값을 쓰는
-#    타 직군 문서·스크립트가 조용히 깨진다.
-#
-# 용도:
-#   1. terraform output 으로 리소스 ID 를 확인 (인계 문서 재료)
-#   2. ⑤~⑩ 단계에서 값 확인
-#   3. 보안팀 검증 (rt-data 에 0.0.0.0/0 이 없는지 등)
-# ============================================================
-
 # ------------------------------------------------------------
 # VPC
 # ------------------------------------------------------------
@@ -278,4 +264,28 @@ output "addons_network_policy_enabled" {
 output "addons_ebs_csi_installed" {
   description = "🔴 false 면 CNPG PVC 가 Pending 에서 멈춥니다 (IRSA 머지 후 true 로)."
   value       = module.eks_addons.ebs_csi_installed
+}
+
+# ------------------------------------------------------------
+# s3-images / CloudFront
+# ------------------------------------------------------------
+
+output "images_bucket_id" {
+  description = "images 버킷 이름"
+  value       = module.s3_images.bucket_id
+}
+
+output "images_bucket_arn" {
+  description = "images 버킷 ARN"
+  value       = module.s3_images.bucket_arn
+}
+
+output "images_cloudfront_domain_name" {
+  description = "BE(image-base-url)이 Parameter Store에서 참조하는 CloudFront 배포 도메인"
+  value       = module.cloudfront_images.distribution_domain_name
+}
+
+output "images_cloudfront_distribution_id" {
+  description = "CloudFront 배포 ID (캐시 무효화 등에 사용)"
+  value       = module.cloudfront_images.distribution_id
 }

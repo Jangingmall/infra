@@ -50,6 +50,8 @@ resource "aws_cloudfront_distribution" "this" {
 }
 
 # S3는 Private 유지 - CloudFront(이 배포)에서 오는 GET만 허용, ACL/공개 정책 없음
+
+#    호출 측(environments)에서 aws_s3_bucket_policy 하나로 병합해 만든다
 data "aws_iam_policy_document" "oac" {
   statement {
     sid     = "AllowCloudFrontOACGetProducts"
@@ -68,11 +70,6 @@ data "aws_iam_policy_document" "oac" {
       values   = [aws_cloudfront_distribution.this.arn]
     }
   }
-}
-
-resource "aws_s3_bucket_policy" "images_oac" {
-  bucket = var.bucket_name
-  policy = data.aws_iam_policy_document.oac.json
 }
 
 resource "aws_route53_record" "cdn_alias" {
