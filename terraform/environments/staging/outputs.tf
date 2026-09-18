@@ -231,3 +231,31 @@ output "addons_ebs_csi_installed" {
   description = "🔴 false 면 CNPG PVC 가 Pending 에서 멈춥니다 (IRSA 머지 후 true 로)."
   value       = module.eks_addons.ebs_csi_installed
 }
+
+
+# ⑩ EDGE — 실환경 생성 후 네이티브 담당자에게 전달한다.
+output "alb_arn" {
+  description = "환경별 ALB ARN"
+  value       = module.alb.alb_arn
+}
+
+output "alb_dns_name" {
+  value = module.alb.alb_dns_name
+}
+
+output "alb_certificate_arn" {
+  value = module.acm_alb.certificate_arn
+}
+
+output "waf_web_acl_arn" {
+  value = module.waf.web_acl_arn
+}
+
+output "backend_networking" {
+  description = "platform/networking/{stage,prod}.yaml 인계값. Controller/IRSA/CRD 확인 후 enabled=true 및 수동 Sync는 네이티브 담당."
+  value = {
+    targetGroupARN = module.alb.target_group_arn
+    vpcID          = module.network.vpc_id
+    albSourceCidrs = [for az in var.vpc_az_suffixes : var.vpc_subnet_cidrs.public[az]]
+  }
+}
