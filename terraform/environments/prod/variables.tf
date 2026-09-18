@@ -526,3 +526,84 @@ variable "nodes_ssh_key_name" {
   type        = string
   default     = null
 }
+
+# ------------------------------------------------------------
+# ⑧ EKS 애드온 (addons_ 접두사)
+# ------------------------------------------------------------
+
+variable "addons_vpc_cni_enable_network_policy" {
+  description = <<-EOT
+    🔴 EKS 에서 NetworkPolicy 를 실제로 시행할지.
+
+    쿠버네티스에서 NetworkPolicy 는 "선언" 일 뿐이고 실제로 막는 건 CNI 입니다.
+    이 값을 끄면 NetworkPolicy 리소스는 정상 생성되지만 아무것도 막지 않고,
+    🔴 에러도 경고도 나지 않습니다.
+
+    🔗 CN(박명수님) PR #24 의 NetworkPolicy 전부가 이 값 하나에 달려 있습니다.
+  EOT
+  type        = bool
+  default     = true
+}
+
+variable "addons_vpc_cni_version" {
+  description = <<-EOT
+    VPC CNI 버전. null 이면 클러스터 버전에 맞는 AWS 기본값.
+    2026-09-17 확인: k8s 1.35 기준 v1.23.1-eksbuild.1
+  EOT
+  type        = string
+  default     = null
+}
+
+variable "addons_manage_coredns_kube_proxy" {
+  description = <<-EOT
+    CoreDNS·kube-proxy 를 Terraform 관리로 인수할지.
+    EKS 가 클러스터 생성 시 자체 설치하는데, 인수하면 버전이 코드에 남아
+    팀원이 같은 상태를 재현할 수 있습니다.
+  EOT
+  type        = bool
+  default     = true
+}
+
+variable "addons_coredns_version" {
+  description = "CoreDNS 버전. null 이면 AWS 기본값."
+  type        = string
+  default     = null
+}
+
+variable "addons_kube_proxy_version" {
+  description = "kube-proxy 버전. null 이면 AWS 기본값."
+  type        = string
+  default     = null
+}
+
+variable "addons_ebs_csi_enabled" {
+  description = <<-EOT
+    🔴 EBS CSI Driver 설치 여부. **IRSA 가 선행조건입니다.**
+
+    없으면 CNPG PVC 가 Pending 에서 멈춰 DB Pod 3개가 안 뜹니다.
+    그런데 IRSA 없이 켜도 같은 증상이 나옵니다(권한이 없어 볼륨 생성 실패).
+
+    🔗 박다정님 modules/irsa(PR #32) 머지 후 true 로 바꾸고
+       addons_ebs_csi_irsa_role_arn 을 함께 채웁니다.
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "addons_ebs_csi_version" {
+  description = <<-EOT
+    EBS CSI 버전. null 이면 AWS 기본값.
+    2026-09-17 확인: k8s 1.35 기준 v1.66.0-eksbuild.1
+  EOT
+  type        = string
+  default     = null
+}
+
+variable "addons_ebs_csi_irsa_role_arn" {
+  description = <<-EOT
+    EBS CSI 컨트롤러용 IRSA 역할 ARN (kube-system/ebs-csi-controller-sa).
+    🔗 박다정님 modules/irsa 출력을 넘깁니다.
+  EOT
+  type        = string
+  default     = null
+}

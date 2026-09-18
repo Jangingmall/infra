@@ -208,3 +208,26 @@ output "nodes_gpu_scale_up_hint" {
   description = "GPU 기동 절차 안내. terraform output nodes_gpu_scale_up_hint 로 확인."
   value       = module.eks_nodes.gpu_scale_up_hint
 }
+
+# ------------------------------------------------------------
+# ⑧ EKS 애드온
+# ------------------------------------------------------------
+
+output "addons_installed" {
+  description = "설치된 애드온 목록 (인계 문서 재료)"
+  value       = module.eks_addons.installed_addons
+}
+
+output "addons_network_policy_enabled" {
+  description = <<-EOT
+    NetworkPolicy 시행 설정값.
+    🔴 true 여도 "설정"일 뿐입니다. 실제 차단은 노드에서 확인하세요 (작업 규칙 21):
+       kubectl -n kube-system get ds aws-node -o yaml | grep -i networkpolicy
+  EOT
+  value       = module.eks_addons.network_policy_enabled
+}
+
+output "addons_ebs_csi_installed" {
+  description = "🔴 false 면 CNPG PVC 가 Pending 에서 멈춥니다 (IRSA 머지 후 true 로)."
+  value       = module.eks_addons.ebs_csi_installed
+}
