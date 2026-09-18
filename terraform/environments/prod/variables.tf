@@ -97,11 +97,8 @@ variable "eks_cluster_name" {
   description = <<-EOT
     EKS 클러스터 이름. 서브넷의 kubernetes.io/cluster/<이름> 태그에 쓰인다.
 
-    TODO(⑥ EKS 단계에서 확정값 재확인)
-      CLAUDE.md에 클러스터명이 명시돼 있지 않아, 네이밍 규칙
-      jangin-<env>-<resource> 에서 유도한 잠정값이다.
-      ⑥에서 실제 생성할 클러스터 이름과 일치하는지 반드시 대조할 것.
-      (불일치 시 태그가 무의미해지는 정도이고 파괴적이지는 않다)
+    ✅ ⑥ 에서 대조 완료 — eks.tf 가 같은 변수를 modules/eks 의 cluster_name 으로
+       넘기므로 서브넷 태그와 실제 클러스터 이름이 구조적으로 일치한다.
   EOT
   type        = string
   default     = "jangin-prod-eks-cluster"
@@ -152,32 +149,44 @@ variable "nat_alarm_sns_topic_arns" {
 
 variable "eks_cluster_version" {
   description = <<-EOT
-    🔴 TODO(9/16 확정) — 쿠버네티스 버전. 되돌릴 수 없는 결정입니다.
+    ✅ 2026-09-17 팀 확정 — 쿠버네티스 버전 1.35.
+    🔴 되돌릴 수 없습니다. 올릴 수만 있고 내릴 수 없어, 잘못되면 클러스터 재생성입니다.
 
-    확인 명령:
-      aws eks describe-cluster-versions --region ap-northeast-2 --profile jangin --output table
-    선택 기준: STANDARD_SUPPORT 이면서 AWS 기본(default) 인 버전
-      · 최신 버전은 ALB Controller·CNPG·Argo Rollouts·nvidia-device-plugin 이 미대응일 수 있음
-      · 확장 지원 구간은 시간당 추가 요금 (예산 98.8% 소진 상태라 회피 필수)
-    🔗 박명수님 — 위 4개 부품의 k8s 지원 범위 확인 필요
+    🔴 apply 전 반드시 확인 (아직 미확인):
+      aws eks describe-cluster-versions --region ap-northeast-2 --output table
+      aws eks describe-addon-versions --region ap-northeast-2 --kubernetes-version 1.35 \
+        --query 'addons[?addonName==`aws-ebs-csi-driver` || addonName==`vpc-cni`]'
 
-    아래 값은 **잠정값**입니다. 9/18 apply 전에 반드시 확정값으로 교체하세요.
+    확인 기준 두 가지
+      1. STANDARD_SUPPORT 인가 — 확장 지원 구간은 시간당 추가 요금
+      2. 애드온이 1.35 를 지원하는가
+         · aws-ebs-csi-driver 없으면 CNPG PVC 가 Pending → DB Pod 3개가 안 뜸
+         · vpc-cni(NetworkPolicy) 없으면 CN NetworkPolicy 가 에러 없이 무시됨
+
+    ⚠️ "최신 = 좋은 것" 이 아닙니다. EKS 는 새 버전이 나와도 애드온이 몇 주 늦게 따라옵니다.
   EOT
   type        = string
-  default     = "1.33"
+  default     = "1.35"
 }
 
 variable "eks_authentication_mode" {
   description = <<-EOT
-    🔴 TODO(9/16 확정 · 박다정님) — 클러스터 접근 권한 명부 위치.
+    ✅ 2026-09-16 파트장 확정 — API (AWS API 로만 권한 관리).
 
-    인프라 권고: API_AND_CONFIG_MAP → 9/21 보안 검수 전 API 로 축소
-      · 좁히는 방향으로만 변경 가능하므로 넓은 쪽에서 시작해야 선택지가 남음
-      · 팀원 대부분이 보는 인터넷 자료가 아직 aws-auth 기준이라 API 전용은 혼선 발생
-      · 검수 전 API 로 좁히면 "레거시 인증 경로 제거" 라는 보안 개선 항목이 생김
+    구 방식(CONFIG_MAP)은 클러스터 안의 aws-auth ConfigMap 을 손으로 고칩니다.
+    🔴 오타 하나로 전원이 클러스터에서 잠기는 사고가 EKS 에서 가장 흔한 사고 유형입니다.
+    API 방식은 aws_eks_access_entry 라는 AWS 리소스로 관리해 그 위험이 구조적으로 없습니다.
+
+    🔑 9/21 private only 전환과 궁합이 좋습니다.
+       CONFIG_MAP 이면 "권한을 주려면 접속해야 하는데 접속하려면 권한이 필요한" 순환이 생기는데,
+       API 는 클러스터에 붙지 않고 Terraform 만으로 권한을 줄 수 있습니다.
+
+    ⚠️ 좁히는 방향으로만 변경 가능합니다. API 에서 CONFIG_MAP 으로 되돌릴 수 없습니다.
+    ⚠️ bootstrap_cluster_creator_admin_permissions = true 라, apply 를 실행한 사람이
+       자동으로 관리자가 됩니다. 나머지 팀원은 access entry 로 추가해야 합니다.
   EOT
   type        = string
-  default     = "API_AND_CONFIG_MAP"
+  default     = "API"
 }
 
 variable "eks_bootstrap_creator_admin" {
@@ -194,8 +203,21 @@ variable "eks_bootstrap_creator_admin" {
 
 variable "eks_endpoint_public_access" {
   description = <<-EOT
-    🟡 TODO(9/16 확정 · 보안팀) — 컨트롤플레인 API 인터넷 접근 허용 여부.
-    "공개"라도 인증 명부에 없으면 401 입니다. Public = 무방비가 아닙니다.
+    ✅ 2026-09-17 파트장 확정 — 단계 운영(B안).
+
+      9/18 ~ 9/20 구축  : true  + public_access_cidrs 를 팀원 IP 로 제한
+      9/21 ~ 검수·운영  : false 로 전환 (private only)
+
+    전환은 클러스터 재생성 없이 몇 분이면 됩니다. 버전·인증모드와 달리 가역입니다.
+
+    왜 구축 기간에는 열어두나
+      ArgoCD·CloudNativePG·Argo Rollouts·Secrets Store CSI 를 Helm 으로 설치해야 하는데,
+      private only 면 SSM 을 거쳐야 합니다. 노드에 kubectl 을 두는 우회는
+      🔴 노드 IAM 역할에 클러스터 관리자 권한이 필요해, 그 노드의 모든 Pod 가
+      클러스터를 조작할 수 있게 됩니다 — 보안을 위한 선택이 더 큰 구멍을 만듭니다.
+
+    ⚠️ "공개"라도 인증 명부에 없으면 401 입니다. Public = 무방비가 아닙니다.
+       건물 주소가 지도에 나오는 것과 현관문이 열려 있는 것은 다릅니다.
   EOT
   type        = bool
   default     = true
@@ -209,13 +231,21 @@ variable "eks_endpoint_private_access" {
 
 variable "eks_public_access_cidrs" {
   description = <<-EOT
-    🟡 public 접근 허용 CIDR.
-    팀원 6명이 고정 IP 가 아니라 제한이 현실적으로 운영 불가 → 잠정 전체 허용.
-    상쇄 조치: 감사 로그 활성화 + 인증 명부 최소화 + 9/21 전 API 모드 축소.
-    (보안팀 조건부 승인 요청 대상)
+    🔴 TODO — 팀원 IP 목록. **apply 전에 반드시 채워야 합니다.**
+
+    파트장 9/17: "B안으로 작성해뒀습니다. IP 는 작성 필요합니다"
+
+    형식: ["1.2.3.4/32", "5.6.7.8/32", ...]   (각자 IP 확인: curl ifconfig.me)
+
+    🔴 default 를 빈 목록으로 둔 것은 의도입니다.
+       ["0.0.0.0/0"] 을 기본값으로 두면 값을 빠뜨렸을 때 **조용히 전 세계에 열립니다.**
+       빈 목록이면 modules/eks 의 precondition 이 apply 를 막아 실수를 잡아냅니다.
+
+    ⚠️ 9/21 private only 전환 시에는 endpoint_public_access = false 와 함께
+       이 값을 빈 목록으로 되돌립니다.
   EOT
   type        = list(string)
-  default     = ["0.0.0.0/0"]
+  default     = []
 }
 
 variable "eks_additional_security_group_ids" {
@@ -318,4 +348,262 @@ variable "ecr_tags" {
   description = "추가 공통 태그"
   type        = map(string)
   default     = {}
+}
+
+# ------------------------------------------------------------
+# ⑦ 노드그룹 (nodes_ 접두사)   💰 유료
+# ------------------------------------------------------------
+
+variable "nodes_groups" {
+  description = <<-EOT
+    노드그룹 정의. 키가 노드그룹 이름의 접미사가 된다.
+
+    🔴 labels·taints 는 CN(박명수님) 매니페스트 실물에서 역산한 값입니다.
+       한 글자라도 다르면 해당 Pod 가 영원히 Pending 입니다.
+
+    ⚠️ DB 만 Label 키(workload-type)와 Taint 키(workload)가 다릅니다.
+       오타가 아니라 k8s/base/database/cluster.yaml 실물이 그렇습니다.
+
+    ⚠️ GPU 는 enabled = true · desired_size = 0 입니다.
+       노드그룹은 만들어두고 EC2 만 0대인 상태 — 값 하나로 즉시 기동합니다.
+       (enabled = false 는 노드그룹 자체를 안 만드는 것이라 다릅니다)
+  EOT
+
+  type = map(object({
+    enabled       = bool
+    instance_type = string
+    ami_type      = string
+    desired_size  = number
+    min_size      = number
+    max_size      = number
+    capacity_type = string
+    disk_size     = number
+    labels        = map(string)
+    taints = list(object({
+      key    = string
+      value  = string
+      effect = string
+    }))
+  }))
+
+  default = {
+    # ── System : 모니터링·ArgoCD·컨트롤러 ──────────────────────
+    # 🔄 09-17 변경: t3.medium × 2 → medium 1 + large 1
+    #    Redis 배치 논의 중 명수님 요청. EKS 관리형 노드그룹은 한 그룹에
+    #    인스턴스 타입 하나가 원칙이라, 타입이 다르면 그룹을 나눠야 합니다.
+    #    라벨은 둘 다 workload-type=system 이라 nodeSelector 는 그대로 동작합니다.
+    "system-md" = {
+      enabled       = true
+      instance_type = "t3.medium"
+      ami_type      = "AL2023_x86_64_STANDARD"
+      desired_size  = 1
+      min_size      = 1
+      max_size      = 2
+      capacity_type = "ON_DEMAND"
+      disk_size     = 30
+      labels        = { "workload-type" = "system" }
+      taints        = []
+    }
+    "system-lg" = {
+      enabled       = true
+      instance_type = "t3.large"
+      ami_type      = "AL2023_x86_64_STANDARD"
+      desired_size  = 1
+      min_size      = 1
+      max_size      = 2
+      capacity_type = "ON_DEMAND"
+      disk_size     = 30
+      labels        = { "workload-type" = "system" }
+      taints        = []
+    }
+
+    # ── App : Backend Pod ────────────────────────────────────
+    # 🔄 09-17 변경: 1대 → 2대 (Redis 대응)
+    # 🔑 BE 가 limits.memory 를 4Gi → 1.5Gi 로 낮추기로 해서
+    #    t3.medium(가용 약 3.4Gi)에 Pod 2개가 들어갑니다.
+    "app" = {
+      enabled       = true
+      instance_type = "t3.medium"
+      ami_type      = "AL2023_x86_64_STANDARD"
+      desired_size  = 2
+      min_size      = 2
+      max_size      = 3
+      capacity_type = "ON_DEMAND"
+      disk_size     = 30
+      labels        = { "workload-type" = "app" }
+      taints        = []
+    }
+
+    # ── DB : CloudNativePG (Primary 1 + Replica 2) ───────────
+    # 🔴 min_size 도 3 이어야 합니다.
+    #    CNPG podAntiAffinityType=required → Pod 3개가 서로 다른 노드를 요구.
+    #    Pod 3 : 노드 3 이라 여유가 0 이고, 1대만 줄어도 영구 Pending 입니다.
+    # 🔴 ON_DEMAND 고정. Spot 회수 시 갈 노드가 없어 복구되지 않습니다.
+    "db" = {
+      enabled       = true
+      instance_type = "t3.small"
+      ami_type      = "AL2023_x86_64_STANDARD"
+      desired_size  = 3
+      min_size      = 3
+      max_size      = 3
+      capacity_type = "ON_DEMAND"
+      disk_size     = 30
+      labels        = { "workload-type" = "db" }
+      taints = [{
+        key    = "workload" # ⚠️ Label 키(workload-type)와 다릅니다. 실물 그대로입니다
+        value  = "db"
+        effect = "NO_SCHEDULE"
+      }]
+    }
+
+    # ── GPU-A : 이미지·텍스트 (SGLang, L40S 48GB) ─────────────
+    # 🔴 desired_size = 0 · min_size = 0 로 시작합니다.
+    #    min 을 1 로 두면 AWS 가 자동으로 1대를 띄워 💰 시간당 $2.29 가 나갑니다.
+    # 💰 GPU 2대가 전체 비용의 약 63% 입니다. 안 켜면 $0.
+    "gpu-a" = {
+      enabled       = true
+      instance_type = "g6e.xlarge"
+      ami_type      = "AL2023_x86_64_NVIDIA"
+      desired_size  = 0
+      min_size      = 0
+      max_size      = 1
+      capacity_type = "ON_DEMAND"
+      # AI 모델을 컨테이너 이미지에 포함하기로 해서 이미지가 10GB 이상입니다.
+      # 기본 20GB 로는 이미지 하나도 못 받습니다.
+      disk_size = 200
+      labels = {
+        "workload-type" = "gpu"
+        "gpu-model"     = "l40s"
+      }
+      taints = [{
+        key    = "nvidia.com/gpu"
+        value  = "true"
+        effect = "NO_SCHEDULE"
+      }]
+    }
+
+    # ── GPU-B : 챗봇 (Ollama, T4 16GB) ───────────────────────
+    "gpu-b" = {
+      enabled       = true
+      instance_type = "g4dn.xlarge"
+      ami_type      = "AL2023_x86_64_NVIDIA"
+      desired_size  = 0
+      min_size      = 0
+      max_size      = 1
+      capacity_type = "ON_DEMAND"
+      disk_size     = 120
+      labels = {
+        "workload-type" = "gpu"
+        "gpu-model"     = "t4"
+      }
+      taints = [{
+        key    = "nvidia.com/gpu"
+        value  = "true"
+        effect = "NO_SCHEDULE"
+      }]
+    }
+  }
+}
+
+variable "nodes_extra_policy_arns" {
+  description = <<-EOT
+    노드 IAM 역할에 추가로 붙일 관리형 정책.
+    기본 4종(WorkerNode·CNI·ECR·SSM)은 모듈이 항상 붙이므로 여기 넣지 않는다.
+
+    🔴 비워 두는 것이 기본입니다. 노드 역할에 권한을 붙이면
+       그 노드에 뜬 모든 Pod 가 그 권한을 갖습니다.
+       Pod 단위 권한은 ⑧ IRSA 로 줍니다.
+  EOT
+  type        = list(string)
+  default     = []
+}
+
+variable "nodes_ssh_key_name" {
+  description = <<-EOT
+    노드에 넣을 EC2 키페어. null 유지가 원칙입니다.
+    🔴 SSH(22)는 설계상 차단이고 접근은 SSM Session Manager 로만 합니다.
+  EOT
+  type        = string
+  default     = null
+}
+
+# ------------------------------------------------------------
+# ⑧ EKS 애드온 (addons_ 접두사)
+# ------------------------------------------------------------
+
+variable "addons_vpc_cni_enable_network_policy" {
+  description = <<-EOT
+    🔴 EKS 에서 NetworkPolicy 를 실제로 시행할지.
+
+    쿠버네티스에서 NetworkPolicy 는 "선언" 일 뿐이고 실제로 막는 건 CNI 입니다.
+    이 값을 끄면 NetworkPolicy 리소스는 정상 생성되지만 아무것도 막지 않고,
+    🔴 에러도 경고도 나지 않습니다.
+
+    🔗 CN(박명수님) PR #24 의 NetworkPolicy 전부가 이 값 하나에 달려 있습니다.
+  EOT
+  type        = bool
+  default     = true
+}
+
+variable "addons_vpc_cni_version" {
+  description = <<-EOT
+    VPC CNI 버전. null 이면 클러스터 버전에 맞는 AWS 기본값.
+    2026-09-17 확인: k8s 1.35 기준 v1.23.1-eksbuild.1
+  EOT
+  type        = string
+  default     = null
+}
+
+variable "addons_manage_coredns_kube_proxy" {
+  description = <<-EOT
+    CoreDNS·kube-proxy 를 Terraform 관리로 인수할지.
+    EKS 가 클러스터 생성 시 자체 설치하는데, 인수하면 버전이 코드에 남아
+    팀원이 같은 상태를 재현할 수 있습니다.
+  EOT
+  type        = bool
+  default     = true
+}
+
+variable "addons_coredns_version" {
+  description = "CoreDNS 버전. null 이면 AWS 기본값."
+  type        = string
+  default     = null
+}
+
+variable "addons_kube_proxy_version" {
+  description = "kube-proxy 버전. null 이면 AWS 기본값."
+  type        = string
+  default     = null
+}
+
+variable "addons_ebs_csi_enabled" {
+  description = <<-EOT
+    🔴 EBS CSI Driver 설치 여부. **IRSA 가 선행조건입니다.**
+
+    없으면 CNPG PVC 가 Pending 에서 멈춰 DB Pod 3개가 안 뜹니다.
+    그런데 IRSA 없이 켜도 같은 증상이 나옵니다(권한이 없어 볼륨 생성 실패).
+
+    🔗 박다정님 modules/irsa(PR #32) 머지 후 true 로 바꾸고
+       addons_ebs_csi_irsa_role_arn 을 함께 채웁니다.
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "addons_ebs_csi_version" {
+  description = <<-EOT
+    EBS CSI 버전. null 이면 AWS 기본값.
+    2026-09-17 확인: k8s 1.35 기준 v1.66.0-eksbuild.1
+  EOT
+  type        = string
+  default     = null
+}
+
+variable "addons_ebs_csi_irsa_role_arn" {
+  description = <<-EOT
+    EBS CSI 컨트롤러용 IRSA 역할 ARN (kube-system/ebs-csi-controller-sa).
+    🔗 박다정님 modules/irsa 출력을 넘깁니다.
+  EOT
+  type        = string
+  default     = null
 }
