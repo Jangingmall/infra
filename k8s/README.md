@@ -1,7 +1,7 @@
 ## 2026-09-18 TGB와 상세페이지 AI 계약 반영
 
 외부 진입점은 Ingress 생성 대신 Terraform ALB의 TargetGroupBinding으로 전환했다.
-ai-sglang callback 수신 예외와 /health·/health/ready probe, CSI 파일 토큰 전달을 Stage·Prod에 반영했다.
+ai-sglang callback 수신은 ALB·메트릭과 동일한 gated networking 정책으로 제공한다. /health·/health/ready probe와 CSI 파일 토큰 전달은 Stage·Prod workload에 반영했다.
 아래 AI→Backend 전체 차단 설명은 이전 설계이며 이제 Ollama 차단/SGLang8080 허용이 기준이다.
 외부 egress, 실제 앱 API/인증 계약·GPU image/영속 볼륨은 아직 완료되지 않았다. [현재 상세 상태](../platform/networking/README.md)를 따른다.
 

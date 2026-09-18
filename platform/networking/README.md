@@ -75,7 +75,7 @@ SGLang image digest, 모델/PVC/SQLite/asset 영속 경로, CPU·메모리 예�
 | 범위 | 현재 상태 |
 | --- | --- |
 | ALB→Backend8080 / Prometheus→Backend9090 | TGB chart에 구현, 실제 환경 값 및 수동 Sync 대기 |
-| SGLang→Backend8080 | 수신은 workload에 반영, 발신은 대기 egress 번들에 반영 |
+| SGLang→Backend8080 | 수신은 ALB·메트릭과 동일한 gated 정책에 반영, 발신은 대기 egress 번들에 반영 |
 | Ollama→Backend / AI→업무 DB | 별도 허용 없음; 선택된 수신 정책 기준 차단 |
 | Backend→DB5432/두 AI8000, DNS53, Collector4317 | 공통 규칙 존재, Backend 전체 egress는 외부 예외 준비 전 비활성 |
 | Ollama→벡터DB5432 | 기존 정책 유지 |
@@ -83,8 +83,8 @@ SGLang image digest, 모델/PVC/SQLite/asset 영속 경로, CPU·메모리 예�
 | 앱 외부 API·모델 다운로드 egress | 아래 조사 목록은 확보, 승인 목적지/CIDR/통제 방식 미확정 |
 | 관측성·Argo | 기존 수집/Tempo 제한 유지. 전체 egress 및 넓은 제어 포트 축소는 남음 |
 
-Backend callback 정책도 ingress를 격리하므로 workload만 먼저 Sync하면 ALB 접속/메트릭이 막힐 수 있다.
-실제 ALB 예외와 관측성 정책을 함께 준비해 점검 시간에 적용한다. 각 Application 적용은 원자적이지 않다.
+Backend callback 예외는 ALB·Prometheus 허용과 같은 backend-entrypoint 정책에서 활성화한다.
+networking 비활성 상태의 workload만으로 Backend ingress를 새로 격리하지 않는다. 기존 관측성 정책도 ingress 격리를 유발하므로 실제 ALB 예외와 적용 순서를 함께 확인한다.
 NetworkPolicy는 /internal 경로별 제한이 불가능하다. 허용된 SGLang이라도 Backend의 애플리케이션 인증은 별도로 필요하다.
 
 외부 목적지를 모른 채 0.0.0.0/0:443을 넣거나 일회성 DNS IP를 고정하지 않는다.

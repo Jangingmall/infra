@@ -44,6 +44,15 @@ spec:
               operator.prometheus.io/name: metrics-prometheus
       ports:
         - {protocol: TCP, port: 9090}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ai-sglang
+      ports:
+        - {protocol: TCP, port: 8080}
 ---
 apiVersion: elbv2.k8s.aws/v1beta1
 kind: TargetGroupBinding

@@ -67,6 +67,11 @@ Dir.mktmpdir('network-contract-') do |tmp|
     else
       check(rendered.empty?, 'disabled environment must not create an ALB or isolate ingress')
     end
+    default_workloads = docs(run('kubectl','kustomize',"k8s/overlays/#{env}"))
+    unless current['enabled']
+      default_policies = (default_workloads + rendered).select { |r| r['kind']=='NetworkPolicy' }
+      check(ingress_allowed?(default_policies, 'app', {'app.kubernetes.io/name'=>'backend'}, nil, {}, '192.0.2.10', 8080), 'disabled networking must not newly isolate Backend ingress')
+    end
     resources = docs(run(*args, '-f',sample))
     binding = resources.find { |r| r['kind']=='TargetGroupBinding' }
     check(binding && binding['apiVersion']=='elbv2.k8s.aws/v1beta1', 'TGB missing')
