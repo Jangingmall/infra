@@ -6,7 +6,7 @@
 고정 차트는 `kube-prometheus-stack 91.4.1`, release 이름은 `metrics`, namespace는 `monitoring`이다.
 `values.yaml`과 환경별 `stage.yaml` 또는 `prod.yaml`을 함께 사용한다.
 
-**자동 배포에는 연결하지 않았다.** System 노드 전체 용량과 아래 선행조건을 확정한 뒤 배포한다.
+**Argo CD Application 연결을 제공하며 최초 자동 동기화는 꺼뒀다.** System 노드 전체 용량과 아래 선행조건을 확인한 뒤 [관측성 배포 순서](../README.md)에 따라 수동 Sync한다.
 이번 설정은 공통 메트릭 기반이며 관측성 전체 완료를 뜻하지 않는다.
 
 ## 무엇을 볼 수 있도록 구성했나
@@ -76,12 +76,12 @@ Dashboard 제외 기존 플랫폼·제안 Controller 요청량 2016Mi와 합하�
 - [ ] Prometheus → API server 443 / kubelet 10250 / node-exporter 9100 통신 확인
 - [ ] monitoring 내부 Service 통신 및 SG/NetworkPolicy 설계 반영; hostNetwork node-exporter는 CNI 정책 적용 범위도 확인
 - [ ] Prometheus Operator CRD 설치·업그레이드 절차 확정
-- [ ] GitOps AppProject 권한·Application·설치 순서 연결 및 검증
+- [x] GitOps AppProject 권한·Application·설치 순서 코드 연결 (실제 reconcile은 EKS 검증 대기)
 - [ ] Alertmanager 수신 채널/임계값/Runbook은 별도 알림 설계와 대조
 
 서버 접근 없이 설정 검증: `bash scripts/validate-observability.sh`.
 전체 검증: `bash scripts/validate-k8s.sh`. CI에는 렌더링 검증만 추가하며 AWS/EKS에 배포하지 않는다.
-차트 버전은 검증 스크립트에 고정했다. 버전 변경 시 차트 기본값·리소스·수집 지표를 다시 확인한다.
+차트 버전은 Argo CD Application에 고정하고 검증 스크립트가 읽는다. 버전 변경 시 차트 기본값·리소스·수집 지표를 다시 확인한다.
 
 ## EKS 검증 순서
 
@@ -96,11 +96,11 @@ Dashboard 제외 기존 플랫폼·제안 Controller 요청량 2016Mi와 합하�
 
 ## 남은 구현 단위
 
-1. 공통 기반의 Logs: [Alloy → Loki 설정](../logs/README.md) 작성·로컬 검증 완료. 실제 S3/IRSA 인계·EKS 검증과 GitOps 연결은 대기.
+1. 공통 기반의 Logs: [Alloy → Loki 설정](../logs/README.md) 작성·로컬 검증 완료. GitOps 연결 제공. 실제 S3/IRSA 인계·EKS 검증은 대기.
 2. 공통 기반의 Traces: 지원되는 Tempo 배포 경로, OTel Collector, S3/IRSA, Grafana 상호 조회.
 3. Backend/CNPG/Argo 전용 Monitor·대시보드·알림과 NetworkPolicy.
 4. GPU/DCGM·AI 전용 Monitor·대시보드·알림과 NetworkPolicy.
-5. CloudWatch 데이터소스, Backend↔AI 통합 추적, 환경별 GitOps 연결과 실제 EKS 검증.
+5. CloudWatch 데이터소스, Backend↔AI 통합 추적, 실제 EKS 검증. 환경별 GitOps 연결은 제공했다.
 
 위 순서는 구현 분할이며 합의된 관측성 기능을 제거한 것이 아니다.
 
@@ -129,7 +129,7 @@ Dashboard 제외 기존 플랫폼·제안 Controller 요청량 2016Mi와 합하�
 
 ## CNPG · Argo 수집 추가
 
-[Platform 수집·대시보드 안내](../platform/README.md)에 수집 대상 7개, 내부 포트, namespace 처리, 배포 순서와 EKS 검증 절차를 정리했다. Grafana 파일 provider에 Platform 폴더를 추가했고, `validate-observability.sh`는 기존 Backend/GPU JSON과 함께 CNPG/Argo JSON을 `--set-file`로 주입한다. 실제 배포에서도 같은 입력을 제공해야 한다. exporter Pod 추가는 없지만 시계열 저장·쿼리 비용은 추가된다. 전용 알림과 GitOps 자동 적용은 아직 완료되지 않았다.
+[Platform 수집·대시보드 안내](../platform/README.md)에 수집 대상 7개, 내부 포트, namespace 처리, 배포 순서와 EKS 검증 절차를 정리했다. Grafana 파일 provider에 Platform 폴더를 추가했고, metrics Application의 observability-assets chart가 기존 Backend/GPU JSON과 함께 CNPG/Argo JSON을 ConfigMap으로 공급한다. 검증 스크립트도 같은 Application sources를 렌더링한다. exporter Pod 추가는 없지만 시계열 저장·쿼리 비용은 추가된다. 전용 알림 규칙과 GitOps 연결을 제공했다. 외부 전송 및 실제 자동 동기화 활성화는 준비 완료 후 검증한다.
 
 ## 경보와 Discord 연결
 

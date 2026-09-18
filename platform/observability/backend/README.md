@@ -25,11 +25,9 @@ Backend 저장소는 수정하지 않았다. 이 확인은 실제 배포 이미�
 
 ## 파일 공급
 
-대시보드 JSON은 `--set-file grafana.dashboards.backend.overview.json=platform/observability/backend/dashboard.json`으로 고정 차트에 제공한다.
-이 연결은 scripts/validate-observability.sh에 포함했다. Helm chart의 ConfigMap/파일 마운트와 checksum이 변경을 전달한다.
-JSON은 subPath 파일 마운트이므로 내용 변경은 checksum에 의한 Grafana 재시작으로 반영한다. 기본 대시보드의 30초 파일 polling과 구분한다.
-metrics/values.yaml만 단독 사용하면 이 JSON이 포함되지 않는다. 추후 GitOps 배포 경로에서도 같은 파일 입력이 필요하다.
-이 디렉터리의 Kustomize는 PodMonitor/NetworkPolicy를 렌더링하며 실제 환경의 자동 배포에는 아직 연결하지 않았다.
+대시보드 JSON은 metrics Application의 observability-assets chart가 ConfigMap으로 공급한다. 별도 복사본과 `--set-file` 입력은 필요 없다.
+Grafana는 ConfigMap을 디렉터리로 마운트하고 kubelet 파일 갱신 후 30초 polling으로 읽는다. JSON 변경에 재시작은 필요 없고, datasource/provider 변경은 기존 checksum에 따라 재시작한다.
+이 디렉터리의 PodMonitor/NetworkPolicy는 observability-targets Application에 연결했다. [최초 수동 배포 순서](../README.md)를 따른다.
 
 ## 검증과 남은 일
 

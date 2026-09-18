@@ -9,7 +9,7 @@ Render k8s/base, k8s/overlays/stage, and k8s/overlays/prod.
 Render pending DB egress, Backend, and full AI policy bundles.
 DB/AI ingress and the AI vector DB isolation policy are enabled in the overlays.
 Render Argo CD Applications and lint/render platform and observability Helm charts.
-Requires kubectl, Helm, Ruby, and internet access to the public chart repositories.
+Requires kubectl, Helm, Ruby, Docker, and internet access to the public chart repositories.
 No cluster connection or AWS credentials are required.
 EOF
 }
@@ -97,10 +97,6 @@ validate_chart secrets-store-csi secrets-store-csi-driver-provider-aws 3.1.3 kub
 kubectl kustomize "$repo_root/platform/observability/platform" > "$validation_dir/platform-monitoring.yaml"
 ruby "$repo_root/scripts/validate-platform-monitoring.rb" "$validation_dir"
 ruby "$repo_root/scripts/validate-gitops.rb" "$validation_dir"
-bash "$repo_root/scripts/validate-observability.sh"
-bash "$repo_root/scripts/validate-ai-observability.sh"
-for environment in stage prod; do
-  bash "$repo_root/scripts/render-logs.sh" "$environment" "$validation_dir/logs-$environment"
-done
+bash "$repo_root/scripts/validate-observability-gitops.sh"
 
 printf '\nKubernetes configuration validation passed.\n'

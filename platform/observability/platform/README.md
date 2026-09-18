@@ -23,7 +23,7 @@
 - `kustomization.yaml`: 두 리소스 파일을 묶는다. 정책별 namespace를 보존해야 하므로 namespace 일괄 덮어쓰기를 하지 않는다.
 - `cnpg-dashboard.json`: DB 상태 대시보드. 백업 미구현 안내를 포함한다.
 - `argo-dashboard.json`: GitOps/Blue-Green 배포 상태 대시보드.
-- `../metrics/values.yaml`: 파일 기반 Platform dashboard provider. JSON은 Helm `--set-file` 입력으로 공급한다.
+- `../metrics/values.yaml`: 파일 기반 Platform dashboard provider. JSON은 observability-assets chart의 ConfigMap으로 공급한다.
 - `../../../scripts/validate-platform-monitoring.rb`: 고정 차트의 실제 Service selector → Pod label → containerPort와 정책을 대조한다.
 
 ## 구현에서 주의한 점
@@ -52,18 +52,12 @@ Argo의 p95는 Controller의 리소스 조정 시간이다. 사용자 API 응답
 
 ## Stage · Prod 적용 순서
 
-현재 코드는 두 환경에서 재사용할 공통 설정이다. 실제 클러스터에 적용하지 않았고 Argo Application 자동 동기화 경로에도 아직 연결하지 않았다.
+두 환경에서 재사용할 공통 설정이며 metrics/targets Application에 연결했다. 실제 클러스터에는 적용하지 않았고 최초 자동 동기화는 꺼뒀다.
 
 1. Prometheus Operator와 PodMonitor/ServiceMonitor CRD, monitoring namespace를 준비한다.
 2. 기존 설치 경로로 CNPG/Argo 차트를 배포한다. Argo CD의 변경된 values로 메트릭 Service를 활성화한다. 차트 자동 ServiceMonitor는 중복 수집 방지를 위해 비활성화한다.
-3. metrics 차트를 환경별 values와 기존 dashboard 입력에 더해 아래 두 입력으로 렌더링/배포한다. 기존 Backend/GPU dashboard 입력을 빼면 안 된다.
-
-```sh
---set-file grafana.dashboards.platform.cnpg.json=platform/observability/platform/cnpg-dashboard.json \
---set-file grafana.dashboards.platform.argo.json=platform/observability/platform/argo-dashboard.json
-```
-
-4. `kubectl kustomize platform/observability/platform` 결과를 검토하고 해당 환경에 적용한다. GitOps 연결 시에도 동일 경로와 설치 순서를 사용한다.
+3. metrics Application을 Sync한다. assets source가 Backend/GPU/CNPG/Argo JSON을 함께 공급한다.
+4. Controller 준비 후 targets Application을 Sync한다. 이 디렉터리의 Monitor/NetworkPolicy가 포함되므로 별도 중복 배포하지 않는다.
 5. Grafana Platform 폴더와 Prometheus Targets를 확인한다.
 
 릴리스 이름은 `metrics`, `argocd`, `argo-rollouts`, `cloudnative-pg`를 전제로 한다. 다른 이름으로 설치하면 selector도 함께 변경해야 한다. Stage/Prod가 같은 Prometheus를 공유하도록 바뀌면 cluster/environment label과 대시보드 필터를 추가해야 한다.
@@ -91,7 +85,7 @@ Argo의 p95는 Controller의 리소스 조정 시간이다. 사용자 API 응답
 6. DB 장애/복제 지연/배포 실패 시 차트 변화와 No data 상황 확인.
 7. Prometheus 메모리·TSDB 증가와 System 노드 용량 측정. 새 Pod는 없지만 시계열 추가 비용은 있다. 현재 용량 산정의 부족분이 해소된 것은 아니다.
 
-전용 경보 규칙과 Discord 설정은 [alerts/](../alerts/README.md)에 작성했다. 실제 SSM/IRSA·외부 채널 연결, 백업 관측, Tempo 저장소, CloudWatch, Backend↔AI 추적, 자동 배포 연결과 EKS 검증은 남아 있다. 관측성 전체가 완료된 것은 아니다.
+전용 경보 규칙과 Discord 설정은 [alerts/](../alerts/README.md)에 작성했다. 실제 SSM/IRSA·외부 채널 연결, 백업 관측, Tempo 저장소, CloudWatch, Backend↔AI 추적, 실제 자동 동기화 활성화와 EKS 검증은 남아 있다. Application 코드 연결은 제공했다. 관측성 전체가 완료된 것은 아니다.
 
 ## 기준 문서
 

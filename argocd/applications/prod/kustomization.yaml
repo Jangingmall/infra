@@ -5,3 +5,5 @@ resources:
 - projects.yaml
 - platform.yaml
 - workloads.yaml
+- observability-project.yaml
+- observability.yaml

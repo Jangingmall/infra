@@ -10,12 +10,12 @@
 - `infra/main`을 추적한다. 이 작업 브랜치가 main에 merge되기 전에는 Application을 등록하지 않는다.
 - 현재 overlay는 Backend·DB·AI·Namespace·스토리지를 함께 포함한다. 중복 소유를 피하려고 환경당 `*-workloads` Application 하나가 소유한다.
 - 설계의 기능별 Application 분리는 독립 Kustomize 진입점이 준비될 때 진행한다. 같은 overlay를 Backend/AI Application에 중복 등록하지 않는다.
-- Stage·Prod 모두 PR merge 후 auto-sync/selfHeal을 사용한다. Prod 자동 동기화는 Prod 승격 PR 승인 이후에만 변경을 전달한다.
+- 기존 workloads/platform은 Stage·Prod 모두 PR merge 후 auto-sync/selfHeal을 사용한다. 새 관측성 Application은 선행조건 확인을 위해 최초 수동 sync로 시작한다. Prod 자동 동기화는 Prod 승격 PR 승인 이후에만 변경을 전달한다.
 - Backend Blue/Green 트래픽 승격은 auto-sync와 별개로 운영자가 수행한다.
 
 ## 파일과 소유권
 
-환경별 `projects.yaml`에는 workload와 platform AppProject를 나눈다.
+환경별 `projects.yaml`에는 workload와 platform AppProject를 나눈다. `observability-project.yaml`은 관측성 chart·수집 namespace·리소스 종류를 별도로 허용한다.
 workload는 지정 Git 저장소, local cluster, 지정 Namespace와 현재 필요한 리소스 종류만 허용한다.
 platform은 고정된 chart 저장소와 설치 Namespace, CRD·RBAC·webhook·CSI 리소스를 허용한다.
 Platform project는 operator 설치를 위해 강한 권한을 사용하므로 운영자만 Application을 수정한다.
@@ -29,6 +29,7 @@ AppProject는 Argo CD 내부 제한이며 Kubernetes 사용자 RBAC 또는 GitHu
 | argo-rollouts | chart 2.43.1 + infra/main values | Rollouts Controller/CRD |
 | secrets-store-csi | chart 3.1.3 + infra/main values | CSI Driver + AWS Provider |
 | workloads | k8s/overlays/stage 또는 prod | Backend·업무 DB·AI·공통 리소스 |
+| observability-* | observability.yaml의 chart + Git sources | 환경당 관측성 Application 9개, 최초 수동 sync |
 
 Helm Application은 multi-source의 `$values`로 현재 저장소 values를 사용한다.
 CNPG releaseName은 cloudnative-pg로 유지한다. 이 이름은 기존 NetworkPolicy의 Operator 라벨과 연결된다.
@@ -114,7 +115,7 @@ EKS 검증 체크리스트:
 - [ ] ALB 전환 중 5xx와 SSE 연결 종료 영향 확인
 
 SSO, 원격 Git 자격증명 공급, branch protection/reviewer 설정은 실제 계정 인계가 필요하다.
-이미지 빌드·자동 Promotion PR 생성·Ingress·관측성 구현을 이번 GitOps 연결 완료와 혼동하지 않는다.
+관측성의 Application·대시보드·로그 설정 연결과 설치 순서는 [관측성 GitOps 안내](../platform/observability/README.md)를 따른다. 이미지 빌드·자동 Promotion PR 생성·Ingress·실제 EKS 검증은 별도다.
 
 참고: [Argo CD sync options](https://argo-cd.readthedocs.io/en/stable/user-guide/sync-options/),
 [자동 동기화](https://argo-cd.readthedocs.io/en/stable/user-guide/auto_sync/).

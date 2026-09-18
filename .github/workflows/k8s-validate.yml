@@ -8,6 +8,8 @@ on:
       - 'argocd/**'
       - 'scripts/validate-gitops.rb'
       - 'scripts/validate-observability.*'
+      - 'scripts/validate-observability-gitops.sh'
+      - 'scripts/render-observability.rb'
       - 'scripts/validate-alerting.*'
       - 'scripts/validate-ai-observability.*'
       - 'scripts/validate-platform-monitoring.rb'

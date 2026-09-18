@@ -10,7 +10,7 @@ Tempo 저장소, Grafana Tempo 데이터소스, Application 계측, 실제 End-t
 
 ## 무엇을 배포하도록 작성했나?
 
-- Stage/Prod 각각 Kustomize 번들. 아직 Argo CD Application에는 연결하지 않음.
+- Stage/Prod 각각 Kustomize 번들을 수동 `observability-traces` Application에 연결했다. Tempo 준비 전에는 Sync하지 않는다. [배포 순서](../README.md)를 따른다.
 - System 노드에 Collector 0.160.0 Deployment 1개, 내부 Service, ServiceMonitor, NetworkPolicy.
 - 요청량 100m/256Mi, 메모리 제한 384Mi. 기존 capacity.md의 Collector 후보 요청량과 동일하므로 이중 합산하지 않음.
 - 읽기 전용 root filesystem, non-root, API 토큰/ClusterRole 없음.

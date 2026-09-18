@@ -1,7 +1,7 @@
 # Alloy → Loki 로그 수집
 
 [노션 3.4 로그 설계](https://app.notion.com/p/c760842d874f83758b7b81f9766b276e)를 기준으로 한 Stage·Prod 공통 구현이다.
-현재 자동 배포에는 미연결이다. 실제 S3/IRSA 인계와 전체 System 용량을 확인한 후 배포한다.
+Argo CD Application 연결을 제공하며 최초 자동 동기화는 꺼뒀다. 실제 S3/IRSA 인계와 전체 System 용량을 확인한 후 [배포 순서](../README.md)에 따라 수동 Sync한다.
 
 ## 데이터 흐름
 
@@ -43,8 +43,8 @@ bash scripts/render-logs.sh prod /tmp/janging-logs-prod
 bash scripts/validate-k8s.sh
 ```
 
-렌더링만 수행하며 클러스터에 적용하지 않는다. 출력 디렉터리의 loki.yaml, alloy-pods.yaml, alloy-events.yaml, policies.yaml이 배포 대상 YAML이다. *.alloy는 검증용으로 결합한 원본이며 kubectl에 직접 적용하지 않는다.
-렌더러는 Loki chart가 추가하는 불필요한 Secret 조회 권한을 제거한다. **chart 직접 설치 시 이 보정이 빠지므로 같은 렌더링 경로를 사용해야 한다.** 추후 GitOps 연결에서도 이 경로를 반영해야 한다.
+렌더링만 수행하며 클러스터에 적용하지 않는다. 출력 디렉터리의 loki.yaml, alloy-pods.yaml, alloy-events.yaml, policies.yaml이 배포 대상 YAML이다. Alloy 원문과 공통 버퍼는 assets chart가 ConfigMap 안에서 결합한다. charts/는 다운로드 캐시이므로 출력 디렉터리 전체를 재귀 apply하지 않는다.
+렌더러는 실제 Application sources를 읽는다. 공식 Loki chart의 Role은 뒤쪽 assets source의 ConfigMap 전용 Role로 대체한다. Argo CD의 동일 source 순서에서도 같은 제한이 적용된다. **외부 chart만 직접 설치하면 이 제한이 빠진다.** Loki Role의 의도한 RepeatedResourceWarning 한 건은 [연결 안내](../README.md)를 참고한다.
 
 고정 버전: Loki chart 7.3.0/image 3.6.11, Alloy chart 1.12.1/image v1.19.2.
 차트의 appVersion과 실행 image tag가 다를 수 있어 실제 image를 명시했다.

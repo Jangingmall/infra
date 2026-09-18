@@ -32,6 +32,14 @@ check(state.dig('spec','template','spec','containers').any? { |c| c['name'].incl
   docs = documents("#{dir}/alloy-#{kind}.yaml")
   workload = docs.find { |r| r['kind']==(kind=='pods' ? 'DaemonSet' : 'Deployment') }
   check(workload, "#{kind} workload missing")
+  pod = workload.dig('spec','template','spec')
+  alloy = pod['containers'].find { |c| c['name']=='alloy' }
+  environment = alloy.fetch('env').find { |e| e['name']=='OBS_ENV' }
+  check(environment && environment['value']==env, 'Alloy environment differs')
+  check(pod['volumes'].any? { |v| v.dig('configMap','name')=="alloy-#{kind}-config" }, 'Git config is not mounted')
+  reloader = pod['containers'].find { |c| c['name']=='config-reloader' }
+  check(reloader && reloader['args'].include?('--watched-dir=/etc/alloy'), 'external config reload missing')
+
   if kind=='events'
     check(workload.dig('spec','replicas')==1 && workload.dig('spec','strategy','type')=='Recreate', 'Events must not overlap during rollout')
   end

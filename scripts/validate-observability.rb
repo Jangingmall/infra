@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby
 require 'yaml'
+require 'json'
 
 def check(condition, message)
   abort "Observability validation failed: #{message}" unless condition
@@ -53,6 +54,15 @@ check(grafana.dig('spec', 'template', 'spec', 'containers').map { |c| c['name'] 
 volumes = grafana.dig('spec', 'template', 'spec', 'volumes')
 dashboards = resources.select { |r| r['kind'] == 'ConfigMap' && r.fetch('data', {}).keys.any? { |k| k.end_with?('.json') } }
 check(!dashboards.empty?, 'default dashboards disappeared')
+{
+  'backend'=>'backend/dashboard.json', 'gpu'=>'gpu/dashboard.json',
+  'cnpg'=>'platform/cnpg-dashboard.json', 'argo'=>'platform/argo-dashboard.json'
+}.each do |name, path|
+  cm = dashboards.find { |r| r.dig('metadata','name')=="metrics-dashboard-#{name}" }
+  expected = File.read(File.expand_path("../platform/observability/#{path}", __dir__))
+  check(cm && JSON.parse(cm.fetch('data').fetch("#{name}.json"))==JSON.parse(expected), "#{name} dashboard differs from Git source")
+end
+
 dashboards.each do |cm|
   volume = volumes.find { |v| v.dig('configMap', 'name') == cm.dig('metadata', 'name') }
   check(volume, "dashboard ConfigMap not mounted: #{cm.dig('metadata', 'name')}")
