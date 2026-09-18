@@ -2,11 +2,15 @@
 
 > kt cloud TECH UP 2기 3팀 "삼성가고싶어요" 통합프로젝트 · 서비스 **장인몰**
 > Claude Code가 매 세션 자동으로 읽습니다. **결정사항 위주로 짧게 유지하세요.**
-> 기준: **통합프로젝트 Context 2026-09-14** + **팀 컨텍스트 v0.8** + **네트워크·계정 설계서 최종본(9/14)** + **모듈화 전략 B안(9/15 19:21 파트장 최종)** + **비용 보고서 v1.0** + 🆕 **엣지·S3 버킷 설계서(9/16 파트장)** + 🆕 **인터페이스 명세서 v0.5(9/16)**
-> 최종 갱신 **2026-09-16** (이전판 09-15)
+> 기준: **통합프로젝트 Context 2026-09-14** + **팀 컨텍스트 v0.8** + **네트워크·계정 설계서 최종본(9/14)** + **모듈화 전략 B안(9/15 19:21 파트장 최종)** + 🆕 **비용 재산정 v2.0(9/17 창원)** + **엣지·S3 버킷 설계서(9/16 파트장)** + 🆕 **인터페이스 명세서 v0.6(9/17)**
+> 최종 갱신 **2026-09-17** (이전판 09-16)
 >
 > 🔴 **현재 AWS 상태: 여전히 리소스 없음.** ②③④ 는 코드만 `main` 에 머지(PR #18)됐고 **apply 는 9/18 일괄**입니다.
 > ✅ **예외 — ① State 백엔드는 살아 있고, 9/16 에 SSE-KMS(CMK)로 전환**했습니다. 「배포 리소스 현황」 참조.
+>
+> 🔴 **9/17 기준 코드는 ⑧ 일부까지 작성 완료.** PR #35(EKS 결정)·#36(노드그룹 ⑦)·#37(애드온) 이 **스택 구조**로 올라가 있습니다.
+> `Plan: 66 to add, 0 to change, 0 to destroy` 까지 확인했고 **apply 는 하지 않았습니다**(규칙 17).
+> 🔴 **신준한 9/17·9/18 연속 부재** — 9/18 프로비저닝은 파트장님 주도입니다. 「일정」의 인수인계 항목 참조.
 
 ---
 
@@ -39,18 +43,34 @@
 | 5 | **staging / prod 운영 방식** (가)순차·(나)staging축소·(다)prod단일 | 파트장 + 그룹장 | **동시 운영은 예산 2배로 불가** |
 | 6 | **공용 ECR State 위치** — 🔴 현재 `ecr_enabled = false` **양쪽 다 꺼져 있음**<br>🔄 09-16 창원님 제안: *"동일 digest 승격이라 환경별 분리 시 승격 모델이 깨짐 → **prod state 단일 생성 + staging 공유**"* → 인프라 동의. **파트장 확정 대기**<br>🔴 **지금 정해야 함** — state 간 이동은 `moved` 로 안 되고, Immutable 태그라 재생성 시 BE 이미지 소실 | 창원 + 파트장 | **BE가 `docker push` 못 함** |
 | 7 | **최종 설계서 ↔ 코드 차이 4건** (아래 「설계서 차이」) | 파트장 | ⑦⑧ 코드 작성 |
-| 8 | **EKS 버전 · 인증 모드 · 엔드포인트 공개** | 파트장 + 다정 + 보안 | 🔴 **되돌릴 수 없는 결정** — 별도 안건 문서 |
-| **9** | 🆕🔴 **Redis 미설계** — BE 회신에 `redis-host`·`redis-port` **필수**로 등장 | 인프라 + CN + BE | **리소스·비용 산정에 Redis가 없음** |
-| **10** | 🆕🔴 **App 노드 메모리** — BE `-XX:MaxRAMPercentage=75` + limit 4Gi → 힙 최대 3Gi.<br>t3.medium(allocatable ≈3.4Gi)에 Pod 2개 = **OOM 위험** | 인프라 + CN + BE | ⑦ 노드그룹 사이징 |
+| ~~8~~ | ~~EKS 버전 · 인증 모드 · 엔드포인트 공개~~ | — | ✅ **9/17 해소** (아래) — 1.35 / `API` / **(B) public+IP제한 → 9/21 private only** |
+| **9** | 🔄 **Redis 배치** — 09-17 **k8s Pod 로 확정**(ElastiCache 미사용). 명수님: *"redis는 app 노드에 띄우는 게 좋긴 한데 그러면 large를 써야 할 것 같다"*<br>🔴 **남은 것: 최종 배치 노드** — 제 v0.6 통보안은 **System 노드 512Mi**, 명수님은 **App 노드** 선호 | CN(명수) + 인프라 | ⑦ 노드 사양은 **이미 App `t3.medium`×2 로 반영**했으므로 apply 는 막지 않음 |
+| ~~10~~ | ~~App 노드 메모리(OOM 위험)~~ | — | ✅ **9/17 해소** — App 노드가 **`t3.medium` × 2** 로 늘어 Pod 2개가 **노드 1대씩** 쓰게 됨. 한 노드에 2개가 몰리던 구조가 사라짐 |
 | **11** | 🆕 **ALB Idle Timeout** — BE가 **SSE + AI 응답 Streaming** 사용. 기본 60초면 끊김 | 인프라(⑩) | SSE 연결 유지 |
 | **12** | 🆕 **`jangin-staging-build` EC2 정체** — 다정님 SSM 안내에 등장. 기존 설계엔 **Bastion·빌드 EC2 없음** | 다정 + 파트장 | 신규 리소스면 **비용 미산정** |
 | ~~13~~ | ~~DNS 서브도메인 `stg.` vs `staging.`~~ | — | ✅ **9/16 해소** (아래) |
 | ~~14~~ | ~~AI ServiceAccount 이름 변경~~ | — | ✅ **9/16 해소** — 두 Deployment 가 `ai-worker-sa` 를 **공유**. IRSA 6번 그대로 유효 |
 | **15** | 🆕🔴 **NetworkPolicy egress 예외 — 인프라가 값 5종을 CN 에 줘야 함** (PR #24 명시 요구) | **인프라** → CN | 🔴 **DB·Backend·AI 발신 정책을 영영 연결 못 함.** 보안팀 조건 #1 미충족 |
-| **16** | 🆕🔴 **VPC CNI NetworkPolicy 미활성화** — addon 에서 켜지 않으면 NetworkPolicy 가 **에러 없이 무시**됨 | **인프라** (⑥/⑧) | 🔴 **명수님 정책 전부가 무효.** "만들었는데 안 막힌다" |
+| ~~16~~ | ~~VPC CNI NetworkPolicy 미활성화~~ | — | ✅ **9/17 해소** — PR #37 `modules/eks_addons` 에서 `enableNetworkPolicy = "true"` 로 켬. ⚠️ **문자열** 이어야 함(boolean 거부) |
 | **17** | 🆕🔴 **무효 리소스 ID 가 타 직군 문서에 살아 있음** — `vpce-02f0b40…` 등 9/15 destroy 된 ID | **인프라** (즉시 공지) | 잘못된 값으로 설계·구현이 진행됨 |
+| **18** | 🆕🔴 **앱용 KMS CMK 담당자 미정** — 다정님 PR #32 의 `kms:Decrypt` statement 가 `#resources = [var.aws_kms_key.shared.arn]` 로 **주석 처리**돼 있고, 가리킬 CMK 가 레포에 없음<br>⚠️ **State 용 CMK(`alias/jangin-infra-s3-tfstate`)와 별개 키**입니다 | 파트장 + 다정 | 🔴 **9/18 apply 가 `MalformedPolicyDocument` 로 실패.** `plan` 에서는 안 잡힘 |
+| **19** | 🆕🔴 **⑩ 엣지 모듈이 환경에서 호출되지 않음** — `modules/{alb,waf,cloudfront,acm_alb,acm_cloudfront}` 는 있는데 `environments/*/` 에 호출 파일(`alb.tf` 등)이 없음 | **파트장**(⑩ 영역) | 🔴 **apply 해도 ALB·WAF·CloudFront 가 생기지 않음.** `plan` 으로 절대 못 잡음(없는 코드는 차이가 아님) |
+| **20** | 🆕 **팀원 공인 IP 미수집** — `eks_public_access_cidrs` | 전원 → 인프라 | 🔴 **PR #35 의 precondition 으로 `plan` 자체가 실패** |
+| **21** | 🆕 **예산 한도 500,000원의 범위** — 클라우드/보안 그룹 한도인지 8개 직군 전체 한도인지<br>FE Vercel $20 · 보안 LLM 10,000원이 같은 한도면 여유가 줄어듦 | PM + 그룹장 | 80.4% 라는 수치의 의미가 달라짐 |
+| **22** | 🆕🔴 **산출물3 초본 ↔ 확정 설계 불일치 10건** (Aurora vs CNPG · Karpenter/KEDA · Modal · CloudFront 미도입 · console-first · Multi-AZ · 크레딧 $150 등) | 다정 + 인프라 | **평가가 "실제 동작 여부"를 보므로 문서와 실물이 다르면 신뢰 손실** |
 
 > 위 값이 안 나온 상태에서 **임의값으로 채우지 말 것.** `variable` + `TODO` 주석으로 남기고 진행.
+
+### ✅ 9/17 해소된 것
+
+| 항목 | 결론 |
+|---|---|
+| **EKS 3대 결정** | ✅ **버전 `1.35` · 인증 `API` · 엔드포인트 (B) public(팀원 IP 제한)+private**<br>🔑 **9/21 부터 (C) private only 로 전환** — 파트장: *"B안으로 작성해뒀습니다. 9/21부터 private로 전환하는 방식이 좋을 것 같아요"*<br>경위: 9/16 에 (C) private only 로 정해졌으나, ① 제가 *"3대 결정 전부 비가역"* 이라고 **잘못 안내**한 점 정정(엔드포인트는 **몇 분이면 전환 가능**) ② **Helm 최초 설치(ArgoCD·CNPG·Rollouts·Secrets Store CSI)가 막힌다**는 걸림돌 발견 → 재검토 안건 제출 → 파트장 수용<br>🔴 **남은 것: 팀원 공인 IP 수집**(막힌 항목 20) |
+| **Karpenter / KEDA** | ✅ **미사용 확정** — 파트장: *"안 쓰는 방향으로 해야 할 것 같아요. 서버 올리고 기능 확인하기도 힘들 것 같아서"*<br>🔴 **Phase3 산출물 5번(AutoScaling 시연)은 HPA 만 남습니다** |
+| **노드 사양** | 🔄 **변경 확정** — System `t3.medium`×1 + **`t3.large`**×1 / App `t3.medium`**×2** (Redis 배치 사유). 아래 「노드 구성」 |
+| **VPC CNI NetworkPolicy** | ✅ **PR #37 에서 활성화** (막힌 항목 16) |
+| **비용 재산정** | ✅ **v2.0 (창원님 9/17)** — **401,756원 / 500,000원 = 80.4%**. 기존 98.8% 에서 크게 완화. 아래 「비용」 |
+| **버킷 lifecycle** | ✅ 파트장 확정. 🟡 다정님 의견 — *vpc-flow 14일 / loki 7일은 짧으니 20일 정도* (반영 여부 미정) |
 
 ### ✅ 9/16 해소된 것
 
@@ -95,15 +115,17 @@
 | 클라우드 | **AWS 단일** |
 | 리전 | **`ap-northeast-2` (서울)** |
 | 계정 | 공용계정 1개 + IAM Identity Center. **SSO Start URL**: `https://d-9b675a5254.awsapps.com/start` |
-| 오케스트레이션 | **EKS** |
+| 오케스트레이션 | **EKS** 🔄 **09-17 3대 값 확정**<br>버전 **`1.35`** · 인증 모드 **`API`**(구 `aws-auth` ConfigMap 미사용) · 엔드포인트 **public(팀원 IP 제한) + private**<br>🔑 **9/21 부터 private only 로 좁힘** — 구축기와 운영기의 위험이 다르다는 판단. **전환 시점·근거·전후 설정을 기록해야** 의미가 있습니다 |
+| **오토스케일링** | 🔄 **09-17: Karpenter · KEDA 미사용 확정.** **HPA 만** 사용<br>사유(파트장): 남은 기간에 *"서버 올리고 기능 확인하기도 힘들"* — 🔴 Phase3 산출물 5번에 영향 |
 | **환경 분리** | **staging / prod 별도 클러스터 · 별도 VPC** (Peering 없음) |
 | **NAT** | ✅ **NAT Gateway** (AZ-a 단일 + **EIP 고정**) — ~~NAT Instance~~ 폐기 |
 | LB | **ALB (target-type `ip`)** + **AWS WAF** · Pod Readiness Gate 병행 |
 | **DNS** ✅ | 🔄 **09-16 전부 확정** (파트장 「엣지·S3 버킷 설계서」)<br>`midam.store` → Vercel (FE) · `api.midam.store` → ALB (BE)<br>**`stg.midam.store`** → Vercel staging · 🆕 **`api.stg.midam.store`** → staging ALB<br>🆕 **`img.midam.store`** → CloudFront (상품 이미지 CDN)<br>⚠️ **DNS 는 `stg.` / 리소스 이름 접두사는 `staging`** — 별개 축입니다. 통일하지 마세요 |
 | **DB** | **CloudNativePG** — Primary 1 + Replica 2 |
+| **캐시** 🆕 | 🔄 **09-17: Redis 를 k8s Pod 로 운영 확정** (ElastiCache 미사용 — 별도 과금·VPC 리소스 회피)<br>🔴 **배치 노드 미확정** — 인프라 통보안은 System 노드, CN 은 App 노드 선호 (막힌 항목 9)<br>BE 요구 키: `redis-host` · `redis-port` |
 | 레지스트리 | ECR — **단일 레포 `jangin-app` + 동일 아티팩트 승격** · **Immutable** |
 | **시크릿** | Parameter Store **`/{env}/{team}/{key}` (3단)** + KMS CMK<br>**CSI Driver → 볼륨 마운트 → Spring `configtree`** (Secret Sync 미사용) |
-| **AI 런타임** | **EKS GPU 직접** — g6e.xlarge(이미지·SGLang) + g4dn.xlarge(챗봇·Ollama)<br>🔄 09-16: 명수님 PR #24 가 Deployment·Service 를 **`ai-sglang`(L40S) / `ai-ollama`(T4)** 로 분리 → 🔴 **IRSA 이름 재확인 필요**(막힌 항목 14) |
+| **AI 런타임** | **EKS GPU 직접** — g6e.xlarge(이미지·SGLang) + g4dn.xlarge(챗봇·Ollama)<br>🔄 09-16: 명수님 PR #24 가 Deployment·Service 를 **`ai-sglang`(L40S) / `ai-ollama`(T4)** 로 분리<br>✅ 09-16 확인: 두 Deployment 가 **`ai-worker-sa` 를 공유** → IRSA 6번 그대로 유효 |
 | S3 | 🔄 **09-16: 5종 → 7종** — images / returns / backup / models / logs + 🆕 **access** + 🆕 **waf-logs** |
 | CI/CD | GitHub Actions → ECR → ArgoCD → EKS |
 | 레포 | **`infra` 단일** + `terraform/`·`k8s/`·`argocd/` |
@@ -214,15 +236,38 @@ locals {
 
 ---
 
-## 노드 구성 ✅ 확정
+## 노드 구성 ✅ 확정 (🔄 09-17 사양 변경 · PR #36 반영 완료)
 
-| 노드그룹 | 인스턴스 | 대수 | 과금시간 | 워크로드 |
+```
+[구]  System t3.medium × 2        /  App t3.medium × 1
+[신]  System t3.medium×1 + t3.large×1  /  App t3.medium × 2      ← 09-17
+```
+
+**변경 사유**: Redis 배치. 명수님 — *"redis는 app 노드에 띄우는 게 좋긴 한데 그러면 large를 써야 할 것 같다. system node도 한 대는 large로 썼으면 좋겠다"*
+→ 부수 효과로 **막힌 항목 10(App OOM 위험)이 함께 해소**됐습니다. App Pod 2개가 노드 1대씩 쓰게 되기 때문입니다.
+
+| 노드그룹 키 | 인스턴스 | desired / min / max | 과금 유형 | 워크로드 |
 |---|---|---|---|---|
-| **System** | `t3.medium` | **2** | 264h | Prometheus·Grafana·Loki·ArgoCD·ALB Controller |
-| **App** | `t3.medium` | **1** | 102h | Backend Pod |
-| **DB** | `t3.small` | 🔴 **3 (min_size 도 3)** | 102h | CNPG Primary 1 + Replica 2 |
-| **GPU-A** | **`g6e.xlarge`** (L40S 48GB) | 1 | 102h | 이미지·텍스트 (SGLang) |
-| **GPU-B** | **`g4dn.xlarge`** (T4 16GB) | 1 | 102h | 챗봇 (Ollama) |
+| **`system-md`** | `t3.medium` | 1 / 1 / 2 | ON_DEMAND | Prometheus·Grafana·Loki·ArgoCD·ALB Controller |
+| 🆕 **`system-lg`** | **`t3.large`** | 1 / 1 / 2 | ON_DEMAND | 위 + 여유 (명수님 요청) |
+| **`app`** | `t3.medium` | 🔄 **2** / 2 / 3 | ON_DEMAND | Backend Pod (+ Redis 배치 후보) |
+| **`db`** | `t3.small` | 🔴 **3 / 3 / 3** | 🔴 **ON_DEMAND 고정** | CNPG Primary 1 + Replica 2 |
+| **`gpu-a`** | **`g6e.xlarge`** (L40S 48GB) | 🔴 **0 / 0 / 1** | — | 이미지·텍스트 (SGLang) |
+| **`gpu-b`** | **`g4dn.xlarge`** (T4 16GB) | 🔴 **0 / 0 / 1** | — | 챗봇 (Ollama) |
+
+> 🔑 **`desired/min/max` 를 표에 적어두는 이유**: 대수만 적으면 나중에 누가 `min_size` 를 낮춰도
+> "표대로다" 라고 생각하게 됩니다. **DB 의 `min_size=3`** 은 대수가 아니라 **제약**이라 여기 같이 씁니다.
+
+🔴 **PR #36 에서는 이 세 가지를 주석이 아니라 `precondition` 으로 강제했습니다.**
+
+| # | 조건 | 어기면 |
+|---|---|---|
+| 1 | `min_size ≤ desired_size ≤ max_size` | 값 뒤집힘 |
+| 2 | `workload-type=db` 면 `min_size ≥ 3` | CNPG Pod 1개가 **영구 `Pending`** |
+| 3 | `workload-type=db` 면 `ON_DEMAND` | Spot 회수 시 **그 Pod 가 영영 못 돌아옴** |
+
+> 💡 **왜 주석이 아니라 코드인가** — 주석은 읽는 사람에게만 작동하고, `precondition` 은 **`plan` 단계에서 실패**시킵니다.
+> 비용을 줄이려고 `min_size` 를 낮추는 건 아주 자연스러운 수정이라, 사람 기억에 맡기면 언젠가 반드시 일어납니다.
 
 ### 🆕🔴 DB 노드그룹 — 09-16 제약 확정 (명수님 PR #21)
 
@@ -283,10 +328,25 @@ Taint:  nvidia.com/gpu=true:NoSchedule   (양쪽 동일)
 
 🔴 **`gpu-model` 라벨이 없으면** 챗봇 Pod가 비싼 g6e에 뜨거나 이미지 Pod가 T4에서 OOM.
 
-### GPU 스토리지 — **로컬 NVMe** (루트 EBS 상향 불필요)
+### GPU 스토리지 — 🔄 **09-17 정정: 루트 EBS 상향으로 진행** (구: 로컬 NVMe)
 
-g6e 250GB / g4dn 125GB NVMe를 **containerd 데이터 루트 + kubelet ephemeral**로 사용 (Launch Template userData).
-⚠️ **Instance Store라 노드 종료·Spot 회수 시 소멸.** 컨테이너 이미지·모델 캐시·임시 데이터만.
+| | 구 방침 (09-10~09-16) | 🔄 신 방침 (09-17 · PR #36) |
+|---|---|---|
+| 방식 | 로컬 NVMe 를 containerd 데이터 루트로 | **루트 EBS 상향** |
+| 크기 | g6e 250GB / g4dn 125GB (Instance Store) | **g6e 200GB / g4dn 120GB (gp3)** |
+| 구현 | Launch Template **userData** 필요 | `disk_size` 한 줄 |
+
+🔴 **바꾼 이유 — 검증 불가능한 코드를 부재일에 넣지 않기 위해서입니다.**
+
+- AL2023 은 부팅 스크립트가 **`nodeadm` 기반**이라 기존 AL2 예제가 그대로 안 통합니다.
+- userData 는 **클러스터가 떠야 테스트가 됩니다.** 지금은 클러스터가 없습니다.
+- 실패하면 증상이 *"노드가 `NotReady` 인데 이유가 안 보임"* 이고, 🔴 **9/18 에 제가 없습니다.**
+- 비용 차이는 약 **$6** — 예산이 80.4% 로 내려온 상황에서 감수할 만한 금액입니다.
+
+> 💡 **트레이드오프를 정확히 적으면**: NVMe 는 **빠르고 공짜**지만 노드가 죽으면 **모델 캐시가 사라져 재다운로드**(NAT 처리료)가 발생합니다.
+> EBS 는 **느리고 유료**지만 **재부팅을 견디고 설정이 단순**합니다.
+> 지금 우리에게 부족한 자원은 돈이 아니라 **검증할 시간**이라 EBS 를 골랐습니다.
+> 🔄 **되돌릴 수 있는 결정입니다.** 구축이 안정되면 별도 PR 로 NVMe 전환을 재검토합니다.
 
 ---
 
@@ -536,6 +596,8 @@ enableNetworkPolicy = "true"    ← aws-vpc-cni addon configuration
 | **20** | 🆕 **리소스 이름·버킷명·경로를 제안하기 전에 이 문서의 확정값을 먼저 확인** (09-12 State 버킷명 임의 제안 사고) |
 | **21** | 🆕🔴 **"설정"이 아니라 "실물"을 확인한다.** 버킷 설정이 SSE-KMS 라도 객체는 AES256 일 수 있다.<br>보안 항목 검증은 리소스 설정 조회가 아니라 **결과물 조회**로 한다 — 예: `aws s3api head-object ... --query ServerSideEncryption`<br>*(09-16 실제 사례: `backend.tf` 의 `encrypt = true` 가 버킷 기본 암호화를 덮어써서, 콘솔엔 KMS 인데 State 는 SSE-S3 였음)* |
 | **22** | 🆕 **셸 스크립트는 "생성 구간"과 "검증 구간"의 엄격도를 나눈다.** 생성은 `set -e` 로 즉시 중단, 검증은 `set +e` 로 끝까지 출력.<br>*(09-16 실제 사례: 키 교체 상태 조회 실패로 스크립트가 죽어, 가장 중요한 객체 암호화 확인이 실행되지 못함)* |
+| **23** | 🆕🔴 **`terraform.tfvars` 의 기본값을 바꾸면 PR 만으로 끝내지 않는다.** `.gitignore` 대상이라 **PR 로 전파되지 않고**, 팀원 로컬 파일은 옛 값 그대로 남는다.<br>→ **①`terraform.tfvars.example` 갱신 + ②디스코드로 `grep` 확인 요청**까지가 한 세트.<br>*(09-17 실제 사례: `.example` 은 9/17 판인데 `terraform.tfvars` 는 9/15 판이라 `1.33`·`API_AND_CONFIG_MAP` 이 남아 있었음. 그대로 apply 했으면 **되돌릴 수 없는 클러스터 버전**이 구버전으로 생성)* |
+| **24** | 🆕 **스택 PR(PR 위에 PR)은 본문에 base 와 머지 순서를 명시한다.** 아래부터 순서대로 머지해야 diff 가 섞이지 않는다.<br>같은 파일 끝을 여러 PR 이 건드리면 **나중에 머지되는 쪽이 rebase + `--force-with-lease`** 를 해야 하므로, 부재 예정이면 PR 본문에 그 사실을 적는다 |
 
 > 📌 **규칙 10 보충 (2026-09-13)**: `NodePool` 값은 `system｜app｜db｜ai` 중 하나여야 Cost Explorer 필터가 의미를 갖습니다.
 > VPC·서브넷·IGW·라우팅·SG·Endpoint 는 **요금이 $0** 이고 저 넷 중 어디에도 속하지 않으므로 **부여하지 않습니다.**
@@ -544,31 +606,67 @@ enableNetworkPolicy = "true"    ← aws-vpc-cni addon configuration
 
 ---
 
-## 💰 비용 (확정본 v1.0 · 17일 · 환율 1,342)
+## 💰 비용 🔄 **재산정 v2.0 (2026-09-17 창원님)**
 
-| 구분 | 금액 |
-|---|---|
-| **GPU 2대** (Spot 9일 + OD 2일) | **$183.84 (53.1%)** |
-| EKS 컨트롤플레인 (408h) | $40.80 |
-| EC2 노드 3종 | $40.72 |
-| NAT Gateway (408h + 50GB) | $27.02 |
-| Vercel Pro | $20.00 |
-| 그 외 | $33.55 |
-| **총액** | **$345.93 = 464,241원** |
-| Spot 절감 | $115.53 (25.0%) |
+```
+구 v1.0 :  $345.93 / $350        →  98.8%  🔴
+신 v2.0 :  401,756원 / 500,000원  →  80.4%  ✅
+```
+
+| 구분 | 금액 | 비중 |
+|---|---|---|
+| **GPU 2대** (전부 온디맨드) | **$190.78** | **63.7%** |
+| EC2 노드 (System·App·DB) | $21.97 | |
+| EKS 컨트롤플레인 (264h) | $26.40 | |
+| NAT Gateway | $18.53 | |
+| ALB + WAF | $11.18 | |
+| Vercel Pro | $20.00 | |
+| 그 외 (S3·ECR·공인 IPv4·EBS 예비) | $10.52 | |
+| **총액** | **$299.37 = 401,756원** | |
+
+**산정 기준** — 🔄 일정이 바뀌어 구간이 짧아졌습니다
+- 기간 **9/21 ~ 10/1** · 실운영 **7일** (9/21~23, 9/28~30, 10/1)
+- 하루 **9h + 준비 15분 = 65h** · 상시 유지 **264h** · 크레딧 **$0**
 
 - 🔴 **크레딧 $0** — IAM Identity Center **조직 인스턴스** 활성화로 소멸
 - 🔴 **프리티어 없음** — EC2 DB라 RDS 무료 대상 아님. t3 전 계열 무료 시간 없음
-- 🔴 **예산 $350의 98.8%**
-- 💡 **최대 절감 레버: g6e → g6 $88.78** (AI VRAM 실측 선행)
+- 🟡 **막힌 항목 21**: 500,000원이 **클라우드/보안 그룹 한도인지 8개 직군 전체 한도인지** 미확인.
+  FE Vercel $20 · 보안팀 LLM 10,000원이 같은 한도에서 나가면 여유가 줄어듭니다
+
+### 🟡 남은 절감 여지 2건 (둘 다 파트장·그룹장 판단)
+
+| # | 항목 | 절감 추정 | 상태 |
+|---|---|---|---|
+| 1 | **g6e → g6** (L40S 48GB → L4 24GB) | 약 **$96 ≈ 13만원** | 🔴 **AI팀 VRAM 실측 대기.** 챗봇(gemma 4bit ≈ 7.2GB)은 24GB 에 들어갈 여지가 있으나 **이미지 모델 용량 미회신** |
+| 2 | **GPU Spot 적용** | 약 **$90 ≈ 12만원** | 🟡 현재 시트는 **Spot 0일**(전부 온디맨드) |
+
+```
+g6e.xlarge   OD $2.288/h  vs  Spot $1.2306/h   → 65h 기준 약 $69 차이
+g4dn.xlarge  OD $0.647/h  vs  Spot $0.3166/h   → 65h 기준 약 $21 차이
+```
+
+> 🟡 **Spot 의 트레이드오프**: AWS 가 용량이 필요하면 **2분 통보 후 회수**합니다.
+> GPU 는 평소 0대로 두고 **테스트·시연 시간에만** 켜는데, **하필 그때 회수되면 시연이 멈춥니다.**
+> → 인프라 의견: **최소한 10/6 시연일은 온디맨드**. 예산이 80.4% 로 내려온 만큼 무리해서 아낄 필요가 줄었습니다.
+
+### 🔴 비용표에 안 잡힌 것 1건 — 종료 후 조용히 새는 요금
+
+```
+gp3 PV 20Gi × 3 (CNPG)  +  reclaimPolicy: Retain
+  → terraform destroy 후에도 EBS 가 남아 계속 과금
+  → 10/2 제출 ~ 10/6 발표 사이 요금 발생
+```
+
+> `Retain` 은 **"PVC 를 지워도 디스크는 남긴다"** 는 설정이라, DB 데이터 보호 목적으로는 옳습니다.
+> 다만 **Terraform 이 만든 게 아니라 CSI 드라이버가 만든 볼륨**이라 `terraform destroy` 가 건드리지 않습니다.
+> 🔴 **10/2 종료 체크리스트에 "고아 EBS 수동 삭제" 단계 필수** (인프라 담당).
 
 ### 🔴 끌 수 있는 것과 없는 것
 
 | 구분 | 항목 | 시간 |
 |---|---|---|
-| **상시 408h** | **EKS 컨트롤플레인(끌 수 없음)** · NAT GW · ALB 기본료 · 공인 IPv4 3개 | 17일×24h |
-| 운영일 264h | System 노드 × 2 | 11일×24h |
-| 운영시간 102h | App · DB · GPU · ALB LCU | 11일×9.25h |
+| **상시 264h** | **EKS 컨트롤플레인(끌 수 없음)** · NAT GW · ALB 기본료 · 공인 IPv4 | 11일×24h |
+| 운영시간 65h | App · DB · GPU · ALB LCU | 7일×9.25h |
 
 ⚠️ **ALB를 못 끄는 이유**: Ingress를 지웠다 만들면 **ALB DNS가 바뀌어** Route53을 매일 갱신해야 함
 
@@ -583,8 +681,8 @@ enableNetworkPolicy = "true"    ← aws-vpc-cni addon configuration
 | ✅ **9/14 (월)** | 보안팀 검토 요청 · 타 직군 질문 · **파트장 설계서 최종본 수령** · 로컬 동기화 |
 | ✅ **9/15 (화)** | 🔄 **모듈화 B안 최종 확정**(오전 A안 → 저녁 정정) · **CloudFront OAC 확정** · 🔴 **네트워크 리소스 destroy** · PR #12·#15·#16 머지 |
 | ✅ **9/16 (수)** | **PR #13·#18·#21 머지** · 🔄 **`modules/nat` 분리**(파트장 리뷰) · ✅ **State SSE-KMS 전환** · 파트장 **엣지·S3 설계서** 수령 · 명수님 **PR #24 NetworkPolicy**<br>🔴 **재apply 안 함 — 파트장 지시로 9/18 일괄로 통합** |
-| 🔴 **9/17 (목)** | **신준한 정규시간 부재** (개인 작업은 가능) · 🔴 **과금 리소스 apply 금지일** |
-| **9/18 (금)** | 🔴 **⑤~⑧ 일괄 `apply`** · **프로비저닝 완료** |
+| ✅ **9/17 (목)** | 🔴 **신준한 결석** (개인 작업으로 수행) · **EKS 3대 결정 확정** · **Karpenter/KEDA 미사용 확정** · **노드 사양 변경** · **비용 재산정 v2.0**<br>코드: **PR #35·#36·#37** (⑥ 결정 반영 / ⑦ 노드그룹 / ⑧ 애드온) — `Plan: 66 to add, 0 to change, 0 to destroy` · 🔴 **apply 안 함**(규칙 17) |
+| 🔴 **9/18 (금)** | 🔴 **⑤~⑧ 일괄 `apply`** · **프로비저닝 완료** · **17시 발표**(네이티브 합동 여부 리드 회의 확인 필요)<br>🔴 **신준한 연속 부재** — 아래 「9/18 인수인계」 |
 | 9/15~17 | IAM 한시적 admin 회수 (박다정) |
 | **9/21** | **실제 연동 테스트 시작** · 스테이징 제공(DAST) |
 | 9/22 (화) | 인프라 멘토링 3차 |
@@ -595,7 +693,19 @@ enableNetworkPolicy = "true"    ← aws-vpc-cni addon configuration
 | **10/5~10/6** | 🔄 **노드 올리고 확인 + 발표 시연 준비** |
 | **10/6** | 최종 발표 (30분 + Q&A 20분) |
 
-**운영 스케줄**: 09:00~18:00 (하루 9시간) · 🔄 **실제 서버 가동 약 9일** (파트장 9/15 확정)
+**운영 스케줄**: 09:00~18:00 (하루 9시간) · 🔄 **09-17 재산정 기준 실운영 7일** (9/21~23 · 9/28~30 · 10/1)
+
+### 🔴 9/18 인수인계 (신준한 부재)
+
+| # | 항목 | 확인 방법 |
+|---|---|---|
+| 1 | **팀원 공인 IP 를 `terraform.tfvars` 에 채우기** | 각자 `curl ifconfig.me` → `eks_public_access_cidrs = ["x.x.x.x/32", ...]`<br>🔴 비어 있으면 **PR #35 의 precondition 으로 `plan` 실패** |
+| 2 | 🔴 **각자 `terraform.tfvars` 최신인지 확인** | `grep -E 'eks_cluster_version\|eks_authentication_mode' terraform.tfvars`<br>`1.33`·`API_AND_CONFIG_MAP` 이 보이면 **옛 파일**. 클러스터 버전은 **되돌릴 수 없음** (규칙 23) |
+| 3 | **PR 머지 순서** | `#35 → #36 → #37` (스택). #32 와 `outputs.tf` 충돌 — **양쪽 다 append 라 둘 다 남기면 끝** |
+| 4 | 🔴 **막힌 항목 18(앱 KMS CMK)** | 해결 전 apply 하면 IAM 정책 생성에서 실패. **`plan` 으로는 안 잡힘** |
+| 5 | 🔴 **막힌 항목 19(⑩ 엣지 모듈 미호출)** | apply 해도 ALB·CloudFront 가 안 생김. **`plan` 으로는 안 잡힘** |
+| 6 | **apply 직후 State 암호화 실물 확인** | `aws s3api head-object --bucket jangin-infra-s3-tfstate --key prod/terraform.tfstate --query ServerSideEncryption` → `"aws:kms"` (규칙 21) |
+| 7 | **새 리소스 ID 수집** | 「배포 리소스 현황」 표 채우기 — 인계 문서 재료 |
 
 > 💰 **비용 재산정 대상**: 기존 v1.0 산정은 **운영일 11일 + 달력 17일** 기준이었습니다.
 > 새 일정은 **9/18 시작 · 가동 9일**이라 상시 요금(EKS 컨트롤플레인·NAT·ALB·공인 IPv4) 구간도 **약 13일**로 줄어듭니다.
@@ -611,8 +721,8 @@ enableNetworkPolicy = "true"    ← aws-vpc-cni addon configuration
 ✅ ②③④ 모듈 구조로 재작성 (코드만)            ← 무료             PR #18 머지 ✅
    ⑤ NAT Gateway + EIP(prevent_destroy)       ← 💰 9/18          PR #19 (리뷰 반영 완료)
    ⑥ EKS 클러스터 + OIDC Provider              ← 💰 9/18          PR #22
-   ⑦ 노드그룹 (System/App/DB/GPU×2 — GPU는 desired=0)  ← 💰 9/18
-   ⑧ KMS CMK + Parameter Store + IRSA 6종 + 🔴 EBS CSI Driver 애드온
+✅ ⑦ 노드그룹 6종 (system-md/system-lg/app/db/gpu-a/gpu-b)  ← 💰 9/18   PR #36
+🔄 ⑧ KMS CMK + Parameter Store + IRSA 6종 + EBS CSI Driver 애드온   ← 분담 필요
    ⑨ S3 버킷 🔄 7종 (prefix·lifecycle·CORS·접근로그·WAF로그)
    ⑩ ALB · WAF · Route53 · ACM · CloudFront   🔗 파트장 영역
 ```
@@ -621,6 +731,18 @@ enableNetworkPolicy = "true"    ← aws-vpc-cni addon configuration
 > 🔄 **09-16 정정: ②③④ 를 따로 재apply 하지 않습니다.** 파트장님이 *"apply 는 일괄 진행"* 으로 정하셔서 **9/18 에 ②~⑧ 을 한 번에** 올립니다.
 > (이전 판의 *"9/16 중 재apply"* 는 폐기됐습니다)
 > 💰 **⑤ 이후는 과금.** 9/17 까지 `plan` 까지만, **9/18 일괄 `apply`** (규칙 17)
+>
+> 🆕🔴 **⑧ 은 3명이 나눠 갖고 있습니다 — 빈칸이 있습니다**
+>
+> | ⑧ 구성요소 | 담당 | 상태 |
+> |---|---|---|
+> | IRSA 6종 | 박다정 | 🟡 **PR #32 리뷰 대기** |
+> | **앱용 KMS CMK** | 🔴 **미정** | 🔴 **아무도 안 만들고 있음** (막힌 항목 18) |
+> | Parameter Store | 🔴 **미정** | ⬜ |
+> | EKS 애드온(VPC CNI·CoreDNS·kube-proxy) | 신준한 | ✅ **PR #37** |
+> | EBS CSI Driver | 신준한 | 🟡 **#32 머지 후 3줄** — `ebs_csi_enabled = true` + `module.irsa["ebs-csi"].role_arn` |
+>
+> ⚠️ **State 용 CMK(`alias/jangin-infra-s3-tfstate`)는 위 "앱용 CMK" 와 별개 키**입니다. 혼동하면 순환 의존이 다시 생깁니다.
 >
 > 🆕🔴 **⑦ 에 `AmazonSSMManagedInstanceCore` 를 빠뜨리지 마세요** (다정님 BE 접근 안내).
 > 노드 IAM 역할에 이 정책이 없으면 **SSM Session Manager 로 노드에 못 들어갑니다.**
@@ -641,7 +763,7 @@ enableNetworkPolicy = "true"    ← aws-vpc-cni addon configuration
 | 2 | **클러스터 환경 인계 문서** (CN 협업) | ⬜ |
 | 3 | 구성 관리 자동화 스크립트 + 이미지 빌드 자동화 | ⬜ |
 | 4 | 백업·복원 검증 + **멀티 AZ HA 적용 결과** | 🔴 단일 AZ와 충돌 |
-| 5 | **AutoScaling 정책 구성·시연** | 🔴 App 1대라 재검토 |
+| 5 | **AutoScaling 정책 구성·시연** | 🔄 **09-17: Karpenter·KEDA 미사용 확정 → HPA 만 남음.**<br>노드 오토스케일링 시연은 불가. **Pod 단위 HPA + 노드그룹 `max_size` 여유**(system 2 / app 3)로 재구성 필요 🔗 CN |
 
 ---
 
@@ -672,12 +794,17 @@ infra/
     │   ├── security/ ✅ 완료      SG 4종 + Rule 15개                [인프라 ③]  무료
     │   ├── endpoints/ ✅ 완료     S3 Gateway Endpoint               [인프라 ④]  무료
     │   ├── eks/      🔄 PR #22    Cluster·OIDC                      [인프라 ⑥]  💰 유료
+    │   │                 🔄 PR #35 로 1.35·API·엔드포인트 precondition 추가
+    │   ├── eks_nodes/  🆕 PR #36   노드그룹 6종 + 노드 IAM Role      [인프라 ⑦]  💰 유료
+    │   ├── eks_addons/ 🆕 PR #37   VPC CNI·CoreDNS·kube-proxy·EBS CSI [인프라 ⑧]  무료
+    │   ├── irsa/     🟡 PR #32    IRSA 6종                        🔗 [박다정 ⑧]
     │   ├── ecr/      ✅ 완료      ECR 레포·수명주기               🔗 [이창원 PR #12]
     │   ├── acm_alb/  ✅ 완료      ALB용 ACM + Route53 검증        🔗 [강윤주 PR #15]
     │   ├── acm_cloudfront/ ✅     CloudFront용 ACM (us-east-1)    🔗 [강윤주 PR #15]
     │   ├── alb/      ✅ 완료      ALB                             🔗 [강윤주 PR #15]
     │   ├── cloudfront/ ✅ 완료    CloudFront + OAC                🔗 [강윤주 PR #15]
     │   └── waf/      ✅ 완료      WAF                             🔗 [강윤주 PR #15]
+    │                 🔴 09-17: 엣지 5종은 모듈만 있고 environments 에서 호출되지 않음 (막힌 항목 19)
     └── environments/
         ├── prod/                       ← 🔴 module 호출만. 리소스 직접 선언 금지
         │   ├── versions.tf · backend.tf · providers.tf · locals.tf
@@ -852,6 +979,8 @@ moved {
 | **13** | 🆕 **리소스 전용 변수에 `<module>_` 접두사가 붙어 있는가** · **값은 `terraform.tfvars` 하나에 모였는가** (B안 컨벤션) |
 | **14** | 🆕 **모듈 `variables.tf` 에 `default` 가 없는가** (환경에서 값 누락 시 실패해야 함) |
 | **15** | 🆕 **모듈 안에 `provider` 블록이 없는가** (region·default_tags 는 루트에서 상속) |
+| **16** | 🆕🔴 **IAM 정책 `statement` 마다 `resources` 가 있는가** — 신원 기반 정책의 `Allow` 문은 `Resource` 가 필수.<br>⚠️ **`plan` 에서는 안 잡힙니다.** 정책 JSON 은 Terraform 이 로컬에서 조립하는 데이터라 plan 을 통과하고, AWS 검증은 **apply 순간에만** 일어나 `MalformedPolicyDocument` 로 실패합니다.<br>*(09-17 발견: PR #32 의 `kms:Decrypt` statement 2건)* |
+| **17** | 🆕 **`min_size`·`capacity_type` 같은 "제약"은 주석이 아니라 `precondition` 으로 박았는가** (규칙 12 의 오버엔지니어링과 혼동 주의 — **틀리면 조용히 망가지는 값**에만 적용) |
 
 💡 **plan 출력**: `Plan: N to add, 0 to change, 0 to destroy`
 **`to destroy`가 0이 아니면 절대 apply하지 마세요.**
@@ -867,7 +996,7 @@ moved {
 
 ---
 
-## 🔴 배포 리소스 현황 (2026-09-16 기준)
+## 🔴 배포 리소스 현황 (2026-09-17 기준 — 변동 없음)
 
 > 계정은 이 문서에 적지 않습니다 (작업 규칙 2). SSO 프로필 `jangin` · Permission Set `Infra-Admin` · 리전 `ap-northeast-2`
 
@@ -876,7 +1005,8 @@ moved {
 | ① **State 백엔드** | ✅ **살아 있음** — `jangin-infra-s3-tfstate` / `jangin-infra-ddb-tfstate-lock` |
 | ① **State 암호화** | 🔄 **09-16 SSE-KMS(CMK) 전환 완료** — 아래 상세 |
 | ②③④ **VPC · SG · Endpoint** | 🔴 **없음** — 9/15 destroy. 코드는 PR #18 로 `main` 에 머지됨. **apply 는 9/18** |
-| ⑤~⑩ | ⬜ 미생성 |
+| ⑤~⑧ | ⬜ 미생성 — **코드는 PR #19·#22·#35·#36·#37 로 준비 완료.** `Plan: 66 to add` |
+| ⑨⑩ | ⬜ 미생성 — 🔴 **⑩ 은 모듈만 있고 환경에서 호출되지 않음** (막힌 항목 19) |
 
 ### 🆕 ① State 백엔드 상세 (09-16 갱신)
 
@@ -963,6 +1093,33 @@ aws s3api head-object --bucket jangin-infra-s3-tfstate \
 ---
 
 ## 변경 이력
+
+**09-17 (EKS 3대 결정 확정 · 노드 사양 변경 · 비용 재산정 v2.0 · ⑦⑧ 코드)**
+- 🔴 **신준한 결석** — 회의록·디스코드·비용표로 복기 후 개인 작업으로 수행
+- ✅ **EKS 3대 결정 확정** — `1.35` / `API` / **(B) public(팀원 IP 제한)+private → 9/21 부터 private only**
+  - 🔴 **자기 정정**: 제가 9/16 에 *"3대 결정 전부 비가역"* 이라고 안내한 것이 **틀렸습니다.**
+    진짜 비가역은 **클러스터 버전 하나**이고, 인증 모드는 한 방향, **엔드포인트는 몇 분이면 전환**됩니다.
+    셋을 묶어 무겁게 만든 탓에 실제보다 보수적인 선택으로 기울었습니다
+  - 🔑 **재검토 근거가 된 새 사실**: `private only` 면 **Helm 최초 설치**(ArgoCD·CNPG·Argo Rollouts·Secrets Store CSI)가 막힙니다.
+    SSM 우회는 **노드 IAM 역할에 클러스터 관리자 권한**을 요구해 **그 노드의 모든 Pod 가 클러스터 관리자**가 됩니다 — 보안을 위한 선택이 더 큰 구멍을 만듭니다.
+    또 **10/1~10/4 노드를 내리면 SSM 으로 들어갈 노드가 0대**라 접근 자체가 불가능해집니다
+  - 🔴 **전환 시점·근거·전후 설정을 기록해야** 의미가 있습니다. 그냥 바꾸면 *"중간에 흔들렸다"* 로 읽힙니다 (차별성 30)
+- 🔄 **노드 사양 변경** — System `t3.medium`×1 + **`t3.large`**×1 / App `t3.medium`**×2** (Redis 배치 사유)
+  - 부수 효과로 **막힌 항목 10(App OOM 위험) 해소**
+- ✅ **Karpenter · KEDA 미사용 확정** — 🔴 Phase3 산출물 5번(AutoScaling 시연)이 **HPA 만** 남음
+- ✅ **비용 재산정 v2.0** (창원님) — **401,756원 / 500,000원 = 80.4%** (구 98.8%)
+  - 🔴 **비용표 미반영 1건**: `reclaimPolicy: Retain` 인 gp3 PV 3개가 destroy 후에도 남아 과금 → **10/2 종료 체크리스트에 수동 삭제 단계 필수**
+- 🆕 **코드 3개 PR** — `Plan: 66 to add, 0 to change, 0 to destroy` · 🔴 **apply 안 함**(규칙 17)
+  - **#35** EKS 결정 반영 + **엔드포인트 안전장치 precondition**(public 인데 IP 목록이 비었거나 `0.0.0.0/0` 이면 plan 실패)
+  - **#36** `modules/eks_nodes` — 노드그룹 6종 · 노드 IAM 4정책(🔑 `AmazonSSMManagedInstanceCore` 포함) · **DB 제약 3건을 precondition 으로 강제**
+  - **#37** `modules/eks_addons` — 🔴 **VPC CNI `enableNetworkPolicy = "true"`**(막힌 항목 16 해소) · `OVERWRITE` 로 self-managed 애드온 승격 · EBS CSI 는 IRSA 대기로 기본 `false`
+- 🔄 **GPU 스토리지 방침 정정** — 로컬 NVMe → **루트 EBS 상향**(g6e 200GB / g4dn 120GB)
+  - 사유: AL2023 `nodeadm` userData 는 **클러스터 없이 테스트 불가** + 실패 증상이 불명확 + 🔴 **9/18 부재**. 비용 차 약 $6
+  - 🔄 **되돌릴 수 있는 결정** — 구축 안정 후 별도 PR 로 재검토
+- 🆕 **막힌 항목 18~22 신설** — 앱 KMS CMK 담당 미정 · **⑩ 엣지 모듈 미호출** · 팀원 IP 미수집 · 예산 한도 범위 · 산출물3 초본 불일치 10건
+  - 🔴 **18·19 는 둘 다 `plan` 으로 못 잡습니다.** 18 은 AWS 검증이 apply 시점이라서, 19 는 *"없는 코드는 차이가 아니라서"*
+- 🆕 **작업규칙 23·24 신설** — `terraform.tfvars` 는 PR 로 전파되지 않음 · 스택 PR 머지 순서 명시 (둘 다 09-17 실제 사고)
+- 🆕 **검수 체크리스트 16·17 신설** — IAM statement `resources` 확인 · 제약은 주석이 아니라 `precondition`
 
 **09-16 (State KMS 전환 · S3 7종 · DNS 확정 · CN PR #21·#24 반영)**
 - ✅ **PR #13·#18·#21 머지** — CLAUDE.md 9/15판 / 네트워크 모듈화 B안 / CN 워크로드 배치
