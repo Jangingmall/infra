@@ -79,3 +79,6 @@ ecr_tags                 = {}
 # nodes_groups = { ... }          # variables.tf 의 default 를 통째로 덮어씁니다
 # nodes_extra_policy_arns = []
 # nodes_ssh_key_name      = null
+
+# ---------- s3-images / CloudFront ----------
+route53_zone_id = "Z0716475DPEIGVH3RV5J"

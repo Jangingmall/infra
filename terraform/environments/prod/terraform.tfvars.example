@@ -1,4 +1,4 @@
-# ============================================================
+# =====================================================
 # terraform.tfvars.example — prod 환경의 실제 값 (예시)
 # ------------------------------------------------------------
 # 사용법:
@@ -14,7 +14,7 @@
 #
 # staging 과 다른 값은 아래 5개뿐입니다 (backend.tf 의 key 포함하면 6개):
 #   env / vpc_cidr / vpc_subnet_cidrs / eks_cluster_name
-# ============================================================
+# =====================================================
 
 # ---------- 공통 (전 모듈이 씀 · 접두사 없음) ----------
 project = "jangin"
@@ -142,3 +142,6 @@ ecr_repositories = ["jangin-app", "jangin-ai/sglang", "jangin-ai/ollama"]
 # nodes_groups = { ... }          # variables.tf 의 default 를 통째로 덮어씁니다
 # nodes_extra_policy_arns = []
 # nodes_ssh_key_name      = null
+
+# ---------- s3-images / CloudFront ----------
+route53_zone_id = "Z0716475DPEIGVH3RV5J"

@@ -279,3 +279,27 @@ output "addons_ebs_csi_installed" {
   description = "🔴 false 면 CNPG PVC 가 Pending 에서 멈춥니다 (IRSA 머지 후 true 로)."
   value       = module.eks_addons.ebs_csi_installed
 }
+
+# ------------------------------------------------------------
+# s3-images / CloudFront
+# ------------------------------------------------------------
+
+output "images_bucket_id" {
+  description = "images 버킷 이름"
+  value       = module.s3_images.bucket_id
+}
+
+output "images_bucket_arn" {
+  description = "images 버킷 ARN"
+  value       = module.s3_images.bucket_arn
+}
+
+output "images_cloudfront_domain_name" {
+  description = "BE(image-base-url)이 Parameter Store에서 참조하는 CloudFront 배포 도메인"
+  value       = module.cloudfront_images.distribution_domain_name
+}
+
+output "images_cloudfront_distribution_id" {
+  description = "CloudFront 배포 ID (캐시 무효화 등에 사용)"
+  value       = module.cloudfront_images.distribution_id
+}

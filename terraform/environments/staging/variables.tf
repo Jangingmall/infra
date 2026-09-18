@@ -579,3 +579,18 @@ variable "addons_ebs_csi_irsa_role_arn" {
   type        = string
   default     = null
 }
+
+# ------------------------------------------------------------
+# s3-images / CloudFront
+# ------------------------------------------------------------
+
+variable "images_cloudfront_domain" {
+  description = "상품 이미지 CloudFront에 매핑할 도메인"
+  type        = string
+  default     = "img.stg.midam.store"
+}
+
+variable "route53_zone_id" {
+  description = "Route53 Hosted Zone ID"
+  type        = string
+}
