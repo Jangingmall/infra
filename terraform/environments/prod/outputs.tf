@@ -194,7 +194,7 @@ output "eks_cluster_security_group_id" {
     3-tier 방어 논리의 근거 — 같은 클러스터 노드끼리는 이 SG 로 이미 열려 있으므로
     계층 격리는 서브넷이 아니라 노드그룹·Taint·SG·NetworkPolicy 축으로 이뤄집니다.
   EOT
-  value = module.eks.cluster_security_group_id
+  value       = module.eks.cluster_security_group_id
 }
 
 output "eks_oidc_provider_arn" {
@@ -231,4 +231,28 @@ output "ecr_repository_arns" {
 output "ecr_registry_id" {
   description = "ECR 레지스트리(계정) ID"
   value       = module.ecr.registry_id
+}
+
+# ------------------------------------------------------------
+# ⑦ 노드그룹
+# ------------------------------------------------------------
+
+output "nodes_role_arn" {
+  description = "노드 IAM 역할 ARN. ⑧ 에서 정책 추가·access entry 확인에 쓴다."
+  value       = module.eks_nodes.node_role_arn
+}
+
+output "nodes_group_names" {
+  description = "생성된 노드그룹 이름 목록 (인계 문서 재료)"
+  value       = module.eks_nodes.node_group_names
+}
+
+output "nodes_autoscaling_group_names" {
+  description = "노드그룹 키 → AutoScaling 그룹 이름. 10/1~10/4 노드 내리기 때 대상 확인용."
+  value       = module.eks_nodes.autoscaling_group_names
+}
+
+output "nodes_gpu_scale_up_hint" {
+  description = "GPU 기동 절차 안내. terraform output nodes_gpu_scale_up_hint 로 확인."
+  value       = module.eks_nodes.gpu_scale_up_hint
 }
