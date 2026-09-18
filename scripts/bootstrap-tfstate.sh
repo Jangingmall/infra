@@ -161,7 +161,7 @@ JSON
     --key-spec SYMMETRIC_DEFAULT \
     --policy "$KEY_POLICY" \
     --tags TagKey=Project,TagValue="${PROJECT_TAG}" \
-           TagKey=Env,TagValue=shared \
+           TagKey=Environment,TagValue=shared \
            TagKey=ManagedBy,TagValue=manual-cli \
            TagKey=Purpose,TagValue=terraform-state \
     --query 'KeyMetadata.KeyId' --output text)
@@ -209,8 +209,8 @@ ok "BlockPublicAcls / IgnorePublicAcls / BlockPublicPolicy / RestrictPublicBucke
 say "6. 태그 부착 (비용 분석 선행조건)"
 aws s3api put-bucket-tagging \
   --bucket "$BUCKET" \
-  --tagging "TagSet=[{Key=Project,Value=${PROJECT_TAG}},{Key=Env,Value=shared},{Key=ManagedBy,Value=manual-cli},{Key=Purpose,Value=terraform-state}]"
-ok "Project / Env / ManagedBy / Purpose"
+  --tagging "TagSet=[{Key=Project,Value=${PROJECT_TAG}},{Key=Environment,Value=shared},{Key=ManagedBy,Value=manual-cli},{Key=Purpose,Value=terraform-state}]"
+ok "Project / Environment / ManagedBy / Purpose"
 
 # ===== 6-2. TLS 강제 버킷 정책 (CLAUDE.md 요구) =====
 # HTTP(암호화 안 된 평문)로 오는 요청을 전부 거부합니다.
@@ -252,7 +252,7 @@ else
     --attribute-definitions AttributeName=LockID,AttributeType=S \
     --key-schema AttributeName=LockID,KeyType=HASH \
     --billing-mode PAY_PER_REQUEST \
-    --tags Key=Project,Value="${PROJECT_TAG}" Key=Env,Value=shared \
+    --tags Key=Project,Value="${PROJECT_TAG}" Key=Environment,Value=shared \
            Key=ManagedBy,Value=manual-cli Key=Purpose,Value=terraform-state-lock >/dev/null
   printf "  테이블 활성화 대기 중"
   aws dynamodb wait table-exists --table-name "$TABLE" --region "$REGION"
