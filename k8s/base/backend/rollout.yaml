@@ -44,6 +44,14 @@ spec:
               protocol: TCP
 
           env:
+            - name: REDIS_HOST
+              value: redis.app.svc.cluster.local
+            - name: REDIS_PORT
+              value: "6379"
+            - name: AI_CHAT_BOT_URL
+              value: http://ai-ollama.ai.svc.cluster.local:8000
+            - name: AI_CONTENT_URL
+              value: http://ai-sglang.ai.svc.cluster.local:8000
             - name: SERVER_SHUTDOWN
               value: graceful
             - name: SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE

@@ -624,11 +624,11 @@
       }
     },
     {
-      "title": "백업 관측은 백업 구현 후 연결",
+      "title": "백업 실행·복원 검증 상태",
       "type": "text",
       "options": {
         "mode": "markdown",
-        "content": "현재 CNPG Backup/WAL archive의 **S3 백업 구현은 미완료**입니다.\n\nCNPG 1.30의 기존 backup timestamp 지표는 deprecated이므로 새 대시보드 기준으로 사용하지 않았습니다. 백업 방식/플러그인 확정 후 성공·실패·마지막 성공 시각과 실제 Restore 증거를 연결합니다. **메트릭이 없거나 WAL 사용량이 보인다고 백업 성공을 뜻하지 않습니다.**"
+        "content": "Barman Cloud plugin 기반 **S3 백업 설정은 작성되었으며 기본 비활성**입니다. 실제 버킷·IRSA 연결, 백업·복원 검증은 남아 있습니다.\n\nCNPG 1.30의 기존 backup timestamp 지표는 deprecated이므로 새 대시보드 기준으로 사용하지 않았습니다. 백업 활성화 후 플러그인의 실제 수집 지표를 확인하여 성공·실패·마지막 성공 시각과 Restore 증거를 연결합니다. **메트릭이 없거나 WAL 사용량이 보인다고 백업 성공을 뜻하지 않습니다.**"
       },
       "id": 13,
       "gridPos": {

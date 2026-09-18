@@ -20,6 +20,8 @@ Stage·Prod는 서로 다른 EKS와 Argo CD를 사용한다. 한 클러스터에
 `selfHeal: true`도 automated가 꺼져 있을 동안에는 자동 복구를 시작하지 않는다.
 설정 준비와 Stage 검증 후 필요한 Application만 Git에서 `enabled: true`로 바꿀 수 있다. 자동 prune은 계속 꺼둔다.
 
+Backend 외부 접속은 별도 [backend-networking Application](../networking/README.md)을 준비한다. targets의 Backend 메트릭 정책만 적용하면 8080 수신이 격리되므로 ALB 예외를 함께 점검한다.
+
 ## 환경당 Application 10개
 
 이름 앞에는 `stage-observability-` 또는 `prod-observability-`가 붙는다.

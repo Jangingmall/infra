@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-sglang
+  namespace: ai
+spec:
+  template:
+    spec:
+      containers:
+        - name: ai-sglang
+          command: ["/bin/sh", "/etc/ai-startup/start.sh"]
+          volumeMounts:
+            - name: ai-startup
+              mountPath: /etc/ai-startup
+              readOnly: true
+            - name: ai-secrets
+              mountPath: /mnt/ai-secrets
+              readOnly: true
+      volumes:
+        - name: ai-startup
+          configMap:
+            name: ai-sglang-startup
+        - name: ai-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: ai-sglang-config

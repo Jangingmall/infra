@@ -1,0 +1,21 @@
+# 외부 모델·AWS 예외와 함께 AI egress를 활성화한다. 단독 적용하지 않는다.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-sglang-callback-egress
+  namespace: ai
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ai-sglang
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: app
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: backend
+      ports:
+        - {protocol: TCP, port: 8080}

@@ -6,3 +6,5 @@ resources:
   - ingress
   - allow-ai-dns-egress.yaml
   - allow-vector-db-egress.yaml
+  - allow-ai-traces-egress.yaml
+  - allow-sglang-callback-egress.yaml

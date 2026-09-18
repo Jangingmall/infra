@@ -28,10 +28,11 @@ AppProject는 Argo CD 내부 제한이며 Kubernetes 사용자 RBAC 또는 GitHu
 | cloudnative-pg | chart 0.29.0 + infra/main values | CNPG Operator |
 | argo-rollouts | chart 2.43.1 + infra/main values | Rollouts Controller/CRD |
 | secrets-store-csi | chart 3.1.3 + infra/main values | CSI Driver + AWS Provider |
+| backend-networking | platform/networking + 환경별 values | 기존 ALB TargetGroupBinding·수신 정책, 값 준비 후 수동 Sync |
 | workloads | k8s/overlays/stage 또는 prod | Backend·업무 DB·AI·공통 리소스 |
 | observability-* | observability.yaml·tempo.yaml의 chart + Git sources | 환경당 관측성 Application 10개, 최초 수동 sync |
 
-Helm Application은 multi-source의 `$values`로 현재 저장소 values를 사용한다.
+외부 chart Helm Application은 multi-source의 `$values`로 현재 저장소 values를 사용한다.
 CNPG releaseName은 cloudnative-pg로 유지한다. 이 이름은 기존 NetworkPolicy의 Operator 라벨과 연결된다.
 기존 수동 Helm 설치가 있다면 같은 리소스를 Helm과 Argo CD가 동시에 관리하지 않도록 인계·diff를 먼저 확인한다.
 
@@ -137,3 +138,9 @@ AI는 앱 비밀번호만 별도로 마운트하고 `DB_PASSWORD_FILE`로 경로
 실제 환경별 IRSA ARN, SSM 파라미터와 **DB_PASSWORD_FILE 지원 AI 이미지**가 준비되기 전에는 배포하지 않는다.
 [AI Secret 인계·운영 절차](../k8s/components/ai-vector-db-secrets/README.md)를 따른다.
 로컬 Helm/Kustomize 및 Secret 경로·키·마운트 계약 검증은 통과했으며 실제 EKS 검증은 미실시다.
+
+## CNPG 백업 Application — 2026-09-18
+
+각 환경의 `backup.yaml`에 `cert-manager`, `barman-cloud`, `cnpg-backup` Application을 추가했다. 세 Application은 모두 수동 Sync다. 기존 workloads가 CNPG Cluster 소유권을 유지하며 backup chart는 Cluster를 중복 생성하지 않는다. cert-manager 기존 설치가 있으면 재사용 여부를 먼저 확인한다.
+
+의존 플랫폼 설치 → 실제 버킷 입력 후 ObjectStore 생성(정기 백업 suspend 유지) → workloads의 실제 IRSA/WAL component 반영 → 수동 백업·복원 시험 → 정기 백업 활성화 순서다. 자세한 입력과 명령은 [백업 운영 문서](../platform/cnpg-backup/README.md)를 따른다.

@@ -1,0 +1,60 @@
+{{- if .Values.enabled }}
+{{- $bucket := required "bucket is required" .Values.bucket }}
+{{- $prefix := required "prefix is required" .Values.prefix }}
+{{- if not (has .Values.environment (list "staging" "prod")) }}
+{{- fail "environment must be staging or prod" }}
+{{- end }}
+{{- if not (regexMatch "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$" $bucket) }}
+{{- fail "bucket must be an S3 bucket name, not a URL" }}
+{{- end }}
+{{- if ne $prefix (printf "cnpg/%s" .Values.environment) }}
+{{- fail "prefix must isolate the selected environment: cnpg/staging or cnpg/prod" }}
+{{- end }}
+---
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: cnpg-backup
+  namespace: database
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=confirm,Delete=confirm
+spec:
+  retentionPolicy: {{ .Values.retentionPolicy | quote }}
+  configuration:
+    destinationPath: {{ printf "s3://%s/%s" $bucket $prefix | quote }}
+    s3Credentials:
+      inheritFromIAMRole: true
+    wal:
+      compression: gzip
+      maxParallel: 2
+    data:
+      compression: gzip
+      jobs: 1
+  instanceSidecarConfiguration:
+    env:
+      - {name: AWS_REGION, value: ap-northeast-2}
+      - {name: AWS_STS_REGIONAL_ENDPOINTS, value: regional}
+      - {name: AWS_EC2_METADATA_DISABLED, value: "true"}
+    resources:
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: "1", memory: 512Mi}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: cnpg-daily
+  namespace: database
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=confirm,Delete=confirm
+spec:
+  schedule: {{ .Values.schedule | quote }}
+  suspend: {{ .Values.suspend }}
+  immediate: false
+  backupOwnerReference: self
+  cluster:
+    name: jangingmall-postgres
+  method: plugin
+  target: prefer-standby
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+{{- end }}

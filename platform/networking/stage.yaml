@@ -1,0 +1,3 @@
+# TODO: stage의 targetGroupARN, vpcID, albSourceCidrs를 입력한 뒤 enabled: true.
+# ALB/TG/리스너/ACM/WAF/DNS/SG는 인프라 담당자가 관리한다.
+{}

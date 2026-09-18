@@ -13,6 +13,15 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels:
+              kubernetes.io/metadata.name: app
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - {protocol: TCP, port: 6379}
+    - to:
+        - namespaceSelector:
+            matchLabels:
               kubernetes.io/metadata.name: kube-system
           podSelector:
             matchLabels:
@@ -44,3 +53,16 @@ spec:
       ports:
         - protocol: TCP
           port: 8000
+    - to:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: monitoring
+        podSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - otel-collector
+      ports:
+      - protocol: TCP
+        port: 4317

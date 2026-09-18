@@ -189,3 +189,15 @@ DCGM Exporter는 GPU 노드마다 requests 100m/128Mi를 추가한다. L40S/T4 �
 Collector Deployment requests 100m/256Mi는 기존 표의 Collector 1개와 동일해 중복 가산하지 않는다. limit은 384Mi다.
 따라서 기존 전체 후보 7130Mi 및 누락 애드온 문제는 그대로 남는다. 대시보드는 기존 Grafana 파일로 제공해 sidecar를 늘리지 않는다.
 Tempo는 배포하지 않았다. 전체 후보에 있던 Tempo 768Mi는 실제 버전/배포 방식/부하 검증 전의 예산이며 구현 완료로 간주하지 않는다.
+
+## Redis·CNPG 백업 추가분 — 2026-09-18
+
+현재 확정 노드 구성은 System t3.medium 1대 + t3.large 1대, App t3.medium 2대다. 위의 medium 2대 산정은 과거 비교 기록이며 현재 합산 기준으로 사용하지 않는다.
+
+| 영역 | 추가 requests | 비고 |
+| --- | --- | --- |
+| App | Redis 100m/192Mi | limit CPU 1/512Mi, 데이터 maxmemory 128mb |
+| System | cert-manager + Barman plugin 250m/320Mi | 상시 4개 Pod; 설치 Job 50m/32Mi 별도 |
+| DB | sidecar 각 100m/128Mi, 3개 총 300m/384Mi | 각 limit CPU 1/512Mi, WAL 활성화 후 |
+
+Backend limits 4Gi와 HPA 2~4는 변경하지 않았다. HPA 4개 + Preview 1개 또는 전환 중 최대 8개에 대한 App 용량 부족은 Redis 추가로 해결되지 않는다. 실제 allocatable, EKS 애드온, Helm 렌더 결과 및 부하를 함께 재산정해야 한다. 백업의 압축 CPU/WAL 적체와 Redis AOF rewrite 메모리는 별도 실측 대상이다.
