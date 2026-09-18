@@ -162,3 +162,7 @@ waf_managed_rule_groups = [
 # TODO(BE/파트장): SSE idle timeout 확정 필요(기존 기본60초 유지).
 # apply 후 terraform output -json backend_networking으로 TGB 인계값 확인.
 # 네이티브의 Controller/IRSA/CRD와 TargetGroupBinding 연결 전에는 Backend 트래픽 미연결.
+
+# ---------- 2026-09-19 추가: EBS CSI Driver 활성화 (PR #32 IRSA 머지 후) ----------
+# 🔴 false 면 CNPG·Redis·Prometheus 등 모든 PVC 가 Pending 에서 멈춘다.
+addons_ebs_csi_enabled = true

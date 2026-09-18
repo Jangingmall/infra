@@ -25,13 +25,14 @@ module "eks_addons" {
   kube_proxy_version        = var.addons_kube_proxy_version
 
   # ── EBS CSI Driver ────────────────────────────────────────
-  # 🔴 IRSA(박다정님 modules/irsa)가 머지되면 아래 두 줄을 바꿉니다.
-  #      addons_ebs_csi_enabled       = true
-  #      addons_ebs_csi_irsa_role_arn = module.irsa["ebs-csi"].role_arn
-  #    그 전까지는 false 로 둡니다 — IRSA 없이 설치하면 PVC 가 Pending 에서 멈칩니다.
+  # ✅ 2026-09-19: IRSA(PR #32) 머지로 활성화.
+  #    role_arn 은 apply 시점에 정해지는 값이라 terraform.tfvars(리터럴 전용)에는
+  #    쓸 수 없고, 여기서 모듈 output 을 직접 참조한다.
+  #    🔴 EKS 1.23+ 는 in-tree EBS 프로비저너가 제거되어, 애드온과 IRSA 권한이
+  #       둘 다 있어야 PVC 가 Bound 된다. 하나만 있으면 Pending 에서 멈춘다.
   ebs_csi_enabled       = var.addons_ebs_csi_enabled
   ebs_csi_version       = var.addons_ebs_csi_version
-  ebs_csi_irsa_role_arn = var.addons_ebs_csi_irsa_role_arn
+  ebs_csi_irsa_role_arn = module.irsa["ebs-csi"].role_arn
 
   # 🔑 노드가 먼저 떠야 CoreDNS·EBS CSI 컨트롤러 Pod 가 뜹니다.
   #    이 참조 한 줄이 순서를 만듭니다.
