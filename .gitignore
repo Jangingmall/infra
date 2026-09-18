@@ -116,3 +116,8 @@ kubeconfig
 !k8s/base/backend/README.md
 
 !platform/observability/README.md
+!platform/observability/tempo/README.md
+
+!platform/networking/README.md
+!k8s/base/redis/README.md
+!platform/cnpg-backup/README.md

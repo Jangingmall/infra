@@ -1,0 +1,9 @@
+enabled: false
+environment: ""
+bucket: ""
+prefix: ""
+# config/db-backup.*.json.example와 동일한 복구 window. S3 lifecycle이 먼저 지우면 안 된다.
+retentionPolicy: 30d
+schedule: "0 0 18 * * *"
+# UTC 18:00 = KST 다음날 03:00. 최초 수동 백업 확인 후 false로 변경한다.
+suspend: true

@@ -1,0 +1,73 @@
+{{- if .Values.enabled }}
+{{- $arn := required "targetGroupARN is required" .Values.targetGroupARN }}
+{{- $vpc := required "vpcID is required" .Values.vpcID }}
+{{- if not (regexMatch "^arn:aws:elasticloadbalancing:ap-northeast-2:[0-9]{12}:targetgroup/[A-Za-z0-9-]+/[0-9a-f]+$" $arn) }}
+{{- fail "targetGroupARN must be an ap-northeast-2 target group ARN" }}
+{{- end }}
+{{- if not (regexMatch "^vpc-[0-9a-f]+$" $vpc) }}
+{{- fail "vpcID must be a VPC ID" }}
+{{- end }}
+{{- if not .Values.albSourceCidrs }}
+{{- fail "albSourceCidrs are required" }}
+{{- end }}
+{{- range .Values.albSourceCidrs }}
+{{- if or (not (contains "/" .)) (hasSuffix "/0" .) (contains ":" .) }}
+{{- fail "ALB sources must be bounded IPv4 subnet CIDRs" }}
+{{- end }}
+{{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backend-entrypoint
+  namespace: app
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: backend
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+      {{- range .Values.albSourceCidrs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+      {{- end }}
+      ports:
+        - {protocol: TCP, port: 8080}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+              operator.prometheus.io/name: metrics-prometheus
+      ports:
+        - {protocol: TCP, port: 9090}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ai-sglang
+      ports:
+        - {protocol: TCP, port: 8080}
+---
+apiVersion: elbv2.k8s.aws/v1beta1
+kind: TargetGroupBinding
+metadata:
+  name: backend
+  namespace: app
+  annotations:
+    # TGB 삭제는 기존 ALB를 삭제하지 않지만 대상 등록을 해제해 서비스가 중단될 수 있다.
+    argocd.argoproj.io/sync-options: Prune=confirm,Delete=confirm
+spec:
+  targetGroupARN: {{ $arn | quote }}
+  targetType: ip
+  vpcID: {{ $vpc | quote }}
+  serviceRef:
+    name: backend-active
+    port: 8080
+  # SG 규칙은 Terraform 소유다. networking 필드로 같은 규칙을 중복 관리하지 않는다.
+{{- end }}

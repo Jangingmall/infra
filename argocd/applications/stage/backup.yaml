@@ -1,0 +1,90 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: stage-cert-manager
+  namespace: argocd
+spec:
+  project: stage-platform
+  sources:
+  - repoURL: https://charts.jetstack.io
+    chart: cert-manager
+    targetRevision: v1.20.4
+    helm:
+      releaseName: cert-manager
+      valueFiles:
+      - "$values/platform/cnpg-backup/cert-manager-values.yaml"
+  - repoURL: https://github.com/Jangingmall/infra.git
+    targetRevision: main
+    ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      enabled: false
+      prune: false
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+    - ServerSideApply=true
+    - FailOnSharedResource=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: stage-barman-cloud
+  namespace: argocd
+spec:
+  project: stage-platform
+  sources:
+  - repoURL: https://cloudnative-pg.github.io/charts
+    chart: plugin-barman-cloud
+    targetRevision: 0.8.0
+    helm:
+      releaseName: plugin-barman-cloud
+      valueFiles:
+      - "$values/platform/cnpg-backup/plugin-values.yaml"
+  - repoURL: https://github.com/Jangingmall/infra.git
+    targetRevision: main
+    ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cnpg-system
+  syncPolicy:
+    automated:
+      enabled: false
+      prune: false
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+    - ServerSideApply=true
+    - FailOnSharedResource=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: stage-cnpg-backup
+  namespace: argocd
+spec:
+  project: stage-workloads
+  source:
+    repoURL: https://github.com/Jangingmall/infra.git
+    targetRevision: main
+    path: platform/cnpg-backup
+    helm:
+      releaseName: cnpg-backup
+      valueFiles:
+      - values.yaml
+      - stage.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: database
+  syncPolicy:
+    automated:
+      enabled: false
+      prune: false
+      selfHeal: true
+    syncOptions:
+    - ServerSideApply=true
+    - FailOnSharedResource=true

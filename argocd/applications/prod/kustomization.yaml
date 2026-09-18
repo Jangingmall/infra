@@ -2,6 +2,9 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+- backup.yaml
+- networking.yaml
+- tempo.yaml
 - projects.yaml
 - platform.yaml
 - workloads.yaml

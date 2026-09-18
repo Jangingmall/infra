@@ -5,14 +5,14 @@ require 'fileutils'
 require 'tmpdir'
 require 'pathname'
 
-usage = 'Usage: ruby scripts/render-observability.rb stage|prod OUTPUT_DIRECTORY [--discord] [storage metrics loki alloy-pods alloy-events targets gpu ai-metrics traces]'
+usage = 'Usage: ruby scripts/render-observability.rb stage|prod OUTPUT_DIRECTORY [--discord] [storage metrics loki alloy-pods alloy-events targets gpu ai-metrics traces tempo]'
 if ARGV == ['--help']
   puts usage
   puts 'Render the actual Argo CD sources locally, without cluster access. Requires Helm, kubectl and chart repository access.'
   exit
 end
 environment, output, *options = ARGV
-names = %w[storage metrics loki alloy-pods alloy-events targets gpu ai-metrics traces]
+names = %w[storage metrics loki alloy-pods alloy-events targets gpu ai-metrics traces tempo]
 discord = options.delete('--discord')
 unless %w[stage prod].include?(environment) && output && (options - names).empty?
   warn usage

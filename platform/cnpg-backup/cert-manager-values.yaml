@@ -1,0 +1,26 @@
+crds:
+  enabled: true
+  keep: true
+nodeSelector:
+  workload-type: system
+resources:
+  requests: {cpu: 50m, memory: 64Mi}
+  limits: {memory: 192Mi}
+webhook:
+  nodeSelector:
+    workload-type: system
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {memory: 128Mi}
+cainjector:
+  nodeSelector:
+    workload-type: system
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {memory: 192Mi}
+startupapicheck:
+  nodeSelector:
+    workload-type: system
+  resources:
+    requests: {cpu: 50m, memory: 32Mi}
+    limits: {memory: 64Mi}

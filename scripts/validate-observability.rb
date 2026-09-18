@@ -75,7 +75,9 @@ dashboards.each do |cm|
 end
 config = resources.find { |r| r['kind'] == 'ConfigMap' && r.dig('metadata', 'name') == 'metrics-grafana' }
 ds = YAML.load(config.dig('data', 'datasources.yaml'))
-check(ds['datasources'].map { |d| d['uid'] }.sort == %w[alertmanager loki prometheus], 'file datasources missing')
+check(ds['datasources'].map { |d| d['uid'] }.sort == %w[alertmanager loki prometheus tempo], 'file datasources missing')
+tempo_ds = ds['datasources'].find { |d| d['uid'] == 'tempo' }
+check(tempo_ds['type'] == 'tempo' && tempo_ds['access'] == 'proxy' && tempo_ds['url'] == 'http://tempo.monitoring.svc.cluster.local:3200' && tempo_ds['editable'] == false, 'Tempo datasource must use internal query service')
 provider = YAML.load(config.dig('data', 'dashboardproviders.yaml'))['providers'].first
 check(provider['allowUiUpdates'] == false && provider['updateIntervalSeconds'] == 30, 'dashboard file update contract differs')
 check(grafana.dig('spec', 'template', 'metadata', 'annotations', 'checksum/config'), 'Grafana config restart checksum missing')

@@ -1,5 +1,5 @@
-{{- if not (has .Values.bundle (list "metrics" "loki" "alloy-pods" "alloy-events")) }}
-{{- fail "bundle must be metrics, loki, alloy-pods or alloy-events" }}
+{{- if not (has .Values.bundle (list "metrics" "loki" "alloy-pods" "alloy-events" "tempo")) }}
+{{- fail "bundle must be metrics, loki, alloy-pods, alloy-events or tempo" }}
 {{- end }}
 {{- if not (has .Values.environment (list "stage" "prod")) }}
 {{- fail "environment must be stage or prod" }}

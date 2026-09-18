@@ -1,0 +1,6 @@
+tempo:
+  retention: 168h
+  storage:
+    trace:
+      s3:
+        prefix: tempo/prod

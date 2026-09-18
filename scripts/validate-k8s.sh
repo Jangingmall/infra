@@ -94,9 +94,20 @@ validate_chart secrets-store-csi secrets-store-csi-driver-provider-aws 3.1.3 kub
   https://aws.github.io/secrets-store-csi-driver-provider-aws \
   platform/secrets-store-csi/values.yaml
 
+validate_chart cert-manager cert-manager v1.20.4 cert-manager \
+  https://charts.jetstack.io \
+  platform/cnpg-backup/cert-manager-values.yaml
+
+validate_chart plugin-barman-cloud plugin-barman-cloud 0.8.0 cnpg-system \
+  https://cloudnative-pg.github.io/charts \
+  platform/cnpg-backup/plugin-values.yaml
+
+ruby "$repo_root/scripts/validate-data-services.rb" "$validation_dir"
+
 kubectl kustomize "$repo_root/platform/observability/platform" > "$validation_dir/platform-monitoring.yaml"
 ruby "$repo_root/scripts/validate-platform-monitoring.rb" "$validation_dir"
 ruby "$repo_root/scripts/validate-gitops.rb" "$validation_dir"
+ruby "$repo_root/scripts/validate-networking.rb"
 bash "$repo_root/scripts/validate-observability-gitops.sh"
 
 printf '\nKubernetes configuration validation passed.\n'

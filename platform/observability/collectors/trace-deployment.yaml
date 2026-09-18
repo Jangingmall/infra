@@ -30,8 +30,8 @@ spec:
           image: otel/opentelemetry-collector-k8s:0.160.0
           args: [--config=/etc/otel/config.yaml]
           env:
-            # TODO(네이티브): 실제 Tempo 배포가 준비된 후 이 ConfigMap을 생성한다.
-            # 키만 넣어도 Tempo가 설치되는 것은 아니다. 미제공 시 Pod는 시작하지 않는다.
+            # Kustomize가 내부 Tempo 주소와 설정 hash를 제공한다.
+            # Tempo Ready 확인 후 수동 Sync한다. 주소 설정만으로 저장 성공을 보장하지 않는다.
             - name: TEMPO_OTLP_ENDPOINT
               valueFrom:
                 configMapKeyRef:

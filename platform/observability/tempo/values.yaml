@@ -1,0 +1,163 @@
+# grafana-community/tempo chart 2.4.0, Tempo 2.10.8. sizing/tempo.yaml은 배포값이 아니다.
+# ponytail: 작은 단일 인스턴스다. 고가용성·대량 유입이 필요하면 별도 용량 검증 후 배포 구조를 재설계한다.
+fullnameOverride: tempo
+replicas: 1
+revisionHistoryLimit: 2
+annotations:
+  argocd.argoproj.io/sync-options: Prune=confirm,Delete=confirm
+nodeSelector:
+  workload-type: system
+podLabels:
+  observability.jangingmall.io/storage: "true"
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          topologyKey: kubernetes.io/hostname
+          labelSelector:
+            matchLabels:
+              observability.jangingmall.io/storage: "true"
+# medium/large 어느 쪽도 강제하지 않는다. 실제 allocatable, 기존 Pod, PVC의 AZ를 함께 확인한다.
+serviceAccount:
+  create: true
+  name: tempo-sa
+  automountServiceAccountToken: false
+  annotations:
+    eks.amazonaws.com/sts-regional-endpoints: "true"
+    # TODO: runtime/<env>.yaml에 실제 eks.amazonaws.com/role-arn을 추가한다.
+securityContext:
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+tempo:
+  repository: grafana/tempo
+  tag: "2.10.8"
+  # 차트 기본 ballast 1Gi는 기존 768Mi requests 예산보다 크므로 사용하지 않는다.
+  memBallastSizeMbs: 0
+  reportingEnabled: false
+  multitenancyEnabled: false
+  resources:
+    requests: {cpu: 250m, memory: 768Mi}
+    limits: {cpu: "1", memory: 1536Mi}
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: [ALL]
+  extraArgs:
+    config.expand-env: "true"
+  extraEnv:
+    - name: GOMEMLIMIT
+      value: 1152MiB
+    # IRSA가 준비되지 않았을 때 노드 역할로 우회하지 않는다.
+    - name: AWS_EC2_METADATA_DISABLED
+      value: "true"
+    - name: AWS_STS_REGIONAL_ENDPOINTS
+      value: regional
+    - name: AWS_REGION
+      value: ap-northeast-2
+    - name: TEMPO_S3_BUCKET
+      valueFrom:
+        configMapKeyRef:
+          name: tempo-runtime
+          key: TEMPO_S3_BUCKET
+  # 전용 IRSA projected token은 EKS webhook이 주입한다. Kubernetes API 조회 권한은 부여하지 않는다.
+  receivers:
+    jaeger:
+      protocols:
+        grpc: {endpoint: ""}
+        thrift_binary: {endpoint: ""}
+        thrift_compact: {endpoint: ""}
+        thrift_http: {endpoint: ""}
+    otlp:
+      protocols:
+        http: {endpoint: ""}
+        grpc:
+          endpoint: 0.0.0.0:4317
+  querier:
+    max_concurrent_queries: 2
+  queryFrontend:
+    max_outstanding_per_tenant: 32
+    trace_by_id:
+      query_shards: 8
+      concurrent_shards: 2
+    search:
+      concurrent_jobs: 2
+  storage:
+    trace:
+      backend: s3
+      local: null
+      s3:
+        bucket: ${TEMPO_S3_BUCKET}
+        endpoint: s3.ap-northeast-2.amazonaws.com
+        region: ap-northeast-2
+        insecure: false
+        # 정적 Access Key를 넣지 않는다. AWS SDK가 IRSA WebIdentity 자격 증명을 사용한다.
+      wal:
+        path: /var/tempo/wal
+  metricsGenerator:
+    enabled: false
+  livenessProbe:
+    # /ready는 저장소/링 준비까지 기다린다. WAL 복구 중 재시작 반복을 피하려고 생존은 TCP로 확인한다.
+    httpGet: null
+    tcpSocket: {port: 3200}
+    initialDelaySeconds: 60
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+  readinessProbe:
+    httpGet: {path: /ready, port: 3200}
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+tempoQuery:
+  enabled: false
+service:
+  type: ClusterIP
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  scrapeTimeout: 10s
+  additionalLabels:
+    release: metrics
+persistence:
+  enabled: true
+  enableStatefulSetAutoDeletePVC: false
+  storageClassName: gp3-monitoring
+  # WAL용 초기 제안값. 3일/7일 전체 데이터 용량은 S3에 저장되며 이 PVC 크기와 별개다.
+  size: 10Gi
+  accessModes: [ReadWriteOnce]
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=confirm,Delete=confirm
+# 차트의 광범위한 허용 규칙 대신 같은 Application의 assets NetworkPolicy를 사용한다.
+networkPolicy:
+  enabled: false
+config: |
+  target: all
+  multitenancy_enabled: false
+  usage_report:
+    reporting_enabled: false
+  server:
+    http_listen_port: 3200
+  distributor:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+  ingester:
+    max_block_duration: 5m
+  compactor:
+    compaction:
+      block_retention: {{ .Values.tempo.retention }}
+  storage:
+    {{- toYaml .Values.tempo.storage | nindent 4 }}
+  querier:
+    {{- toYaml .Values.tempo.querier | nindent 4 }}
+  query_frontend:
+    {{- toYaml .Values.tempo.queryFrontend | nindent 4 }}

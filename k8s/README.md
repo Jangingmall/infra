@@ -1,3 +1,17 @@
+## 2026-09-18 TGB와 상세페이지 AI 계약 반영
+
+외부 진입점은 Ingress 생성 대신 Terraform ALB의 TargetGroupBinding으로 전환했다.
+ai-sglang callback 수신은 ALB·메트릭과 동일한 gated networking 정책으로 제공한다. /health·/health/ready probe와 CSI 파일 토큰 전달은 Stage·Prod workload에 반영했다.
+아래 AI→Backend 전체 차단 설명은 이전 설계이며 이제 Ollama 차단/SGLang8080 허용이 기준이다.
+외부 egress, 실제 앱 API/인증 계약·GPU image/영속 볼륨은 아직 완료되지 않았다. [현재 상세 상태](../platform/networking/README.md)를 따른다.
+
+## 2026-09-18 Backend 외부 진입점 추가
+
+[Ingress·NetworkPolicy 배포 문서](../platform/networking/README.md)가 아래 초기 정책 작성 이력보다 우선한다.
+Backend TargetGroupBinding과 ALB 수신 정책은 별도 수동 Application으로 제공하며 기본 비활성이다.
+Backend·AI 대기 egress 번들에는 Collector TCP 4317을 추가했다. 외부/API 목적지 미확정으로 전체 egress 차단은 여전히 비활성이다.
+관측성 수집 정책은 구현되어 있다. 특히 Backend 메트릭 allow 정책만으로도 ingress가 격리되므로 ALB 8080 예외를 함께 확인한다.
+
 # [K8s] 클러스터 안 배포 - 순수 애플리케이션 매니페스트
 
 ## 공통 설정과 환경별 설정
@@ -165,7 +179,7 @@ Backend → DB는 Backend 발신과 기존 DB 수신 규칙이, Backend → AI�
 | AI | 실제 모델 다운로드·STS·S3 경로, 수집 Pod → 8000, 선택한 OTLP 경로 |
 | DB | Kubernetes API·STS·S3 발신 예외, 실제 수집 Pod → 9187, 복원 클러스터용 규칙 |
 
-ALB를 Kubernetes Pod selector로 표현하지 않는다. 실제 출발지·경로에 맞춰 환경별 수신 예외를 구성한다. Monitoring 라벨이 아직 구현되지 않았으므로 Namespace 전체에 메트릭 접근을 열지 않는다. 외부 HTTPS 전체 허용 및 미확정 SMTP·OTLP 포트 동시 허용으로 예외를 대신하지 않는다. AI 8000은 HTTP 경로를 구분하지 않는 포트 단위 허용이며 `/metrics`만 제한하는 정책이 아니다.
+ALB를 Kubernetes Pod selector로 표현하지 않는다. 실제 출발지·경로에 맞춰 환경별 수신 예외를 구성한다. Monitoring의 실제 Prometheus 라벨을 사용하며 Namespace 전체에 메트릭 접근을 열지 않는다. 외부 HTTPS 전체 허용 및 미확정 SMTP·OTLP 포트 동시 허용으로 예외를 대신하지 않는다. AI 8000은 HTTP 경로를 구분하지 않는 포트 단위 허용이며 `/metrics`만 제한하는 정책이 아니다.
 
 ### Backend·AI Stage 테스트 계획
 
@@ -268,3 +282,9 @@ Stage·Prod overlay는 환경별 SecretProviderClass와 공통 configtree compon
 SSM 값을 `/mnt/secrets-store/`의 파일로 마운트해 Spring 설정으로 읽는다.
 Naver 계약을 기준으로 작성했으며 실제 IRSA ARN, SSM 값 준비, Backend의 Google·이메일 URL 불일치 해결은 남아 있다.
 [매핑·동작 과정·배포 전 조건](components/backend-configtree/README.md)을 확인한다.
+
+## 업무 Redis와 CNPG 백업 — 2026-09-18
+
+Stage·Prod에 [App 노드 Redis](base/redis/README.md)를 추가했다. Backend의 주소는 내부 Service로 고정하고 비밀번호는 기존 configtree와 Redis CSI 파일에 동일한 SSM 원본으로 공급한다. 실제 역할 ARN·SSM 값은 인계 후 반영한다.
+
+[CNPG 백업](../platform/cnpg-backup/README.md)은 Barman Cloud plugin, cert-manager, ObjectStore, 정기/수동 백업, WAL component 및 환경별 수동 Argo CD Application으로 구성한다. 기본값은 비활성이다. 의존 플랫폼 → ObjectStore → 실제 IRSA와 WAL component → 백업/복원 검증 → 정기 백업 활성화 순서를 따른다. AI 벡터DB의 외부 백업은 별도 미구현 항목이다.

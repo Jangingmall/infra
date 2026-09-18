@@ -40,23 +40,27 @@ spec:
             - name: http
               containerPort: 8000
               protocol: TCP
+          env:
+            - name: BACKEND_URL
+              value: http://backend-active.app.svc.cluster.local:8080/internal/generations/complete/multipart
           startupProbe:
             httpGet:
-              path: /ai/health
+              path: /health
               port: http
             periodSeconds: 5
             timeoutSeconds: 2
             failureThreshold: 30
           readinessProbe:
             httpGet:
-              path: /ai/health
+              path: /health/ready
               port: http
-            periodSeconds: 5
-            timeoutSeconds: 2
+            periodSeconds: 10
+            # readiness가 text/image 서버를 각각 최대 2초 확인하므로 합산 시간보다 여유 있게 둔다.
+            timeoutSeconds: 6
             failureThreshold: 3
           livenessProbe:
             httpGet:
-              path: /ai/health
+              path: /health
               port: http
             periodSeconds: 10
             timeoutSeconds: 2

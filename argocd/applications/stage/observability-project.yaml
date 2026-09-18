@@ -9,6 +9,7 @@ spec:
   - https://github.com/Jangingmall/infra.git
   - https://prometheus-community.github.io/helm-charts
   - https://grafana.github.io/helm-charts
+  - https://grafana-community.github.io/helm-charts
   - https://nvidia.github.io/dcgm-exporter/helm-charts
   destinations:
   - server: https://kubernetes.default.svc

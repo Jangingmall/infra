@@ -6,6 +6,15 @@
 
 **이 절이 아래의 이전 medium 2대 계산보다 우선한다. 아래 기록과 sizing/는 변경 전 비교 자료다.**
 
+### Tempo 배포 기반 추가
+
+`tempo/values.yaml`에 community chart 2.4.0 / Tempo 2.10.8 단일 컨테이너를 작성했다.
+requests 250m/768Mi는 기존 전체 후보에 포함된 Tempo 예산을 사용하므로 합계에 중복 가산하지 않는다.
+limit은 CPU 1 / 1536Mi이며, 1Gi 기본 memory ballast는 끄고 Go 메모리 목표는 1152MiB로 제한했다.
+WAL용 gp3 10Gi는 초기 제안이다. S3 전체 보존 데이터 크기와 다르며 유입량/장애 기간으로 검증해야 한다.
+System selector와 저장 Pod 간 soft 분산만 사용한다. medium/large 어느 노드에 실제로 들어갈지는 기존 Pod·allocatable·PVC AZ에 달려 있다.
+아래의 '미구현 Tempo'와 deprecated chart 기록은 이 변경 전 산정 이력이다. 실제 EKS 용량·HA 검증 완료를 의미하지 않는다.
+
 | 구분 | 환경별 노드 | 물리 메모리 | 물리 CPU |
 | --- | --- | ---: | ---: |
 | System | t3.medium 1 + t3.large 1 | 12GiB | 4 vCPU |
@@ -180,3 +189,15 @@ DCGM Exporter는 GPU 노드마다 requests 100m/128Mi를 추가한다. L40S/T4 �
 Collector Deployment requests 100m/256Mi는 기존 표의 Collector 1개와 동일해 중복 가산하지 않는다. limit은 384Mi다.
 따라서 기존 전체 후보 7130Mi 및 누락 애드온 문제는 그대로 남는다. 대시보드는 기존 Grafana 파일로 제공해 sidecar를 늘리지 않는다.
 Tempo는 배포하지 않았다. 전체 후보에 있던 Tempo 768Mi는 실제 버전/배포 방식/부하 검증 전의 예산이며 구현 완료로 간주하지 않는다.
+
+## Redis·CNPG 백업 추가분 — 2026-09-18
+
+현재 확정 노드 구성은 System t3.medium 1대 + t3.large 1대, App t3.medium 2대다. 위의 medium 2대 산정은 과거 비교 기록이며 현재 합산 기준으로 사용하지 않는다.
+
+| 영역 | 추가 requests | 비고 |
+| --- | --- | --- |
+| App | Redis 100m/192Mi | limit CPU 1/512Mi, 데이터 maxmemory 128mb |
+| System | cert-manager + Barman plugin 250m/320Mi | 상시 4개 Pod; 설치 Job 50m/32Mi 별도 |
+| DB | sidecar 각 100m/128Mi, 3개 총 300m/384Mi | 각 limit CPU 1/512Mi, WAL 활성화 후 |
+
+Backend limits 4Gi와 HPA 2~4는 변경하지 않았다. HPA 4개 + Preview 1개 또는 전환 중 최대 8개에 대한 App 용량 부족은 Redis 추가로 해결되지 않는다. 실제 allocatable, EKS 애드온, Helm 렌더 결과 및 부하를 함께 재산정해야 한다. 백업의 압축 CPU/WAL 적체와 Redis AOF rewrite 메모리는 별도 실측 대상이다.

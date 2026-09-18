@@ -1,0 +1,10 @@
+# TODO: 인프라에서 받은 실제 prod 값만 기입한다. AWS 비밀 키는 저장하지 않는다.
+# 이 파일은 Tempo 전용이다. 다른 관측성 runtime의 Loki ServiceAccount 값을 재사용하지 않는다.
+# tempoBucket: 실제 prod 로그 버킷 이름
+# serviceAccount:
+#   annotations:
+#     eks.amazonaws.com/role-arn: 실제 tempo-sa 전용 IRSA Role ARN
+# tempoEgressCidrs: [S3 대상 CIDR, regional STS 대상 CIDR]
+# CIDR은 인프라·보안팀이 인계한 값이다. 임시 DNS 조회 결과나 0.0.0.0/0을 쓰지 않는다.
+# 모든 값이 준비되어야 tempo-runtime이 생성된다. 기본 상태는 DNS 이외 발신 차단이다.
+{}

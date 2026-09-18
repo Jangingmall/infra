@@ -1,0 +1,12 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Backup
+metadata:
+  generateName: cnpg-manual-
+  namespace: database
+spec:
+  cluster:
+    name: jangingmall-postgres
+  method: plugin
+  target: prefer-standby
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io

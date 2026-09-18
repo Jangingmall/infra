@@ -1,5 +1,5 @@
 # 기존 Backend ingress 정책에 Prometheus 관리 포트 접근을 합산 허용한다.
-# 이 파일 자체는 default-deny가 아니며 외부 ALB에 9090을 공개하지 않는다.
+# 이 정책만으로도 Backend ingress는 격리된다. 외부 요청에는 backend-networking의 ALB:8080 예외가 필요하다.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

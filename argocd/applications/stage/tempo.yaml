@@ -1,0 +1,45 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: stage-observability-tempo
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: observability
+spec:
+  project: stage-observability
+  sources:
+  - repoURL: https://grafana-community.github.io/helm-charts
+    chart: tempo
+    targetRevision: 2.4.0
+    helm:
+      releaseName: tempo
+      valueFiles:
+      - "$values/platform/observability/tempo/values.yaml"
+      - "$values/platform/observability/tempo/stage.yaml"
+      - "$values/platform/observability/tempo/runtime/stage.yaml"
+      skipTests: true
+  - repoURL: https://github.com/Jangingmall/infra.git
+    targetRevision: main
+    path: platform/observability
+    ref: values
+    helm:
+      releaseName: tempo-assets
+      valueFiles:
+      - tempo/runtime/stage.yaml
+      valuesObject:
+        bundle: tempo
+        environment: stage
+      skipTests: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      enabled: false
+      prune: false
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+    - ServerSideApply=true
+    - FailOnSharedResource=true
