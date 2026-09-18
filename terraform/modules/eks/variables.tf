@@ -31,7 +31,7 @@ variable "cluster_name" {
     🔴 서브넷의 kubernetes.io/cluster/<이름> 태그와 반드시 일치해야 합니다.
        (modules/network 에 같은 값이 들어갑니다)
   EOT
-  type = string
+  type        = string
 }
 
 variable "cluster_version" {
@@ -46,7 +46,7 @@ variable "cluster_version" {
       aws eks describe-cluster-versions --region ap-northeast-2 --profile jangin --output table
     → STANDARD_SUPPORT 이면서 AWS 기본(default) 인 버전을 고릅니다.
   EOT
-  type = string
+  type        = string
 }
 
 variable "subnet_ids" {
@@ -55,7 +55,7 @@ variable "subnet_ids" {
     🔴 서로 다른 AZ 2개 이상이 필수입니다 (EKS 요구사항).
     app(private) 서브넷을 넣습니다 — 컨트롤플레인 ENI 에 공인 IP 를 주지 않기 위함입니다.
   EOT
-  type = list(string)
+  type        = list(string)
 }
 
 variable "additional_security_group_ids" {
@@ -66,7 +66,7 @@ variable "additional_security_group_ids" {
        컨트롤플레인 ↔ 노드 통신을 알아서 열기 때문입니다.
        (이 자동 SG 가 3-tier 방어 논리의 핵심 근거이기도 합니다)
   EOT
-  type = list(string)
+  type        = list(string)
 }
 
 variable "endpoint_public_access" {
@@ -78,7 +78,7 @@ variable "endpoint_public_access" {
     🔴 false 로 두면 VPC 안에서만 kubectl 이 되므로, Bastion 없는 현 구조에서는
        SSM 경유 접속 환경을 따로 만들어야 합니다.
   EOT
-  type = bool
+  type        = bool
 }
 
 variable "endpoint_private_access" {
@@ -94,7 +94,7 @@ variable "public_access_cidrs" {
        (바꿀 때마다 apply 가 필요하고 컨트롤플레인이 5~10분 갱신됩니다)
        → 보안팀에는 "공개 + 인증 명부 최소화 + 감사 로그" 조합으로 조건부 승인을 요청합니다.
   EOT
-  type = list(string)
+  type        = list(string)
 }
 
 variable "authentication_mode" {
@@ -110,7 +110,7 @@ variable "authentication_mode" {
        고치려면 클러스터에 들어가야 해서 복구가 불가능합니다
        (열쇠를 방 안에 두고 문을 잠그는 상황). EKS 사고 1위 유형입니다.
   EOT
-  type = string
+  type        = string
 
   validation {
     condition     = contains(["CONFIG_MAP", "API", "API_AND_CONFIG_MAP"], var.authentication_mode)
@@ -127,7 +127,7 @@ variable "bootstrap_cluster_creator_admin_permissions" {
        → 회수 후에도 남는 역할(Infra-Admin Permission Set)로 apply 해야 합니다. (박다정 확인)
     ⚠️ 이 값은 생성 시점에만 의미가 있고 나중에 바꿔도 이미 부여된 권한은 회수되지 않습니다.
   EOT
-  type = bool
+  type        = bool
 }
 
 variable "enabled_cluster_log_types" {
@@ -138,7 +138,7 @@ variable "enabled_cluster_log_types" {
     💰 CloudWatch Logs 수집·보관 요금이 발생합니다 (비용 산정서 미반영 — 소액이나 확인 필요).
     빈 목록 []) 으로 두면 로그를 끕니다.
   EOT
-  type = list(string)
+  type        = list(string)
 }
 
 variable "log_retention_days" {
@@ -147,7 +147,7 @@ variable "log_retention_days" {
     🔴 로그 그룹을 Terraform 이 먼저 만들지 않으면 EKS 가 "보관 기간 무제한"으로 만들어버립니다.
        프로젝트가 끝나도 요금이 계속 나가는 대표적인 함정입니다.
   EOT
-  type = number
+  type        = number
 }
 
 variable "secrets_kms_key_arn" {
@@ -155,5 +155,5 @@ variable "secrets_kms_key_arn" {
     쿠버네티스 Secret 을 봉투 암호화할 KMS CMK ARN. null 이면 미적용.
     🟡 ⑧ KMS 단계에서 채웁니다. 🔴 클러스터 생성 후에는 해제할 수 없습니다(추가만 가능).
   EOT
-  type = string
+  type        = string
 }

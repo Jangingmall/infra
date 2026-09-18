@@ -37,7 +37,7 @@ output "cluster_security_group_id" {
     app 노드와 DB 노드를 서로 다른 서브넷에 둬도 SG 단에서는 이미 열려 있습니다.
     → 계층 격리는 서브넷이 아니라 노드그룹·Taint·SG·NetworkPolicy 축으로 이뤄집니다.
   EOT
-  value = aws_eks_cluster.main.vpc_config[0].cluster_security_group_id
+  value       = aws_eks_cluster.main.vpc_config[0].cluster_security_group_id
 }
 
 output "cluster_iam_role_arn" {
@@ -56,7 +56,7 @@ output "oidc_provider_url" {
     IRSA 신뢰 정책의 조건 키를 만들 때는 https:// 를 뗀 형태를 씁니다 —
     ⑧ 에서 replace(url, "https://", "") 로 처리합니다.
   EOT
-  value = aws_iam_openid_connect_provider.oidc.url
+  value       = aws_iam_openid_connect_provider.oidc.url
 }
 
 output "kubeconfig_command" {

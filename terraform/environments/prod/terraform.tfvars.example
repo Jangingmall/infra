@@ -54,26 +54,35 @@ vpc_subnet_cidrs = {
 eks_cluster_name = "jangin-prod-eks-cluster" # staging: jangin-staging-eks-cluster
 
 # ---------- ⑥ EKS 클러스터 (eks_ 접두사)  💰 유료 ----------
-# 🔴 아래 3개는 9/16 회의 확정 대상입니다. 확정 전에는 apply 하지 마세요.
+# ✅ 아래 3개는 9/16~9/17 회의에서 전부 확정됐습니다 (CLAUDE.md 「9/17 해소된 것」).
 
-# 🔴 TODO — 잠정값. 되돌릴 수 없는 결정입니다(올릴 수만 있고 내릴 수 없음).
+# 🔴 확정값이지만 되돌릴 수 없는 결정입니다(올릴 수만 있고 내릴 수 없음).
 #    확인: aws eks describe-cluster-versions --region ap-northeast-2 --profile jangin --output table
 #    기준: STANDARD_SUPPORT + AWS 기본(default) 버전. 확장 지원 구간은 추가 요금.
-eks_cluster_version = "1.33"
+eks_cluster_version = "1.35" # ✅ 9/17 팀 확정. 🔴 apply 전 STANDARD_SUPPORT·애드온 호환 확인
 
-# 🔴 TODO(박다정님) — 권한 명부 위치. 좁히는 방향으로만 변경 가능.
-#    API_AND_CONFIG_MAP 으로 시작 → 9/21 보안 검수 전 API 로 축소
-eks_authentication_mode = "API_AND_CONFIG_MAP"
+# ✅ 권한 명부 위치. 좁히는 방향으로만 변경 가능(되돌리기 불가).
+#    구 방식(CONFIG_MAP)은 aws-auth 오타 하나로 전원이 잠기는 사고가 잦습니다.
+eks_authentication_mode = "API"                  # ✅ 9/16 파트장 확정
 
 # 🔴 생성자 자동 관리자 권한.
 #    ⚠️ 9/15~17 한시적 admin 회수와 충돌 주의 — 회수 후에도 남는 역할로 apply 할 것
 eks_bootstrap_creator_admin = true
 
-# 🟡 TODO(보안팀) — 컨트롤플레인 접근 범위.
-#    "공개"라도 인증 명부에 없으면 401 입니다.
-eks_endpoint_public_access  = true
+# ✅ 9/17 파트장 확정 — 단계 운영(B안). 전환은 재생성 없이 몇 분.
+#    "공개"라도 인증 명부에 없으면 401 입니다. Public = 무방비가 아닙니다.
+eks_endpoint_public_access  = true                 # B안: 9/18~20 열고, 9/21 false 로 전환
 eks_endpoint_private_access = true
-eks_public_access_cidrs     = ["0.0.0.0/0"]
+# 🔴 팀원 IP 를 반드시 채우세요. 빈 목록이면 apply 가 막힙니다(의도).
+#    각자 확인: curl ifconfig.me
+#    9/21 private only 전환 시 public_access = false + 빈 목록으로 되돌립니다.
+eks_public_access_cidrs = [
+  # "1.2.3.4/32",  # 강윤주
+  # "1.2.3.4/32",  # 신준한
+  # "1.2.3.4/32",  # 박명수
+  # "1.2.3.4/32",  # 이창원
+  # "1.2.3.4/32",  # 박다정
+]
 
 # 비워 둡니다 — EKS 가 eks-cluster-sg-<이름> 을 자동 생성합니다.
 eks_additional_security_group_ids = []
