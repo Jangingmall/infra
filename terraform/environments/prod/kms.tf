@@ -4,6 +4,7 @@ module "kms_app" {
   source = "../../modules/kms"
 
   alias_name = "alias/${var.project}-${var.env}-app"
+  region     = var.region
 
   # IRSA 확정 후 Role ARN으로 교체: backend-sa, cnpg-backup-sa, loki-sa, tempo SA
   key_user_role_arns = []

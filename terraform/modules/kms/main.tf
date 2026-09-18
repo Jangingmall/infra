@@ -50,8 +50,11 @@ data "aws_iam_policy_document" "this" {
       }
 
       actions = [
-        "kms:GenerateDataKey*",
+        "kms:Encrypt",
         "kms:Decrypt",
+        "kms:ReEncrypt*",
+        "kms:GenerateDataKey*",
+        "kms:DescribeKey",
       ]
 
       resources = ["*"]
@@ -60,6 +63,12 @@ data "aws_iam_policy_document" "this" {
         test     = "StringEquals"
         variable = "aws:SourceAccount"
         values   = [data.aws_caller_identity.current.account_id]
+      }
+
+      condition {
+        test     = "ArnLike"
+        variable = "aws:SourceArn"
+        values   = ["arn:aws:logs:${var.region}:${data.aws_caller_identity.current.account_id}:*"]
       }
     }
   }

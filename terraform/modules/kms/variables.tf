@@ -38,6 +38,12 @@ variable "log_delivery_service_principals" {
   nullable    = false
 }
 
+variable "region" {
+  description = "log_delivery_service_principals 사용 시 aws:SourceArn 조건(arn:aws:logs:<region>:<account>:*) 조립에 쓴다"
+  type        = string
+  nullable    = false
+}
+
 variable "tags" {
   description = "태그. providers.tf 의 default_tags 와 자동 merge 되므로 이 키 고유 태그만 넘기면 됨"
   type        = map(string)

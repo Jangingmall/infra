@@ -28,7 +28,7 @@ data "aws_iam_policy_document" "logs_delivery" {
     condition {
       test     = "ArnLike"
       variable = "aws:SourceArn"
-      values   = ["arn:aws:ec2:${var.region}:${data.aws_caller_identity.current.account_id}:vpc-flow-log/*"]
+      values   = ["arn:aws:logs:${var.region}:${data.aws_caller_identity.current.account_id}:*"]
     }
   }
 
@@ -41,8 +41,10 @@ data "aws_iam_policy_document" "logs_delivery" {
       identifiers = ["delivery.logs.amazonaws.com"]
     }
 
-    actions   = ["s3:PutObject"]
-    resources = ["arn:aws:s3:::${local.logs_bucket_name}/vpc-flow/*"]
+    actions = ["s3:PutObject"]
+    # vpc-flow/ 를 optional_folder 로 쓰는 AWS 문서 경로 규칙:
+    # {bucket}/{optional_folder}/AWSLogs/{account_id}/*
+    resources = ["arn:aws:s3:::${local.logs_bucket_name}/vpc-flow/AWSLogs/${data.aws_caller_identity.current.account_id}/*"]
 
     condition {
       test     = "StringEquals"
@@ -53,7 +55,7 @@ data "aws_iam_policy_document" "logs_delivery" {
     condition {
       test     = "ArnLike"
       variable = "aws:SourceArn"
-      values   = ["arn:aws:ec2:${var.region}:${data.aws_caller_identity.current.account_id}:vpc-flow-log/*"]
+      values   = ["arn:aws:logs:${var.region}:${data.aws_caller_identity.current.account_id}:*"]
     }
 
     condition {

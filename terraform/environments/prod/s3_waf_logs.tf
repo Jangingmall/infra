@@ -1,4 +1,5 @@
 # [aws-waf-logs] aws-waf-logs-{env}-jangin - WAF 로그 전용, 비공개
+# ⚠️ "aws-waf-logs-" 프리픽스는 AWS 하드 제약 — 다른 접두사로 바꾸면 로깅이 멈춘다.
 
 locals {
   waf_logs_bucket_name = "aws-waf-logs-${var.env}-${var.project}"
@@ -15,7 +16,7 @@ data "aws_iam_policy_document" "waf_logs_delivery" {
       identifiers = ["delivery.logs.amazonaws.com"]
     }
 
-    actions   = ["s3:GetBucketAcl"]
+    actions   = ["s3:GetBucketAcl", "s3:ListBucket"]
     resources = ["arn:aws:s3:::${local.waf_logs_bucket_name}"]
 
     condition {
@@ -27,7 +28,7 @@ data "aws_iam_policy_document" "waf_logs_delivery" {
     condition {
       test     = "ArnLike"
       variable = "aws:SourceArn"
-      values   = ["arn:aws:wafv2:${var.region}:${data.aws_caller_identity.current.account_id}:regional/webacl/*"]
+      values   = ["arn:aws:logs:${var.region}:${data.aws_caller_identity.current.account_id}:*"]
     }
   }
 
@@ -40,8 +41,9 @@ data "aws_iam_policy_document" "waf_logs_delivery" {
       identifiers = ["delivery.logs.amazonaws.com"]
     }
 
-    actions   = ["s3:PutObject"]
-    resources = ["arn:aws:s3:::${local.waf_logs_bucket_name}/*"]
+    actions = ["s3:PutObject"]
+    # AWS 문서 경로 규칙: {bucket}/AWSLogs/{account_id}/*
+    resources = ["arn:aws:s3:::${local.waf_logs_bucket_name}/AWSLogs/${data.aws_caller_identity.current.account_id}/*"]
 
     condition {
       test     = "StringEquals"
@@ -52,7 +54,7 @@ data "aws_iam_policy_document" "waf_logs_delivery" {
     condition {
       test     = "ArnLike"
       variable = "aws:SourceArn"
-      values   = ["arn:aws:wafv2:${var.region}:${data.aws_caller_identity.current.account_id}:regional/webacl/*"]
+      values   = ["arn:aws:logs:${var.region}:${data.aws_caller_identity.current.account_id}:*"]
     }
 
     condition {
