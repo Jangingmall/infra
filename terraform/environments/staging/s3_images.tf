@@ -45,6 +45,11 @@ resource "aws_s3_bucket_policy" "images" {
 module "acm_cloudfront_images" {
   source = "../../modules/acm_cloudfront"
 
+  # CloudFront ACM은 us-east-1 고정 — providers.tf 의 aws.us_east_1 을 전달
+  providers = {
+    aws.us_east_1 = aws.us_east_1
+  }
+
   domain_name = var.images_cloudfront_domain
   zone_id     = var.route53_zone_id
 }
