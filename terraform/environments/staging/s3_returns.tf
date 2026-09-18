@@ -8,7 +8,7 @@ module "s3_returns" {
 
   cors_allowed_origins = ["https://stg.midam.store", "http://localhost:3000"]
 
-  logging_target_bucket = "${var.project}-infra-s3-access"
+  logging_target_bucket = module.s3_access.bucket_id
 
   lifecycle_rules = [
     {

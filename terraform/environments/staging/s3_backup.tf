@@ -6,7 +6,7 @@ module "s3_backup" {
   bucket_name = "${var.project}-${var.env}-s3-backup"
   kms_key_arn = module.kms_app.key_arn
 
-  logging_target_bucket = "${var.project}-infra-s3-access"
+  logging_target_bucket = module.s3_access.bucket_id
 
   versioning_enabled = true
 

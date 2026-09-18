@@ -7,8 +7,7 @@ module "s3_images" {
 
   cors_allowed_origins = ["https://stg.midam.store", "http://localhost:3000"]
 
-  # jangin-infra-s3-access는 prod 소유라 module 없이 이름만 참조
-  logging_target_bucket = "${var.project}-infra-s3-access"
+  logging_target_bucket = module.s3_access.bucket_id
 
   additional_policy_json = module.cloudfront_images.oac_policy_json
 }
