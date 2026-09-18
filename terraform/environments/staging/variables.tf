@@ -594,3 +594,68 @@ variable "route53_zone_id" {
   description = "Route53 Hosted Zone ID"
   type        = string
 }
+
+
+# ------------------------------------------------------------
+# ⑩ EDGE — ALB / ACM / WAF (환경별 통합 입력)
+# ------------------------------------------------------------
+variable "alb_domain_name" {
+  description = "이 환경의 Backend API 도메인. FE/Vercel 도메인과 구분한다."
+  type        = string
+  default     = "api.stg.midam.store"
+  nullable    = false
+
+  validation {
+    condition     = can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$", var.alb_domain_name))
+    error_message = "alb_domain_name에 스킴/경로/와일드카드 없는 소문자 DNS 이름을 입력하세요."
+  }
+}
+
+variable "alb_zone_id" {
+  description = "API 도메인을 관리하는 기존 Public Route53 Hosted Zone ID. 실제 값을 terraform.tfvars로 주입한다(필수)."
+  type        = string
+  nullable    = false
+
+  validation {
+    condition     = can(regex("^Z[A-Z0-9]+$", var.alb_zone_id))
+    error_message = "alb_zone_id에 실제 Hosted Zone ID(Z로 시작)를 입력하세요. 빈 값은 허용하지 않습니다."
+  }
+}
+
+variable "waf_rule_mode" {
+  description = "count로 오탐 관찰 후 담당자 확인을 거쳐 block으로 전환. count는 차단하지 않는다."
+  type        = string
+  default     = "count"
+  nullable    = false
+
+  validation {
+    condition     = contains(["count", "block"], var.waf_rule_mode)
+    error_message = "waf_rule_mode는 count 또는 block이어야 합니다."
+  }
+}
+
+variable "waf_managed_rule_groups" {
+  description = "ALB용 AWS Managed Rule Group과 중복 없는 우선순위. 기존 모듈 기본 규칙 유지."
+  type = list(object({
+    name     = string
+    priority = number
+  }))
+  default = [
+    { name = "AWSManagedRulesCommonRuleSet", priority = 1 },
+    { name = "AWSManagedRulesSQLiRuleSet", priority = 2 },
+  ]
+  nullable = false
+
+  validation {
+    condition = (
+      length(var.waf_managed_rule_groups) > 0 &&
+      length(distinct([for rule in var.waf_managed_rule_groups : rule.name])) == length(var.waf_managed_rule_groups) &&
+      length(distinct([for rule in var.waf_managed_rule_groups : rule.priority])) == length(var.waf_managed_rule_groups) &&
+      alltrue([for rule in var.waf_managed_rule_groups : try(
+        startswith(rule.name, "AWSManagedRules") && rule.priority >= 0 && floor(rule.priority) == rule.priority,
+        false
+      )])
+    )
+    error_message = "AWSManagedRules 규칙을 1개 이상 지정하고, 이름 및 0 이상의 정수 우선순위는 중복 없이 입력하세요."
+  }
+}

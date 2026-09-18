@@ -303,3 +303,31 @@ output "images_cloudfront_distribution_id" {
   description = "CloudFront 배포 ID (캐시 무효화 등에 사용)"
   value       = module.cloudfront_images.distribution_id
 }
+
+
+# ⑩ EDGE — 실환경 생성 후 네이티브 담당자에게 전달한다.
+output "alb_arn" {
+  description = "환경별 ALB ARN"
+  value       = module.alb.alb_arn
+}
+
+output "alb_dns_name" {
+  value = module.alb.alb_dns_name
+}
+
+output "alb_certificate_arn" {
+  value = module.acm_alb.certificate_arn
+}
+
+output "waf_web_acl_arn" {
+  value = module.waf.web_acl_arn
+}
+
+output "backend_networking" {
+  description = "platform/networking/{stage,prod}.yaml 인계값. Controller/IRSA/CRD 확인 후 enabled=true 및 수동 Sync는 네이티브 담당."
+  value = {
+    targetGroupARN = module.alb.target_group_arn
+    vpcID          = module.network.vpc_id
+    albSourceCidrs = [for az in var.vpc_az_suffixes : var.vpc_subnet_cidrs.public[az]]
+  }
+}
