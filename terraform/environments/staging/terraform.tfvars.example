@@ -68,7 +68,9 @@ ecr_tags                 = {}
 #      💰 g6e $2.29/h + g4dn $0.65/h. 테스트 끝나면 반드시 0 으로 되돌립니다.
 #
 # 🔴 10/1~10/4 노드 내릴 때
-#      system·app·db 의 desired_size·min_size 를 0 으로.
+#      system·app·db 의 desired_size·min_size 를 함께 0 으로.
+#      enabled=true와 max_size는 유지한다. DB 재개 시 min/desired를 함께 3 이상으로 복원.
+#      DB 백업·종료 확인 후 실행한다. DB 1~2대 부분 축소는 계속 금지한다.
 #      ⚠️ DB 는 전부 내렸다 전부 올려야 합니다. 부분 축소는 복구가 안 됩니다
 #         (CNPG podAntiAffinityType=required).
 #      ⚠️ private only 상태에서 노드를 0 으로 만들면 SSM 으로 들어갈 노드가

@@ -14,6 +14,16 @@ locals {
   #
   #    GPU 는 후자입니다. 정의는 다 해두고 값 하나로 기동할 수 있게 둡니다.
   enabled_groups = { for k, g in var.node_groups : k => g if g.enabled }
+  # provider 공통 태그도 실제 EC2·EBS에 전달한다. 노드그룹 tags는 전파되지 않는다.
+  node_tags = {
+    for key, group in local.enabled_groups : key => merge(
+      data.aws_default_tags.current.tags,
+      { Name = "${local.name}-ng-${key}" },
+      lookup(group.labels, "workload-type", null) == null ? {} : {
+        NodePool = group.labels["workload-type"] == "gpu" ? "ai" : group.labels["workload-type"]
+      }
+    )
+  }
 
   # 노드 IAM 역할에 항상 붙는 관리형 정책 4종
   base_node_policies = {

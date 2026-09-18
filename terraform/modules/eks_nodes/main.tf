@@ -77,6 +77,38 @@ resource "aws_iam_role_policy_attachment" "node_extra" {
 # ------------------------------------------------------------
 # 노드그룹
 # ------------------------------------------------------------
+data "aws_default_tags" "current" {}
+
+# EC2·EBS 비용 태그는 Launch Template에서 부여한다.
+# 기존 노드그룹에 처음 연결할 때는 교체 계획과 DB 볼륨 AZ를 확인해야 한다.
+resource "aws_launch_template" "node" {
+  for_each = local.enabled_groups
+
+  name_prefix = "${local.name}-ng-${each.key}-"
+  key_name    = var.ssh_key_name
+
+  # AL2023 EKS AMI의 루트 장치. 용량은 기존 그룹별 설정을 보존한다.
+  block_device_mappings {
+    device_name = "/dev/xvda"
+    ebs {
+      volume_size           = each.value.disk_size
+      volume_type           = "gp3"
+      encrypted             = true
+      delete_on_termination = true
+    }
+  }
+
+  dynamic "tag_specifications" {
+    for_each = toset(["instance", "volume"])
+    content {
+      resource_type = tag_specifications.value
+      tags          = local.node_tags[each.key]
+    }
+  }
+
+  tags = { Name = "${local.name}-lt-${each.key}" }
+}
+
 resource "aws_eks_node_group" "this" {
   for_each = local.enabled_groups
 
@@ -93,7 +125,11 @@ resource "aws_eks_node_group" "this" {
   instance_types = [each.value.instance_type]
   capacity_type  = each.value.capacity_type
   ami_type       = each.value.ami_type
-  disk_size      = each.value.disk_size
+
+  launch_template {
+    id      = aws_launch_template.node[each.key].id
+    version = tostring(aws_launch_template.node[each.key].latest_version)
+  }
 
   scaling_config {
     desired_size = each.value.desired_size
@@ -120,27 +156,8 @@ resource "aws_eks_node_group" "this" {
     }
   }
 
-  # 🔴 SSH 키를 넣지 않습니다.
-  #    접근은 SSM Session Manager 로만 합니다(설계상 SSH 22 차단).
-  #    키를 넣으면 "열어둔 경로" 가 하나 생기고 보안팀 지적 대상이 됩니다.
-  dynamic "remote_access" {
-    for_each = var.ssh_key_name == null ? [] : [1]
-    content {
-      ec2_ssh_key = var.ssh_key_name
-    }
-  }
-
-  tags = merge(
-    {
-      Name = "${local.name}-ng-${each.key}"
-    },
-    # 💰 NodePool 태그는 과금 리소스에만 붙입니다 (작업 규칙 10).
-    #    노드그룹은 EC2·EBS 를 만드는 과금 리소스이므로 대상입니다.
-    #    값은 system|app|db|ai 중 하나여야 Cost Explorer 필터가 의미를 갖습니다.
-    lookup(each.value.labels, "workload-type", null) == null ? {} : {
-      NodePool = each.value.labels["workload-type"] == "gpu" ? "ai" : each.value.labels["workload-type"]
-    }
-  )
+  # key_name은 Launch Template으로 전달하며 SSH 인바운드는 추가하지 않는다.
+  tags = local.node_tags[each.key]
 
   lifecycle {
     # ── 사이즈 정합성 ─────────────────────────────────────────
@@ -158,14 +175,15 @@ resource "aws_eks_node_group" "this" {
     # "CNPG Pod 3개가 반드시 서로 다른 노드에" 를 뜻합니다.
     # Pod 3 : 노드 3 이라 여유가 0 이고, 1대만 줄어도 Pod 하나가 영구 Pending 입니다.
     #
-    # 그래서 min_size 도 3 이어야 합니다. desired 만 3 이고 min 이 2 면
+    # 운영 중에는 min_size도 3 이상이어야 합니다. 전체 중지는 min/desired 둘 다 0일 때만 허용합니다.
     # 오토스케일러나 노드 교체 과정에서 2대로 내려가는 순간 복구가 안 됩니다.
     precondition {
       condition = (
         lookup(each.value.labels, "workload-type", "") != "db"
         || each.value.min_size >= 3
+        || (each.value.min_size == 0 && each.value.desired_size == 0)
       )
-      error_message = "노드그룹 '${each.key}': DB 그룹은 min_size 가 3 이상이어야 합니다. CNPG 의 podAntiAffinityType=required 때문에 Pod 3개가 서로 다른 노드를 요구합니다."
+      error_message = "노드그룹 '${each.key}': DB 그룹은 운영 시 min_size가 3 이상이어야 합니다. 전체 중지는 min_size와 desired_size가 모두 0일 때만 허용하며 1~2대 부분 축소는 금지합니다."
     }
 
     # ── 🔴 DB 그룹 Spot 금지 ──────────────────────────────────
