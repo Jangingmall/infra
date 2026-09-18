@@ -1,0 +1,27 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: stage-backend-networking
+  namespace: argocd
+spec:
+  project: stage-workloads
+  source:
+    repoURL: https://github.com/Jangingmall/infra.git
+    targetRevision: main
+    path: platform/networking
+    helm:
+      releaseName: backend-networking
+      valueFiles:
+        - values.yaml
+        - stage.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: app
+  syncPolicy:
+    automated:
+      enabled: false
+      prune: false
+      selfHeal: false
+      allowEmpty: false
+    syncOptions:
+      - FailOnSharedResource=true

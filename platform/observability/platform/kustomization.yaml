@@ -1,0 +1,7 @@
+# CRD 설치 후 적용할 공통 모니터링 묶음. 기본 workload/Argo Application에는 아직 연결하지 않는다.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - monitors.yaml
+  - network-policies.yaml
+# namespace를 일괄 덮어쓰면 database/argocd의 NetworkPolicy가 잘못 배치되므로 지정하지 않는다.

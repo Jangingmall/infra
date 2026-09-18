@@ -5,3 +5,12 @@
 
 nodeSelector:
   workload-type: system
+
+# System 용량 계산에 포함하는 초기 요청량. DB Pod 자원과는 별개다.
+# Operator의 실제 reconcile 부하와 OOM 여부를 EKS에서 확인한다.
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    memory: 256Mi

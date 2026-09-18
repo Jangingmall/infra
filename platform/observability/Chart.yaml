@@ -1,0 +1,5 @@
+apiVersion: v2
+name: observability-assets
+description: Git-managed dashboards, Alloy configuration and Loki scoped RBAC
+type: application
+version: 0.1.0

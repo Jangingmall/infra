@@ -1,0 +1,10 @@
+replicaCount: 1
+image:
+  tag: v0.15.0
+sidecarImage:
+  tag: v0.15.0
+nodeSelector:
+  workload-type: system
+resources:
+  requests: {cpu: 100m, memory: 128Mi}
+  limits: {cpu: "1", memory: 256Mi}

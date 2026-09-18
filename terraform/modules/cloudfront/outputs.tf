@@ -12,3 +12,8 @@ output "distribution_domain_name" {
 output "distribution_arn" {
   value = aws_cloudfront_distribution.this.arn
 }
+
+output "oac_policy_json" {
+  description = "OAC가 이 버킷의 products/* 를 읽도록 허용하는 정책 문서(JSON)"
+  value       = data.aws_iam_policy_document.oac.json
+}

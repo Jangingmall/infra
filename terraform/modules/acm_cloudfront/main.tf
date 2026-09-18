@@ -1,24 +1,19 @@
 # [ACM-CloudFront] us-east-1(버지니아) 고정 - CloudFront는 이 리전 인증서만 붙일 수 있다.
 # 서울 리전 인증서는 CloudFront에 사용 불가 (놓치기 쉬운 지점, 네트워크·계정 설계서 IF_11 참조)
 #
-#    이 모듈은 provider alias를 내부에서 직접 선언한다 (요청된 방식).
-#    리전이 환경(prod/staging)과 무관하게 항상 us-east-1로 고정이라 가능한 패턴이지만,
-#    Terraform 공식 권장은 아님 — 이 모듈을 for_each/count로 여러 번 인스턴스화하거나
-#    다른 AWS 계정에 재사용할 계획이 생기면, 그때는 root에서 configuration_aliases로
-#    provider를 넘기는 방식으로 리팩터링해야 한다. (지금 범위: env당 1회 호출이라 안전)
+# 모듈이 provider를 직접 선언하지 않는다. 대신 configuration_aliases로 
+# "us_east_1이라는 이름의 provider를 호출 측에서 넘겨받겠다"는 자리만
+# 선언하고, 실제 provider(region=us-east-1)는 root(environments/*/providers.tf)
+# 에서 만들어 이 모듈 호출 시 providers = { aws.us_east_1 = aws.us_east_1 }로 전달
 
 terraform {
   required_providers {
     aws = {
-      source  = "hashicorp/aws"
-      version = ">= 5.0"
+      source                = "hashicorp/aws"
+      version               = ">= 5.0"
+      configuration_aliases = [aws.us_east_1]
     }
   }
-}
-
-provider "aws" {
-  alias  = "us_east_1"
-  region = "us-east-1"
 }
 
 resource "aws_acm_certificate" "this" {

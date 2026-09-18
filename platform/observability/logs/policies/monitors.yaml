@@ -1,0 +1,35 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: alloy-logs
+  namespace: monitoring
+  labels:
+    release: metrics
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: alloy
+    matchExpressions:
+      - key: app.kubernetes.io/instance
+        operator: In
+        values: [alloy-pods, alloy-events]
+  endpoints:
+    - port: http-metrics
+      interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: loki-logs
+  namespace: monitoring
+  labels:
+    release: metrics
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: loki
+      app.kubernetes.io/instance: loki
+      app.kubernetes.io/component: single-binary
+  endpoints:
+    - port: http-metrics
+      interval: 30s

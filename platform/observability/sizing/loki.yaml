@@ -1,0 +1,52 @@
+# 산정 전용. 배포 금지.
+---
+deploymentMode: SingleBinary
+singleBinary:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1024Mi
+read:
+  replicas: 0
+write:
+  replicas: 0
+backend:
+  replicas: 0
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false
+lokiCanary:
+  enabled: false
+test:
+  enabled: false
+gateway:
+  enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+loki:
+  commonConfig:
+    replication_factor: 1
+  storage:
+    type: s3
+    bucketNames:
+      chunks: sizing-only-not-a-real-bucket
+      ruler: sizing-only-not-a-real-bucket
+      admin: sizing-only-not-a-real-bucket
+  schemaConfig:
+    configs:
+    - from: '2026-01-01'
+      store: tsdb
+      object_store: s3
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+sidecar:
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi

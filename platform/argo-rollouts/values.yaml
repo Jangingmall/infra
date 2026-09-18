@@ -18,6 +18,14 @@ clusterInstall: true
 controller:
   # System NodeGroup이 2대이므로 Controller도 2 replica를 유지한다.
   replicas: 2
+  # 기존 용량 문서의 Controller 예산을 실제 requests로 명시한다.
+  # 2 replica 합계 200m/256Mi이며 배포 시 reconcile 부하를 실측한다.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
   nodeSelector:
     workload-type: system
   topologySpreadConstraints:
@@ -30,17 +38,22 @@ controller:
   awsVerifyTargetGroup: false
 
   metrics:
-    # 향후 Prometheus 수집을 위해 metrics Service는 생성한다.
+    # 기존 Controller의 8090 metrics Service를 사용한다.
     enabled: true
 
-    # Prometheus Operator 구성 전까지 ServiceMonitor는 생성하지 않는다.
+    # Monitor는 observability/platform에서 관리한다. chart에서 중복 생성하지 않는다.
     serviceMonitor:
       enabled: false
 
-# Rollout 상태를 시각적으로 확인하기 위해 Dashboard를 배포한다.
-# 외부에는 공개하지 않고 ClusterIP + port-forward 방식으로 접근한다.
+# System medium 1대 + large 1대에서도 상시 메모리를 아끼기 위해 Dashboard만 비활성화한다.
+# 위 Controller 2개와 Blue/Green 배포 제어 기능은 그대로 유지한다.
+# 평소 상태 조회: kubectl argo rollouts get rollout backend -n app
+# 전용 화면이 필요할 때 운영자 PC에서 kubectl argo rollouts dashboard를 실행한다.
+# 로컬 화면도 사용자 kubeconfig 권한으로 동작한다. 외부 listen 주소로 공개하지 않는다.
+# 기존 enabled=true 환경에 반영하면 Dashboard Deployment/Service가 제거될 수 있다.
+# 아래 옵션은 향후 상시 화면이 필요해 재활성화할 경우의 설정을 보존한 것이다.
 dashboard:
-  enabled: true
+  enabled: false
   nodeSelector:
     workload-type: system
 

@@ -1,0 +1,613 @@
+{
+  "schemaVersion": 42,
+  "title": "Backend 런타임",
+  "tags": [
+    "janginmall"
+  ],
+  "editable": false,
+  "links": [
+
+  ],
+  "liveNow": false,
+  "graphTooltip": 0,
+  "panels": [
+    {
+      "id": 1,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "type": "timeseries",
+      "title": "장인몰 파드 CPU 사용률",
+      "description": "⚠️ <NAMESPACE>, <POD_PREFIX> 를 실제 배포 값으로 교체. cAdvisor/kubelet 지표라 백엔드 언어와 무관 — 변경 없음.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineWidth": 1,
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "max": 100,
+          "min": 0,
+          "unit": "percent"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"app\", pod=~\"$pod\", container!=\"\", container!=\"POD\"}[5m]))\n/\nsum(kube_pod_container_resource_limits{namespace=\"app\", pod=~\"$pod\", resource=\"cpu\"})\n* 100",
+          "legendFormat": "파드 CPU 사용률 평균",
+          "range": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "topk(1,\n  sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"app\", pod=~\"$pod\", container!=\"\", container!=\"POD\"}[5m]))\n  /\n  sum by (pod) (kube_pod_container_resource_limits{namespace=\"app\", pod=~\"$pod\", resource=\"cpu\"})\n) * 100",
+          "legendFormat": "최대 사용 파드 {{pod}}",
+          "range": true
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "id": 2,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "type": "timeseries",
+      "title": "장인몰 파드 메모리 사용률",
+      "description": "⚠️ <NAMESPACE>, <POD_PREFIX> 를 실제 배포 값으로 교체. 언어 무관 지표 — 변경 없음.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineWidth": 1,
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "max": 100,
+          "min": 0,
+          "unit": "percent"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(container_memory_working_set_bytes{namespace=\"app\", pod=~\"$pod\", container!=\"\", container!=\"POD\"})\n/\nsum(kube_pod_container_resource_limits{namespace=\"app\", pod=~\"$pod\", resource=\"memory\", unit=\"byte\"})\n* 100",
+          "legendFormat": "파드 메모리 사용률 평균",
+          "range": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "topk(1,\n  sum by (pod) (container_memory_working_set_bytes{namespace=\"app\", pod=~\"$pod\", container!=\"\", container!=\"POD\"})\n  /\n  sum by (pod) (kube_pod_container_resource_limits{namespace=\"app\", pod=~\"$pod\", resource=\"memory\", unit=\"byte\"})\n) * 100",
+          "legendFormat": "최대 사용 파드 {{pod}}",
+          "range": true
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "id": 3,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "type": "timeseries",
+      "title": "요청량 (RPS)",
+      "description": "⚠️ <NAMESPACE> 교체. 스프링부트 Actuator+Micrometer 기준 지표(http_server_requests_seconds_count)로 변경함 — 기존 http_requests_total은 FastAPI(Python) 전용이라 자바 앱에선 안 나옴. actuator 헬스체크 자체 호출은 uri!~\"/actuator.*\"로 제외.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineWidth": 1,
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "min": 0,
+          "unit": "reqps"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(http_server_requests_seconds_count{namespace=\"app\", pod=~\"$pod\", uri!~\"/actuator.*\"}[1m]))",
+          "legendFormat": "RPS",
+          "range": true
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "id": 4,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "type": "timeseries",
+      "title": "HTTP 평균 응답 시간",
+      "description": "Backend에서 HTTP histogram 활성화가 확인되지 않아 평균을 사용한다. SSE 등 장기 연결은 일반 요청과 해석이 다를 수 있다. p95/p99는 histogram 제공 후 추가한다.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineWidth": 1,
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "min": 0,
+          "unit": "s"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(http_server_requests_seconds_sum{namespace=\"app\",pod=~\"$pod\",uri!~\"/actuator.*\"}[5m])) / sum(rate(http_server_requests_seconds_count{namespace=\"app\",pod=~\"$pod\",uri!~\"/actuator.*\"}[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "id": 5,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "type": "stat",
+      "title": "5xx 에러율",
+      "description": "⚠️ <NAMESPACE> 교체. http_server_requests_seconds_count의 status 태그 기준으로 변경(자바에서도 태그명은 동일하게 status). 0.1% 초과 시 주의.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "blue",
+            "mode": "fixed"
+          },
+          "decimals": 2,
+          "unit": "percent"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(\n  sum(rate(http_server_requests_seconds_count{namespace=\"app\", pod=~\"$pod\", status=~\"5..\"}[5m]))\n  or\n  vector(0)\n)\n/\nsum(rate(http_server_requests_seconds_count{namespace=\"app\", pod=~\"$pod\"}[5m]))\n* 100",
+          "legendFormat": "5xx 비율",
+          "range": true
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "id": 6,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "type": "timeseries",
+      "title": "JVM 힙 사용률",
+      "description": "⚠️ <NAMESPACE> 교체. Actuator+Micrometer가 기본 제공하는 지표라 별도 계측 코드 없이 바로 나옴 (FastAPI엔 없던 지표). /actuator/prometheus 스크레이프 설정만 되면 사용 가능.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineWidth": 1,
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "max": 100,
+          "min": 0,
+          "unit": "percent"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(jvm_memory_used_bytes{namespace=\"app\", pod=~\"$pod\", area=\"heap\"})\n/\nsum(jvm_memory_max_bytes{namespace=\"app\", pod=~\"$pod\", area=\"heap\"})\n* 100",
+          "legendFormat": "힙 사용률",
+          "range": true
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "id": 7,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "type": "timeseries",
+      "title": "GC 정지시간",
+      "description": "⚠️ <NAMESPACE> 교체. 초당 GC에 소요된 시간 비율. 지속적으로 0.1(=10%) 넘으면 힙 사이즈/GC 알고리즘 튜닝 검토 필요.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineWidth": 1,
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "min": 0,
+          "unit": "s"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(jvm_gc_pause_seconds_sum{namespace=\"app\", pod=~\"$pod\"}[5m]))",
+          "legendFormat": "GC 정지시간 비율",
+          "range": true
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "id": 8,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "type": "timeseries",
+      "title": "HikariCP 커넥션 풀 사용률",
+      "description": "⚠️ <NAMESPACE> 교체. 아래 'DB 커넥션 풀 사용률' 패널은 Postgres 서버 쪽(pg_stat_activity) 기준이고, 이건 스프링 앱(HikariCP) 쪽 클라이언트 풀 기준이라 별도로 봐야 함 — 커넥션 누수는 보통 여기서 먼저 드러남.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineWidth": 1,
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "max": 100,
+          "min": 0,
+          "unit": "percent"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(hikaricp_connections_active{namespace=\"app\", pod=~\"$pod\"})\n/\nsum(hikaricp_connections_max{namespace=\"app\", pod=~\"$pod\"})\n* 100",
+          "legendFormat": "HikariCP 사용률",
+          "range": true
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "id": 9,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 32
+      },
+      "type": "timeseries",
+      "title": "활성 스레드 수",
+      "description": "⚠️ <NAMESPACE> 교체. 내장 톰캣 스레드 풀 고갈 여부 확인용 (Python/FastAPI엔 대응 개념 없음).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineWidth": 1,
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "min": 0,
+          "unit": "short"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "jvm_threads_live_threads{namespace=\"app\", pod=~\"$pod\"}",
+          "legendFormat": "활성 스레드",
+          "range": true
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    }
+  ],
+  "uid": "janging-backend-runtime",
+  "id": null,
+  "version": 1,
+  "templating": {
+    "list": [
+      {
+        "name": "pod",
+        "label": "Backend Pod",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": "label_values(up{namespace=\"app\",job=\"backend\"}, pod)",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": "backend-.*",
+        "multi": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  }
+}

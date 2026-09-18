@@ -1,0 +1,46 @@
+# 산정 전용. 배포 금지: 운영 pipeline/보안/저장소 설정 미완료.
+---
+prometheus:
+  prometheusSpec:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1536Mi
+alertmanager:
+  alertmanagerSpec:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+grafana:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  sidecar:
+    resources:
+      requests:
+        cpu: 20m
+        memory: 64Mi
+prometheusOperator:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  prometheusConfigReloader:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 50Mi
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+prometheus-node-exporter:
+  resources:
+    requests:
+      cpu: 30m
+      memory: 64Mi

@@ -9,6 +9,8 @@ spec:
     kind: Rollout
     name: backend
   minReplicas: 2
+  # 운영 자동 확장은 합의대로 2~4개를 유지한다. HPA는 노드를 늘리지 않는다.
+  # App medium 2대에서 운영 4개면 Preview 공간이 없으므로 배포 용량을 별도로 확보해야 한다.
   maxReplicas: 4
   metrics:
     - type: Resource

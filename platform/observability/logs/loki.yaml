@@ -1,0 +1,148 @@
+# Loki chart 7.3.0 / image 3.6.11. stage/prod 환경 파일과 함께 사용한다.
+# Argo CD 최초 수동 sync 전 logs-runtime ConfigMap의 LOKI_S3_BUCKET과
+# loki-sa의 실제 IRSA ARN, System 용량 검증이 준비되어야 한다.
+deploymentMode: SingleBinary
+loki:
+  image:
+    tag: 3.6.11
+  auth_enabled: false
+  commonConfig:
+    replication_factor: 1
+  storage:
+    type: s3
+    bucketNames:
+      chunks: ${LOKI_S3_BUCKET}
+      ruler: ${LOKI_S3_BUCKET}
+      admin: ${LOKI_S3_BUCKET}
+    s3:
+      region: ap-northeast-2
+      sse:
+        type: SSE-S3
+  storage_config:
+    # 고정 Loki 버전의 object_prefix 기능으로 chunk/index/삭제 요청 경로를 격리한다.
+    # index.prefix만 바꾸는 것으로는 S3 전체 경로가 격리되지 않는다.
+    # 해당 옵션은 upstream에서 experimental로 표시된다. 버전 변경 시 S3 key 검증 필수.
+    object_prefix: loki/
+  schemaConfig:
+    configs:
+      - from: '2026-01-01'
+        store: tsdb
+        object_store: s3
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+  structuredConfig:
+    # rules sidecar가 만든 파일은 /rules에서 읽는다. S3의 별도 rules/ 경로를 사용하지 않는다.
+    ruler:
+      storage:
+        type: local
+        local:
+          directory: /rules
+    analytics:
+      reporting_enabled: false
+    compactor:
+      working_directory: /var/loki/compactor
+      retention_enabled: true
+      delete_request_store: s3
+    limits_config:
+      allow_structured_metadata: true
+    ingester:
+      wal:
+        enabled: true
+        dir: /var/loki/wal
+        # 1Gi 요청량보다 충분히 작게 시작한다. 전체 메모리 상한이 아닌 replay 기준이다.
+        replay_memory_ceiling: 256MB
+singleBinary:
+  replicas: 1
+  nodeSelector:
+    workload-type: system
+  podLabels:
+    observability.jangingmall.io/storage: "true"
+  affinity:
+    # Prometheus는 large에 배치하므로 Loki는 medium을 우선 사용한다.
+    # 강제가 아니며 PVC의 AZ/가용 자원에 따라 large에 배치될 수도 있다.
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: node.kubernetes.io/instance-type
+                operator: In
+                values: [t3.medium]
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchLabels:
+                observability.jangingmall.io/storage: "true"
+  extraArgs:
+    - -config.expand-env=true
+  extraEnv:
+    - name: LOKI_S3_BUCKET
+      valueFrom:
+        configMapKeyRef:
+          name: logs-runtime
+          key: LOKI_S3_BUCKET
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      memory: 1536Mi
+  persistence:
+    enabled: true
+    storageClass: gp3-monitoring
+    size: 10Gi
+    enableStatefulSetAutoDeletePVC: false
+    whenDeleted: Retain
+    whenScaled: Retain
+serviceAccount:
+  name: loki-sa
+  # TODO(인프라 인계 후): eks.amazonaws.com/role-arn을 환경별 실제 ARN으로 채운다.
+  # 권한: 해당 환경 버킷의 loki/*만 Get/Put/Delete, ListBucket도 loki/ prefix로 제한.
+  annotations: {}
+read:
+  replicas: 0
+write:
+  replicas: 0
+backend:
+  replicas: 0
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false
+lokiCanary:
+  enabled: false
+test:
+  enabled: false
+gateway:
+  # 사용자 결정에 따라 gateway 유지. Alloy/Grafana는 이 내부 Service를 사용한다.
+  enabled: true
+  replicas: 1
+  nodeSelector:
+    workload-type: system
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+sidecar:
+  # rules 보조 컨테이너 유지. Secret 전체 조회는 필요 없으므로 ConfigMap만 감시한다.
+  rules:
+    enabled: true
+    resource: configmap
+    searchNamespace: monitoring
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+# chart 기본 ClusterRole 대신 monitoring 안으로 범위를 좁힌다.
+# chart Role은 뒤쪽 observability-assets source의 ConfigMap 전용 Role로 대체한다.
+rbac:
+  namespaced: true

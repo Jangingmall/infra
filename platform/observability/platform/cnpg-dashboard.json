@@ -1,0 +1,642 @@
+{
+  "uid": "janging-cnpg",
+  "title": "CloudNativePG 상태",
+  "description": "고정 버전의 기본 메트릭. 실제 EKS 검증 전이며 No data를 정상 상태로 바꾸지 않습니다.",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "tags": [
+    "cnpg",
+    "platform"
+  ],
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "refresh": "30s",
+  "panels": [
+    {
+      "title": "PostgreSQL 응답 상태",
+      "type": "stat",
+      "description": "1이면 DB exporter가 PostgreSQL에 연결 가능, 0이면 연결 불가. Prometheus 수집 상태와 구분합니다. 현재 값을 표시합니다.",
+      "targets": [
+        {
+          "expr": "max by (namespace,pod) (cnpg_collector_up{job=\"cnpg\",namespace=\"database\",cnpg_cluster=\"jangingmall-postgres\"})",
+          "legendFormat": "{{pod}}",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "연결 불가",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "연결 가능",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "text": {
+          "titleSize": 14,
+          "valueSize": 24
+        },
+        "wideLayout": false
+      },
+      "id": 1,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "Primary · Replica 역할",
+      "type": "stat",
+      "description": "0=Primary, 1=복구 모드(Replica). 실제 쓰기 서비스 연결과 복구 가능성은 별도 검증합니다. 현재 값을 표시합니다.",
+      "targets": [
+        {
+          "expr": "max by (namespace,pod) (cnpg_pg_replication_in_recovery{job=\"cnpg\",namespace=\"database\",cnpg_cluster=\"jangingmall-postgres\"})",
+          "legendFormat": "{{pod}}",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Primary",
+                  "color": "green"
+                },
+                "1": {
+                  "text": "Replica",
+                  "color": "blue"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "text": {
+          "titleSize": 14,
+          "valueSize": 24
+        },
+        "wideLayout": false
+      },
+      "id": 2,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "DB 연결 수",
+      "type": "timeseries",
+      "description": "Pod별 기본 backends 쿼리의 상태/DB/사용자별 연결을 합산합니다.",
+      "targets": [
+        {
+          "expr": "sum by (namespace,pod) (cnpg_backends_total{job=\"cnpg\",namespace=\"database\",cnpg_cluster=\"jangingmall-postgres\"})",
+          "legendFormat": "{{pod}}",
+          "refId": "A",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "id": 3,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "DB 연결 상한 대비 사용률",
+      "type": "timeseries",
+      "description": "실제 max_connections 설정 대비 사용률입니다. 예약된 관리자 연결을 제외한 앱 가용 연결 수와는 다릅니다.",
+      "targets": [
+        {
+          "expr": "100 * (sum by (namespace,pod) (cnpg_backends_total{job=\"cnpg\",namespace=\"database\",cnpg_cluster=\"jangingmall-postgres\"})) / on (namespace,pod) max by (namespace,pod) (cnpg_pg_settings_setting{job=\"cnpg\",namespace=\"database\",cnpg_cluster=\"jangingmall-postgres\",name=\"max_connections\"})",
+          "legendFormat": "{{pod}}",
+          "refId": "A",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "id": 4,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "Replica 재생 지연",
+      "type": "timeseries",
+      "description": "CNPG 기본 SQL이 계산하는 지연(초)입니다. 쓰기 부하/유휴 상태에 따라 해석하고 WAL receiver 상태도 함께 확인합니다.",
+      "targets": [
+        {
+          "expr": "max by (namespace,pod) (cnpg_pg_replication_lag{job=\"cnpg\",namespace=\"database\",cnpg_cluster=\"jangingmall-postgres\"})",
+          "legendFormat": "{{pod}}",
+          "refId": "A",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "id": 5,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "연결된 Streaming Replica",
+      "type": "timeseries",
+      "description": "각 Pod에 연결된 복제 수입니다. Primary는 보통 2, Replica는 0이며 장애/재구성 시 달라집니다.",
+      "targets": [
+        {
+          "expr": "max by (namespace,pod) (cnpg_pg_replication_streaming_replicas{job=\"cnpg\",namespace=\"database\",cnpg_cluster=\"jangingmall-postgres\"})",
+          "legendFormat": "{{pod}}",
+          "refId": "A",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "id": 6,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "트랜잭션 Commit · Rollback",
+      "type": "timeseries",
+      "description": "DB별 초당 처리량. Rollback에는 앱의 정상적인 취소도 포함되므로 전체를 서버 오류로 해석하지 않습니다.",
+      "targets": [
+        {
+          "expr": "sum by (pod,datname) (rate(cnpg_pg_stat_database_xact_commit{job=\"cnpg\",namespace=\"database\",cnpg_cluster=\"jangingmall-postgres\"}[5m]))",
+          "legendFormat": "{{pod}} / {{datname}} commit",
+          "refId": "A",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        },
+        {
+          "expr": "sum by (pod,datname) (rate(cnpg_pg_stat_database_xact_rollback{job=\"cnpg\",namespace=\"database\",cnpg_cluster=\"jangingmall-postgres\"}[5m]))",
+          "legendFormat": "{{pod}} / {{datname}} rollback",
+          "refId": "B",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "id": 7,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "교착 상태 발생 (15분)",
+      "type": "timeseries",
+      "description": "PostgreSQL deadlock 누적 카운터의 증가량입니다.",
+      "targets": [
+        {
+          "expr": "sum by (pod,datname) (increase(cnpg_pg_stat_database_deadlocks{job=\"cnpg\",namespace=\"database\",cnpg_cluster=\"jangingmall-postgres\"}[15m]))",
+          "legendFormat": "{{pod}} / {{datname}}",
+          "refId": "A",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "id": 8,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "WAL 디스크 사용량",
+      "type": "timeseries",
+      "description": "pg_wal 디렉터리의 바이트 수입니다. WAL 생성 속도나 S3 백업 크기를 뜻하지 않습니다.",
+      "targets": [
+        {
+          "expr": "max by (pod) (cnpg_collector_pg_wal{job=\"cnpg\",namespace=\"database\",cnpg_cluster=\"jangingmall-postgres\",value=\"size\"})",
+          "legendFormat": "{{pod}}",
+          "refId": "A",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "id": 9,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "CNPG PVC 사용률",
+      "type": "timeseries",
+      "description": "kubelet이 제공하는 볼륨 사용량입니다. CNPG DB 크기와 WAL·파일 시스템 여유는 다를 수 있습니다.",
+      "targets": [
+        {
+          "expr": "100 * max by (namespace,persistentvolumeclaim) (kubelet_volume_stats_used_bytes{namespace=\"database\",persistentvolumeclaim=~\"jangingmall-postgres-[0-9]+(-.*)?\"}) / max by (namespace,persistentvolumeclaim) (kubelet_volume_stats_capacity_bytes{namespace=\"database\",persistentvolumeclaim=~\"jangingmall-postgres-[0-9]+(-.*)?\"})",
+          "legendFormat": "{{persistentvolumeclaim}}",
+          "refId": "A",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "id": 10,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "기본 SQL 메트릭 수집 오류",
+      "type": "stat",
+      "description": "cnpg_last_error는 기본/custom SQL 쿼리 오류, collector_last_collection_error는 내부 collector 오류입니다. 값 1이면 실패입니다. 현재 값을 표시합니다.",
+      "targets": [
+        {
+          "expr": "max by (namespace,pod) (cnpg_last_error{job=\"cnpg\",namespace=\"database\",cnpg_cluster=\"jangingmall-postgres\"})",
+          "legendFormat": "{{pod}} SQL",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        },
+        {
+          "expr": "max by (namespace,pod) (cnpg_collector_last_collection_error{job=\"cnpg\",namespace=\"database\",cnpg_cluster=\"jangingmall-postgres\"})",
+          "legendFormat": "{{pod}} collector",
+          "refId": "B",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "오류 없음",
+                  "color": "green"
+                },
+                "1": {
+                  "text": "수집 오류",
+                  "color": "red"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "text": {
+          "titleSize": 14,
+          "valueSize": 24
+        },
+        "wideLayout": false
+      },
+      "id": 11,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 40,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "CNPG 수집 Endpoint 상태",
+      "type": "stat",
+      "description": "Prometheus가 실제로 scrape했는지 확인합니다. DB 3개와 Operator를 구분합니다. 없는 대상을 성공값 0/1로 채우지 않습니다. 현재 값을 표시합니다.",
+      "targets": [
+        {
+          "expr": "up{job=~\"cnpg|cnpg-operator\"}",
+          "legendFormat": "{{job}} / {{pod}}",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "수집 실패",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "수집 성공",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "text": {
+          "titleSize": 14,
+          "valueSize": 24
+        },
+        "wideLayout": false
+      },
+      "id": 12,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 40,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "백업 실행·복원 검증 상태",
+      "type": "text",
+      "options": {
+        "mode": "markdown",
+        "content": "Barman Cloud plugin 기반 **S3 백업 설정은 작성되었으며 기본 비활성**입니다. 실제 버킷·IRSA 연결, 백업·복원 검증은 남아 있습니다.\n\nCNPG 1.30의 기존 backup timestamp 지표는 deprecated이므로 새 대시보드 기준으로 사용하지 않았습니다. 백업 활성화 후 플러그인의 실제 수집 지표를 확인하여 성공·실패·마지막 성공 시각과 Restore 증거를 연결합니다. **메트릭이 없거나 WAL 사용량이 보인다고 백업 성공을 뜻하지 않습니다.**"
+      },
+      "id": 13,
+      "gridPos": {
+        "x": 0,
+        "y": 48,
+        "w": 24,
+        "h": 5
+      }
+    }
+  ]
+}

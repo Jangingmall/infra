@@ -236,3 +236,101 @@ output "ecr_registry_id" {
 output "irsa_role_arns" {
   value = { for k, m in module.irsa : k => m.role_arn }
 }
+# ------------------------------------------------------------
+# ⑦ 노드그룹
+# ------------------------------------------------------------
+
+output "nodes_role_arn" {
+  description = "노드 IAM 역할 ARN. ⑧ 에서 정책 추가·access entry 확인에 쓴다."
+  value       = module.eks_nodes.node_role_arn
+}
+
+output "nodes_group_names" {
+  description = "생성된 노드그룹 이름 목록 (인계 문서 재료)"
+  value       = module.eks_nodes.node_group_names
+}
+
+output "nodes_autoscaling_group_names" {
+  description = "노드그룹 키 → AutoScaling 그룹 이름. 10/1~10/4 노드 내리기 때 대상 확인용."
+  value       = module.eks_nodes.autoscaling_group_names
+}
+
+output "nodes_gpu_scale_up_hint" {
+  description = "GPU 기동 절차 안내. terraform output nodes_gpu_scale_up_hint 로 확인."
+  value       = module.eks_nodes.gpu_scale_up_hint
+}
+
+# ------------------------------------------------------------
+# ⑧ EKS 애드온
+# ------------------------------------------------------------
+
+output "addons_installed" {
+  description = "설치된 애드온 목록 (인계 문서 재료)"
+  value       = module.eks_addons.installed_addons
+}
+
+output "addons_network_policy_enabled" {
+  description = <<-EOT
+    NetworkPolicy 시행 설정값.
+    🔴 true 여도 "설정"일 뿐입니다. 실제 차단은 노드에서 확인하세요 (작업 규칙 21):
+       kubectl -n kube-system get ds aws-node -o yaml | grep -i networkpolicy
+  EOT
+  value       = module.eks_addons.network_policy_enabled
+}
+
+output "addons_ebs_csi_installed" {
+  description = "🔴 false 면 CNPG PVC 가 Pending 에서 멈춥니다 (IRSA 머지 후 true 로)."
+  value       = module.eks_addons.ebs_csi_installed
+}
+
+# ------------------------------------------------------------
+# s3-images / CloudFront
+# ------------------------------------------------------------
+
+output "images_bucket_id" {
+  description = "images 버킷 이름"
+  value       = module.s3_images.bucket_id
+}
+
+output "images_bucket_arn" {
+  description = "images 버킷 ARN"
+  value       = module.s3_images.bucket_arn
+}
+
+output "images_cloudfront_domain_name" {
+  description = "BE(image-base-url)이 Parameter Store에서 참조하는 CloudFront 배포 도메인"
+  value       = module.cloudfront_images.distribution_domain_name
+}
+
+output "images_cloudfront_distribution_id" {
+  description = "CloudFront 배포 ID (캐시 무효화 등에 사용)"
+  value       = module.cloudfront_images.distribution_id
+}
+
+
+# ⑩ EDGE — 실환경 생성 후 네이티브 담당자에게 전달한다.
+output "alb_arn" {
+  description = "환경별 ALB ARN"
+  value       = module.alb.alb_arn
+}
+
+output "alb_dns_name" {
+  value = module.alb.alb_dns_name
+}
+
+output "alb_certificate_arn" {
+  value = module.acm_alb.certificate_arn
+}
+
+output "waf_web_acl_arn" {
+  value = module.waf.web_acl_arn
+}
+
+output "backend_networking" {
+  description = "platform/networking/{stage,prod}.yaml 인계값. Controller/IRSA/CRD 확인 후 enabled=true 및 수동 Sync는 네이티브 담당."
+  value = {
+    targetGroupARN = module.alb.target_group_arn
+    vpcID          = module.network.vpc_id
+    albSourceCidrs = [for az in var.vpc_az_suffixes : var.vpc_subnet_cidrs.public[az]]
+  }
+}

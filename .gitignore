@@ -99,3 +99,25 @@ kubeconfig
 
 # AI Secret 공급 운영 문서는 코드와 함께 관리한다.
 !k8s/components/ai-vector-db-secrets/README.md
+
+# 관측성 배치 전 용량 산정 근거
+!platform/observability/capacity.md
+!platform/observability/sizing/README.md
+
+!platform/observability/metrics/README.md
+
+!platform/observability/logs/README.md
+
+!platform/observability/backend/README.md
+!platform/observability/gpu/README.md
+!platform/observability/traces/README.md
+!platform/observability/platform/README.md
+!platform/observability/alerts/README.md
+!k8s/base/backend/README.md
+
+!platform/observability/README.md
+!platform/observability/tempo/README.md
+
+!platform/networking/README.md
+!k8s/base/redis/README.md
+!platform/cnpg-backup/README.md

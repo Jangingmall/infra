@@ -1,0 +1,35 @@
+# Events는 노드마다 수집하지 않는다. 단일 Deployment + Recreate로 rollout 중 겹침도 방지한다.
+# Kubernetes Events 자체의 갱신/재시작 재조회로 같은 사건이 여러 줄 남을 수 있다. exactly-once가 아니다.
+image:
+  tag: v1.19.2
+crds:
+  create: false
+controller:
+  type: deployment
+  replicas: 1
+  updateStrategy:
+    type: Recreate
+  nodeSelector:
+    workload-type: system
+alloy:
+  enableReporting: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+rbac:
+  create: true
+  namespaces: [app, ai, database, argocd, argo-rollouts, cnpg-system, kube-system, monitoring]
+  rules:
+    - apiGroups: ['']
+      resources: [events]
+      verbs: [get, list, watch]
+configReloader:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 50Mi
+    limits:
+      memory: 100Mi

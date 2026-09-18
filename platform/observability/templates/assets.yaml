@@ -1,0 +1,59 @@
+{{- if not (has .Values.bundle (list "metrics" "loki" "alloy-pods" "alloy-events" "tempo")) }}
+{{- fail "bundle must be metrics, loki, alloy-pods, alloy-events or tempo" }}
+{{- end }}
+{{- if not (has .Values.environment (list "stage" "prod")) }}
+{{- fail "environment must be stage or prod" }}
+{{- end }}
+{{- if eq .Values.bundle "metrics" }}
+{{- range $name, $file := dict "backend" "backend/dashboard.json" "gpu" "gpu/dashboard.json" "cnpg" "platform/cnpg-dashboard.json" "argo" "platform/argo-dashboard.json" }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: metrics-dashboard-{{ $name }}
+  namespace: {{ $.Release.Namespace }}
+data:
+  {{ $name }}.json: |
+{{ $.Files.Get $file | indent 4 }}
+{{- end }}
+{{- if .Values.discord.enabled }}
+---
+{{ .Files.Get (printf "alerts/discord/%s/secret-provider.yaml" .Values.environment) }}
+{{- end }}
+{{- end }}
+{{- if has .Values.bundle (list "alloy-pods" "alloy-events") }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.bundle }}-config
+  namespace: {{ .Release.Namespace }}
+data:
+  config.alloy: |
+{{ .Files.Get (printf "logs/%s.alloy" (trimPrefix "alloy-" .Values.bundle)) | indent 4 }}
+{{ .Files.Get "collectors/log-buffer.alloy" | indent 4 }}
+{{- end }}
+{{- if eq .Values.bundle "loki" }}
+---
+# Loki chart 7.3.0의 동일 이름 Role을 뒤쪽 Git source로 대체한다.
+# chart의 rules sidecar와 RoleBinding은 유지하고 불필요한 Secret 조회 권한만 제외한다.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: loki
+  namespace: {{ .Release.Namespace }}
+rules:
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [get, watch, list]
+{{- if .Values.lokiBucket }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logs-runtime
+  namespace: {{ .Release.Namespace }}
+data:
+  LOKI_S3_BUCKET: {{ .Values.lokiBucket | quote }}
+{{- end }}
+{{- end }}

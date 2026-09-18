@@ -1,0 +1,6 @@
+# 인프라가 생성한 TG/VPC와 ALB 출발지 범위를 받은 뒤 켜고 수동 Sync한다.
+enabled: false
+targetGroupARN: ""
+vpcID: ""
+# 실제 ALB subnet CIDR. 사용자 IP/NAT EIP/전체 VPC를 대신 넣지 않는다.
+albSourceCidrs: []

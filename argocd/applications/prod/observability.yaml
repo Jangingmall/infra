@@ -1,0 +1,335 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prod-observability-storage
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: observability
+spec:
+  project: prod-observability
+  sources:
+  - repoURL: https://github.com/Jangingmall/infra.git
+    targetRevision: main
+    path: platform/observability/metrics
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      enabled: false
+      prune: false
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+    - ServerSideApply=true
+    - FailOnSharedResource=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prod-observability-metrics
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: observability
+spec:
+  project: prod-observability
+  sources:
+  - repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: 91.4.1
+    helm:
+      releaseName: metrics
+      valueFiles:
+      - "$values/platform/observability/metrics/values.yaml"
+      - "$values/platform/observability/metrics/prod.yaml"
+      - "$values/platform/observability/runtime/prod.yaml"
+      skipTests: true
+  - repoURL: https://github.com/Jangingmall/infra.git
+    targetRevision: main
+    path: platform/observability
+    ref: values
+    helm:
+      releaseName: metrics-assets
+      valueFiles:
+      - runtime/prod.yaml
+      valuesObject:
+        bundle: metrics
+        environment: prod
+      skipTests: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      enabled: false
+      prune: false
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+    - ServerSideApply=true
+    - FailOnSharedResource=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prod-observability-loki
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: observability
+spec:
+  project: prod-observability
+  sources:
+  - repoURL: https://grafana.github.io/helm-charts
+    chart: loki
+    targetRevision: 7.3.0
+    helm:
+      releaseName: loki
+      valueFiles:
+      - "$values/platform/observability/logs/loki.yaml"
+      - "$values/platform/observability/logs/prod.yaml"
+      - "$values/platform/observability/runtime/prod.yaml"
+      skipTests: true
+  - repoURL: https://github.com/Jangingmall/infra.git
+    targetRevision: main
+    path: platform/observability
+    ref: values
+    helm:
+      releaseName: loki-assets
+      valueFiles:
+      - runtime/prod.yaml
+      valuesObject:
+        bundle: loki
+        environment: prod
+      skipTests: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      enabled: false
+      prune: false
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+    - ServerSideApply=true
+    - FailOnSharedResource=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prod-observability-alloy-pods
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: observability
+spec:
+  project: prod-observability
+  sources:
+  - repoURL: https://grafana.github.io/helm-charts
+    chart: alloy
+    targetRevision: 1.12.1
+    helm:
+      releaseName: alloy-pods
+      valueFiles:
+      - "$values/platform/observability/logs/alloy-pods.yaml"
+      valuesObject:
+        alloy:
+          configMap:
+            create: false
+            name: alloy-pods-config
+          extraEnv:
+          - name: OBS_ENV
+            value: prod
+          - name: LOKI_PUSH_URL
+            value: http://loki-gateway.monitoring.svc/loki/api/v1/push
+      skipTests: true
+  - repoURL: https://github.com/Jangingmall/infra.git
+    targetRevision: main
+    path: platform/observability
+    ref: values
+    helm:
+      releaseName: alloy-pods-assets
+      valueFiles:
+      - runtime/prod.yaml
+      valuesObject:
+        bundle: alloy-pods
+        environment: prod
+      skipTests: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      enabled: false
+      prune: false
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+    - ServerSideApply=true
+    - FailOnSharedResource=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prod-observability-alloy-events
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: observability
+spec:
+  project: prod-observability
+  sources:
+  - repoURL: https://grafana.github.io/helm-charts
+    chart: alloy
+    targetRevision: 1.12.1
+    helm:
+      releaseName: alloy-events
+      valueFiles:
+      - "$values/platform/observability/logs/alloy-events.yaml"
+      valuesObject:
+        alloy:
+          configMap:
+            create: false
+            name: alloy-events-config
+          extraEnv:
+          - name: OBS_ENV
+            value: prod
+          - name: LOKI_PUSH_URL
+            value: http://loki-gateway.monitoring.svc/loki/api/v1/push
+      skipTests: true
+  - repoURL: https://github.com/Jangingmall/infra.git
+    targetRevision: main
+    path: platform/observability
+    ref: values
+    helm:
+      releaseName: alloy-events-assets
+      valueFiles:
+      - runtime/prod.yaml
+      valuesObject:
+        bundle: alloy-events
+        environment: prod
+      skipTests: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      enabled: false
+      prune: false
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+    - ServerSideApply=true
+    - FailOnSharedResource=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prod-observability-targets
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: observability
+spec:
+  project: prod-observability
+  sources:
+  - repoURL: https://github.com/Jangingmall/infra.git
+    targetRevision: main
+    path: platform/observability/targets
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      enabled: false
+      prune: false
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+    - ServerSideApply=true
+    - FailOnSharedResource=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prod-observability-gpu
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: observability
+spec:
+  project: prod-observability
+  sources:
+  - repoURL: https://nvidia.github.io/dcgm-exporter/helm-charts
+    chart: dcgm-exporter
+    targetRevision: 4.8.3
+    helm:
+      releaseName: dcgm-exporter
+      valueFiles:
+      - "$values/platform/observability/gpu/values.yaml"
+      skipTests: true
+  - repoURL: https://github.com/Jangingmall/infra.git
+    targetRevision: main
+    path: platform/observability/gpu/policies
+    ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      enabled: false
+      prune: false
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+    - ServerSideApply=true
+    - FailOnSharedResource=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prod-observability-ai-metrics
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: observability
+spec:
+  project: prod-observability
+  sources:
+  - repoURL: https://github.com/Jangingmall/infra.git
+    targetRevision: main
+    path: platform/observability/ai-metrics
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      enabled: false
+      prune: false
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+    - ServerSideApply=true
+    - FailOnSharedResource=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prod-observability-traces
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: observability
+spec:
+  project: prod-observability
+  sources:
+  - repoURL: https://github.com/Jangingmall/infra.git
+    targetRevision: main
+    path: platform/observability/traces/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      enabled: false
+      prune: false
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+    - ServerSideApply=true
+    - FailOnSharedResource=true

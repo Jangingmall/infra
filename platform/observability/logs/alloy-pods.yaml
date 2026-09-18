@@ -1,0 +1,53 @@
+# Alloy chart 1.12.1 / v1.19.2. configMap.content는 render-logs.sh가 원본 파일을 결합해 제공한다.
+image:
+  tag: v1.19.2
+crds:
+  create: false
+controller:
+  type: daemonset
+  nodeSelector:
+    kubernetes.io/os: linux
+  tolerations:
+    - operator: Exists
+      effect: NoSchedule
+  volumes:
+    extra:
+      # 읽은 위치를 같은 노드의 Pod 재시작 후에도 유지한다. 노드 교체 시에는 유실된다.
+      - name: positions
+        hostPath:
+          path: /var/lib/alloy-pod-logs
+          type: DirectoryOrCreate
+alloy:
+  enableReporting: false
+  storagePath: /var/lib/alloy
+  mounts:
+    varlog: true
+    extra:
+      - name: positions
+        mountPath: /var/lib/alloy
+  securityContext:
+    # containerd 로그 파일을 읽기 위한 root. privileged/hostPID는 사용하지 않는다.
+    runAsUser: 0
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: [ALL]
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+rbac:
+  create: true
+  namespaces: [app, ai, database, argocd, argo-rollouts, cnpg-system, kube-system, monitoring]
+  rules:
+    - apiGroups: ['']
+      resources: [pods]
+      verbs: [get, list, watch]
+configReloader:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 50Mi
+    limits:
+      memory: 100Mi

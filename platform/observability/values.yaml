@@ -1,0 +1,8 @@
+# 외부 chart와 같은 Application에서 함께 렌더링하는 파일 리소스다. 추가 Pod는 없다.
+bundle: ""
+environment: ""
+discord:
+  enabled: false
+lokiBucket: ""
+tempoBucket: ""
+tempoEgressCidrs: []

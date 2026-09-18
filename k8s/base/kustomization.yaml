@@ -7,3 +7,4 @@ resources:
   - backend
   - database
   - ai
+  - redis
