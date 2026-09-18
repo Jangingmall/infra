@@ -10,7 +10,12 @@ module "s3_returns" {
 
   logging_target_bucket = module.s3_access.bucket_id
 
-  # lifecycle 없음
+  lifecycle_rules = [
+    {
+      id              = "returns-expire"
+      expiration_days = 30
+    },
+  ]
 }
 
 resource "aws_s3_bucket_policy" "returns" {
