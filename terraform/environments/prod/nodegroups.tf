@@ -22,7 +22,8 @@ module "eks_nodes" {
   # 🔴 노드는 app(private) 서브넷에만 둡니다.
   #    public 에 두면 노드가 공인 IP 를 갖게 되어 인터넷에서 직접 닿습니다.
   #    아웃바운드는 ⑤ NAT Gateway 로 나갑니다.
-  subnet_ids = module.network.app_subnet_ids
+  # NAT와 같은 AZ의 app 서브넷만 사용한다(기본 AZ-a).
+  subnet_ids = [module.network.app_subnet_ids_by_az[var.nat_gateway_az]]
 
   node_groups                 = var.nodes_groups
   node_role_extra_policy_arns = var.nodes_extra_policy_arns

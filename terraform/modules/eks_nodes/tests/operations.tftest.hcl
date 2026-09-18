@@ -1,0 +1,207 @@
+mock_provider "aws" {
+  mock_data "aws_default_tags" {
+    defaults = { tags = { Project = "jangin", Environment = "staging", ManagedBy = "Terraform" } }
+  }
+  mock_data "aws_iam_policy_document" {
+    defaults = { json = "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":\"sts:AssumeRole\",\"Principal\":{\"Service\":\"ec2.amazonaws.com\"}}]}" }
+  }
+  mock_resource "aws_iam_role" {
+    defaults = { arn = "arn:aws:iam::123456789012:role/review-node" }
+  }
+  mock_resource "aws_launch_template" {
+    defaults = { id = "lt-0123456789abcdef0", latest_version = 1 }
+  }
+}
+
+variables {
+  project                     = "jangin"
+  env                         = "staging"
+  cluster_name                = "review-cluster"
+  cluster_version             = "1.35"
+  subnet_ids                  = ["subnet-0123456789abcdef0"]
+  node_role_extra_policy_arns = []
+  ssh_key_name                = null
+}
+run "db_running_and_instance_volume_tags" {
+  command = plan
+  variables {
+    node_groups = {
+      test = {
+        enabled       = true
+        instance_type = "t3.small"
+        ami_type      = "AL2023_x86_64_STANDARD"
+        desired_size  = 3
+        min_size      = 3
+        max_size      = 3
+        capacity_type = "ON_DEMAND"
+        disk_size     = 30
+        labels        = { "workload-type" = "db" }
+        taints        = []
+      }
+    }
+  }
+
+  assert {
+    condition = alltrue([
+      for kind in ["instance", "volume"] :
+      { for spec in aws_launch_template.node["test"].tag_specifications : spec.resource_type => spec.tags }[kind]["NodePool"] == "db"
+      && { for spec in aws_launch_template.node["test"].tag_specifications : spec.resource_type => spec.tags }[kind]["Project"] == "jangin"
+      && { for spec in aws_launch_template.node["test"].tag_specifications : spec.resource_type => spec.tags }[kind]["Environment"] == "staging"
+    ])
+    error_message = "Instance and EBS tags must include NodePool and provider default tags."
+  }
+  assert {
+    condition     = one(aws_launch_template.node["test"].block_device_mappings).ebs[0].volume_size == 30 && one(aws_launch_template.node["test"].block_device_mappings).ebs[0].encrypted
+    error_message = "Root disk size must be preserved and encrypted."
+  }
+}
+run "db_full_shutdown_allowed" {
+  command = plan
+  variables {
+    node_groups = {
+      test = {
+        enabled       = true
+        instance_type = "t3.small"
+        ami_type      = "AL2023_x86_64_STANDARD"
+        desired_size  = 0
+        min_size      = 0
+        max_size      = 3
+        capacity_type = "ON_DEMAND"
+        disk_size     = 30
+        labels        = { "workload-type" = "db" }
+        taints        = []
+      }
+    }
+  }
+
+
+}
+run "db_one_node_rejected" {
+  command = plan
+  variables {
+    node_groups = {
+      test = {
+        enabled       = true
+        instance_type = "t3.small"
+        ami_type      = "AL2023_x86_64_STANDARD"
+        desired_size  = 1
+        min_size      = 1
+        max_size      = 3
+        capacity_type = "ON_DEMAND"
+        disk_size     = 30
+        labels        = { "workload-type" = "db" }
+        taints        = []
+      }
+    }
+  }
+  expect_failures = [aws_eks_node_group.this]
+
+}
+run "db_two_nodes_rejected" {
+  command = plan
+  variables {
+    node_groups = {
+      test = {
+        enabled       = true
+        instance_type = "t3.small"
+        ami_type      = "AL2023_x86_64_STANDARD"
+        desired_size  = 2
+        min_size      = 2
+        max_size      = 3
+        capacity_type = "ON_DEMAND"
+        disk_size     = 30
+        labels        = { "workload-type" = "db" }
+        taints        = []
+      }
+    }
+  }
+  expect_failures = [aws_eks_node_group.this]
+
+}
+run "db_running_with_zero_min_rejected" {
+  command = plan
+  variables {
+    node_groups = {
+      test = {
+        enabled       = true
+        instance_type = "t3.small"
+        ami_type      = "AL2023_x86_64_STANDARD"
+        desired_size  = 3
+        min_size      = 0
+        max_size      = 3
+        capacity_type = "ON_DEMAND"
+        disk_size     = 30
+        labels        = { "workload-type" = "db" }
+        taints        = []
+      }
+    }
+  }
+  expect_failures = [aws_eks_node_group.this]
+
+}
+run "db_spot_rejected" {
+  command = plan
+  variables {
+    node_groups = {
+      test = {
+        enabled       = true
+        instance_type = "t3.small"
+        ami_type      = "AL2023_x86_64_STANDARD"
+        desired_size  = 3
+        min_size      = 3
+        max_size      = 3
+        capacity_type = "SPOT"
+        disk_size     = 30
+        labels        = { "workload-type" = "db" }
+        taints        = []
+      }
+    }
+  }
+  expect_failures = [aws_eks_node_group.this]
+
+}
+run "invalid_scaling_rejected" {
+  command = plan
+  variables {
+    node_groups = {
+      test = {
+        enabled       = true
+        instance_type = "t3.small"
+        ami_type      = "AL2023_x86_64_STANDARD"
+        desired_size  = 4
+        min_size      = 3
+        max_size      = 3
+        capacity_type = "ON_DEMAND"
+        disk_size     = 30
+        labels        = { "workload-type" = "db" }
+        taints        = []
+      }
+    }
+  }
+  expect_failures = [aws_eks_node_group.this]
+
+}
+run "gpu_cost_tags" {
+  command = plan
+  variables {
+    node_groups = {
+      test = {
+        enabled       = true
+        instance_type = "t3.small"
+        ami_type      = "AL2023_x86_64_STANDARD"
+        desired_size  = 0
+        min_size      = 0
+        max_size      = 1
+        capacity_type = "ON_DEMAND"
+        disk_size     = 30
+        labels        = { "workload-type" = "gpu" }
+        taints        = []
+      }
+    }
+  }
+
+  assert {
+    condition     = alltrue([for spec in aws_launch_template.node["test"].tag_specifications : spec.tags["NodePool"] == "ai"])
+    error_message = "GPU cost tags must use the ai pool."
+  }
+}
