@@ -145,3 +145,20 @@ ecr_repositories = ["jangin-app", "jangin-ai/sglang", "jangin-ai/ollama"]
 
 # ---------- s3-images / CloudFront ----------
 route53_zone_id = "Z0716475DPEIGVH3RV5J"
+
+
+# ---------- ⑩ EDGE: 환경별 API ALB + ACM/DNS + REGIONAL WAF ----------
+alb_domain_name = "api.midam.store"
+# route53_zone_id와 같은 Public Hosted Zone을 사용한다(ALB 자체 zone_id와 구분).
+# Hosted Zone ID는 인증정보가 아니며 DNS 변경에는 별도 AWS 인증/IAM 권한이 필요하다.
+alb_zone_id = "Z0716475DPEIGVH3RV5J"
+# 가정: 최초 배포는 기존 Count → Block 절차. count에서는 요청을 차단하지 않는다.
+# 오탐 확인 후 담당자가 block 전환. 두 환경의 모드는 각각 변경할 수 있다.
+waf_rule_mode = "count"
+waf_managed_rule_groups = [
+  { name = "AWSManagedRulesCommonRuleSet", priority = 1 },
+  { name = "AWSManagedRulesSQLiRuleSet", priority = 2 },
+]
+# TODO(BE/파트장): SSE idle timeout 확정 필요(기존 기본60초 유지).
+# apply 후 terraform output -json backend_networking으로 TGB 인계값 확인.
+# 네이티브의 Controller/IRSA/CRD와 TargetGroupBinding 연결 전에는 Backend 트래픽 미연결.
