@@ -8,9 +8,9 @@ variable "github_repo" {
   type        = string
 }
 
-variable "github_subject" {
-  description = "sub 클레임에서 'repo:org/repo:' 뒤에 오는 매칭 패턴 (StringLike 대상). 예: environment:production, environment:staging, * (이 리포의 모든 워크플로 허용)"
-  type        = string
+variable "github_subjects" {
+  description = "sub 클레임 매칭 패턴 목록 (StringLike, OR 조건). 'repo:org/repo:' 뒤에 붙는 부분만 적는다. 예: [\"environment:production\"], [\"ref:refs/heads/main\", \"ref:refs/heads/release/*\"]. '*' 단독 사용 금지 — PR 워크플로까지 전부 허용되어 위험."
+  type        = list(string)
 }
 
 variable "name_suffix" {

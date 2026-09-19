@@ -14,7 +14,7 @@ module "github_oidc" {
 
   github_org     = "Jangingmall"
   github_repo    = "infra"
-  github_subject = "environment:staging"
+  github_subjects = ["environment:staging"]
   name_suffix    = "staging"
 
   policy_arns = [
