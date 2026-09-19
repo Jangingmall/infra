@@ -10,4 +10,6 @@ module "network" {
   subnet_cidrs = var.vpc_subnet_cidrs
 
   cluster_name = var.eks_cluster_name
+
+  flow_log_destination = "${module.s3_logs.bucket_arn}/vpc-flow/"
 }

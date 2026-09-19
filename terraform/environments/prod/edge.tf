@@ -15,6 +15,9 @@ module "waf" {
   scope               = "REGIONAL"
   rule_mode           = var.waf_rule_mode
   managed_rule_groups = var.waf_managed_rule_groups
+
+  # aws_s3_bucket_policy.waf_logs를 직접 참조해 "버킷 정책이 delivery.logs.amazonaws.com을 먼저 허용한 뒤 로깅을 킴
+  log_destination_arn = "arn:aws:s3:::${aws_s3_bucket_policy.waf_logs.bucket}"
 }
 
 module "alb" {

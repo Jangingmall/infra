@@ -9,6 +9,9 @@
 #    provider 는 루트에만 선언하므로 태그도 루트에 있어야 한다.
 # ============================================================
 
+# 서비스(delivery.logs.amazonaws.com) 버킷 정책에서 aws:SourceAccount 조건에 사용
+data "aws_caller_identity" "current" {}
+
 locals {
   # 리소스 이름 접두사. 모듈 밖에서 만드는 리소스가 생기면 쓴다.
   # (현재는 모듈이 각자 같은 식으로 조립한다)
