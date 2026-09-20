@@ -27,6 +27,17 @@ output "node_group_arns" {
   value       = { for k, g in aws_eks_node_group.this : k => g.arn }
 }
 
+output "node_security_group_ids" {
+  description = <<-EOT
+    노드그룹 키 → 실제로 붙은 SG ID 목록.
+
+    🔑 apply 직후 검증 대상입니다. 각 항목의 첫 번째가 클러스터 SG,
+       나머지가 해당 계층 SG 여야 합니다. 클러스터 SG 하나만 있으면
+       security_groups_by_workload_type 매핑이 비어 있다는 뜻입니다.
+  EOT
+  value       = local.node_security_group_ids
+}
+
 output "autoscaling_group_names" {
   description = <<-EOT
     노드그룹 키 → AutoScaling 그룹 이름 map.

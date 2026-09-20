@@ -50,6 +50,40 @@ variable "subnet_ids" {
 }
 
 # ------------------------------------------------------------
+# 보안그룹
+# ------------------------------------------------------------
+variable "cluster_security_group_id" {
+  description = <<-EOT
+    EKS 가 자동 생성한 클러스터 SG (eks-cluster-sg-<클러스터명>).
+    module.eks.cluster_security_group_id 를 넘긴다.
+
+    🔴 이 변수가 존재하는 이유가 이 모듈에서 가장 중요합니다.
+       Launch Template 에 vpc_security_group_ids 를 "하나라도" 지정하면
+       EKS 는 클러스터 SG 를 자동으로 붙여주지 않습니다.
+       이 SG 가 빠지면 노드 ↔ 컨트롤플레인 통신이 막혀
+       노드가 NotReady 에서 영원히 멈춥니다 (조인 자체 실패).
+    → locals.tf 에서 항상 목록 맨 앞에 concat 합니다.
+  EOT
+  type        = string
+}
+
+variable "security_groups_by_workload_type" {
+  description = <<-EOT
+    labels 의 workload-type 값 → 그 노드에 추가로 붙일 SG ID 목록.
+      { system = [...], app = [...], db = [...], gpu = [...] }
+
+    🔑 왜 노드그룹 키(system-md 등)가 아니라 workload-type 으로 묶는가:
+       system-md 와 system-lg 는 인스턴스 타입만 다르고 역할이 같습니다.
+       라벨을 기준으로 하면 노드그룹을 더 쪼개도 SG 매핑을 고칠 일이 없습니다.
+
+    🔴 여기에 없는 workload-type 이 들어오면 main.tf 의 precondition 이 막습니다.
+       그냥 두면 클러스터 SG 만 붙은 채로 조용히 생성되고,
+       ALB → Pod 트래픽이 "Health checks failed" 로만 나타나 원인 추적이 어렵습니다.
+  EOT
+  type        = map(list(string))
+}
+
+# ------------------------------------------------------------
 # 노드그룹 정의
 # ------------------------------------------------------------
 
