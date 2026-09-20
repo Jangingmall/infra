@@ -58,18 +58,21 @@ validate_chart() {
   local repository="$5"
   local values="$repo_root/$6"
   local chart_dir="$validation_dir/charts/$chart"
+  shift 6
 
   printf '\nValidating %s (chart %s)\n' "$release" "$version"
-  helm pull "$chart" \
-    --repo "$repository" \
-    --version "$version" \
-    --untar --untardir "$validation_dir/charts" \
-    --repository-cache "$validation_dir/helm-cache" \
-    --repository-config "$validation_dir/repositories.yaml"
+  if [[ ! -d "$chart_dir" ]]; then
+    helm pull "$chart" \
+      --repo "$repository" \
+      --version "$version" \
+      --untar --untardir "$validation_dir/charts" \
+      --repository-cache "$validation_dir/helm-cache" \
+      --repository-config "$validation_dir/repositories.yaml"
+  fi
 
-  helm lint "$chart_dir" --strict --namespace "$namespace" --values "$values"
+  helm lint "$chart_dir" --strict --namespace "$namespace" --values "$values" "$@"
   helm template "$release" "$chart_dir" \
-    --namespace "$namespace" --values "$values" --include-crds \
+    --namespace "$namespace" --values "$values" --include-crds "$@" \
     > "$validation_dir/$release.yaml"
 }
 
@@ -103,6 +106,18 @@ validate_chart plugin-barman-cloud plugin-barman-cloud 0.8.0 cnpg-system \
   platform/cnpg-backup/plugin-values.yaml
 
 ruby "$repo_root/scripts/validate-data-services.rb" "$validation_dir"
+
+for environment in stage prod; do
+  validate_chart aws-load-balancer-controller aws-load-balancer-controller 1.14.0 kube-system \
+    https://aws.github.io/eks-charts platform/aws-load-balancer-controller/values.yaml \
+    --values "$repo_root/platform/aws-load-balancer-controller/runtime/$environment.yaml" \
+    --kube-version 1.35.0
+  cp "$validation_dir/aws-load-balancer-controller.yaml" "$validation_dir/aws-load-balancer-controller-$environment.yaml"
+done
+validate_chart metrics-server metrics-server 3.14.0 kube-system \
+  https://kubernetes-sigs.github.io/metrics-server/ platform/metrics-server/values.yaml \
+  --kube-version 1.35.0
+ruby "$repo_root/scripts/validate-cluster-addons.rb" "$validation_dir"
 
 kubectl kustomize "$repo_root/platform/observability/platform" > "$validation_dir/platform-monitoring.yaml"
 ruby "$repo_root/scripts/validate-platform-monitoring.rb" "$validation_dir"

@@ -11,6 +11,7 @@
 - 현재 overlay는 Backend·DB·AI·Namespace·스토리지를 함께 포함한다. 중복 소유를 피하려고 환경당 `*-workloads` Application 하나가 소유한다.
 - 설계의 기능별 Application 분리는 독립 Kustomize 진입점이 준비될 때 진행한다. 같은 overlay를 Backend/AI Application에 중복 등록하지 않는다.
 - 기존 workloads/platform은 Stage·Prod 모두 PR merge 후 auto-sync/selfHeal을 사용한다. 새 관측성 Application은 선행조건 확인을 위해 최초 수동 sync로 시작한다. Prod 자동 동기화는 Prod 승격 PR 승인 이후에만 변경을 전달한다.
+- ALB Controller·Metrics Server는 `cluster-addons.yaml`에서 별도 수동 Sync로 시작한다. cert-manager 및 실제 AWS 값 준비가 선행한다.
 - Backend Blue/Green 트래픽 승격은 auto-sync와 별개로 운영자가 수행한다.
 
 ## 파일과 소유권
@@ -28,6 +29,8 @@ AppProject는 Argo CD 내부 제한이며 Kubernetes 사용자 RBAC 또는 GitHu
 | cloudnative-pg | chart 0.29.0 + infra/main values | CNPG Operator |
 | argo-rollouts | chart 2.43.1 + infra/main values | Rollouts Controller/CRD |
 | secrets-store-csi | chart 3.1.3 + infra/main values | CSI Driver + AWS Provider |
+| aws-load-balancer-controller | chart 1.14.0 + 공통/환경 runtime values | 기존 ALB TG에 Pod 등록, 최초 수동 Sync |
+| metrics-server | chart 3.14.0 + 공통 values | HPA·kubectl top용 Metrics API, 최초 수동 Sync |
 | backend-networking | platform/networking + 환경별 values | 기존 ALB TargetGroupBinding·수신 정책, 값 준비 후 수동 Sync |
 | workloads | k8s/overlays/stage 또는 prod | Backend·업무 DB·AI·공통 리소스 |
 | observability-* | observability.yaml·tempo.yaml의 chart + Git sources | 환경당 관측성 Application 10개, 최초 수동 sync |
@@ -61,12 +64,13 @@ Namespace/StorageClass를 다른 도구가 이미 관리 중이라면 첫 sync �
 ## 최초 설치 순서
 
 1. 환경 context, EKS와 System/App/DB/GPU 노드 준비 상태를 확인한다.
-2. EBS CSI·NVIDIA Device Plugin·metrics-server·NetworkPolicy enforcement 등 외부 플랫폼 의존성을 준비한다.
+2. EBS CSI·NVIDIA Device Plugin·NetworkPolicy enforcement 등 외부 플랫폼 의존성을 준비한다.
 3. `platform/argocd/README.md`대로 Argo CD를 설치하고 read-only Git credential을 등록한다.
 4. **선택한 환경의 projects.yaml만** 먼저 적용한다.
 5. 해당 환경 platform.yaml을 적용하고 세 Application이 Synced/Healthy가 될 때까지 확인한다. CRD Established와 Controller/DaemonSet 준비도 함께 확인한다.
-6. 실제 이미지 digest, Backend IRSA·SSM, DB Secrets, AI 모델 설정·용량을 확인한다. 이전 작업의 협업 대기 항목이 남아 있으면 중단한다.
-7. 해당 환경 workloads.yaml을 적용한다.
+6. [클러스터 애드온 설치 안내](../platform/cluster-addons.md)에 따라 기존 cert-manager를 먼저 Sync하고, `cluster-addons.yaml`의 Metrics Server·ALB Controller를 등록·수동 Sync한다. ALB의 실제 VPC ID·IRSA를 먼저 반영한다.
+7. 실제 이미지 digest, Backend IRSA·SSM, DB Secrets, AI 모델 설정·용량을 확인한다. 이전 작업의 협업 대기 항목이 남아 있으면 중단한다.
+8. 해당 환경 workloads.yaml을 적용한다. ALB Controller·TGB CRD 준비 후 별도 backend-networking Application을 Sync한다.
 
 예시 (Stage 운영자 절차, 이번 작업에서 실행하지 않음):
 
@@ -77,6 +81,7 @@ kubectl --context '<Stage context>' apply -f argocd/applications/stage/platform.
 argocd app wait stage-cloudnative-pg --sync --health --timeout 600
 argocd app wait stage-argo-rollouts --sync --health --timeout 600
 argocd app wait stage-secrets-store-csi --sync --health --timeout 600
+# platform/cluster-addons.md의 cert-manager → Metrics Server/ALB Controller 절차를 완료한다.
 # 협업 인계와 모든 배포 조건을 확인한 뒤에만 실행
 kubectl --context '<Stage context>' apply -f argocd/applications/stage/workloads.yaml
 ```
