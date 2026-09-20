@@ -8,7 +8,7 @@ if ARGV == ['--help']
   exit
 end
 abort 'Usage: ruby scripts/validate-workload-secrets.rb [repository-root]' if ARGV.length > 1 || ARGV.any? { |v| v.start_with?('-') }
-root = File.expand_path(ARGV.fetch(0, '..'), __dir__)
+root = ARGV.empty? ? File.expand_path('..', __dir__) : File.expand_path(ARGV.fetch(0))
 
 def check(condition, message)
   abort "FAIL: #{message}" unless condition
@@ -91,8 +91,12 @@ bindings = {
     check(resources.sort == expected.map { |path| prefix + path }.sort,
           "#{environment}: #{role} grants extra or cross-environment/account access")
 
-    kms = statements.find { |s| quoted_list(s, 'actions').include?('kms:Decrypt') }
-    check(kms && kms.match?(/resources\s*=\s*\[module\.kms_app\.key_arn\]/) &&
+    kms_statements = statements.select { |s| quoted_list(s, 'actions').any? { |a| a.start_with?('kms:') || a == '*' } }
+    check(kms_statements.size == 1, "#{environment}: #{role} must have exactly one scoped KMS statement")
+    kms = kms_statements.first
+    check(kms.match?(/effect\s*=\s*"Allow"/) && quoted_list(kms, 'actions').include?('kms:Decrypt') &&
+          (quoted_list(kms, 'actions') - %w[kms:Decrypt kms:GenerateDataKey]).empty? &&
+          kms.match?(/resources\s*=\s*\[module\.kms_app\.key_arn\]/) &&
           kms.include?('"kms:ViaService"') && kms.include?('"StringEquals"') &&
           quoted_list(kms, 'values').map { |v| v.gsub('${var.region}', 'ap-northeast-2') } == ['ssm.ap-northeast-2.amazonaws.com'],
           "#{environment}: #{role} needs KMS decrypt restricted to the app key via SSM")
