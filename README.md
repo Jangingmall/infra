@@ -52,6 +52,8 @@ bash scripts/validate-k8s.sh
 | `platform/cloudnative-pg` | `helm lint --strict` 및 `helm template --include-crds` | `0.29.0` |
 | `platform/argo-rollouts` | `helm lint --strict` 및 `helm template --include-crds` | `2.43.1` |
 | `platform/secrets-store-csi` | AWS Provider와 포함된 CSI Driver 차트 검증·렌더링 | `3.1.3` |
+| `platform/aws-load-balancer-controller` | Stage·Prod 렌더링, TGB CRD·IRSA 연결 구조·웹훅 인증서 검증 | `1.14.0` |
+| `platform/metrics-server` | Metrics API·자원·TLS·AppProject 권한 검증 | `3.14.0` |
 
 차트는 고정 버전의 패키지를 임시 디렉터리에 받아 사용하며, 검증이 끝나면 다운로드·렌더링 결과를 삭제한다. Chart 버전을 변경할 때는 해당 플랫폼 문서·values의 버전 표기와 검증 스크립트를 함께 갱신한다.
 
@@ -68,4 +70,6 @@ bash scripts/validate-k8s.sh
 
 이 검사는 YAML 생성·리소스 참조·Helm 차트 구조 및 차트가 제공하는 검증을 확인한다. Kubernetes API/CRD 스키마 전체 검증, 실제 EKS 버전 호환성, Pod 배치·통신·IRSA 인증·이미지 실행 검증은 별도로 수행한다. CI의 kubectl 버전은 검증 도구 버전이며 EKS 버전을 확정하는 값이 아니다.
 
-현재 검증 대상은 공통 base, Stage/Prod overlay와 위 세 플랫폼이다. 새 환경이나 플랫폼을 추가할 때 검증 스크립트에도 대상을 추가한다. 환경별 설정 구조와 개별 렌더링 방법은 [Kubernetes 안내](k8s/README.md)를 참고한다.
+검증 대상에는 공통 base, Stage/Prod overlay, 위 플랫폼과 관측성·백업 구성이 포함된다. 새 환경이나 플랫폼을 추가할 때 검증 스크립트에도 대상을 추가한다. 환경별 설정 구조와 개별 렌더링 방법은 [Kubernetes 안내](k8s/README.md)를 참고한다.
+
+ALB Controller·Metrics Server의 실제 설치 순서, 인프라 인계값과 수용 시험은 [클러스터 애드온 운영 문서](platform/cluster-addons.md)를 따른다. 설치 코드는 준비되어 있으나 실제 EKS 설치 완료를 뜻하지 않는다.

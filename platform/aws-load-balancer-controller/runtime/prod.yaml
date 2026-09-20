@@ -1,0 +1,8 @@
+clusterName: jangin-prod-eks-cluster
+region: ap-northeast-2
+# TODO(인프라 인계): 실제 vpc_id. 빈 상태로 Controller를 Sync하지 않는다.
+vpcId: ""
+serviceAccount:
+  annotations: {}
+  # TODO: irsa_role_arns["alb-controller"]의 실제 ARN을 annotations 아래에 입력.
+  # eks.amazonaws.com/role-arn: 실제 Prod Role ARN

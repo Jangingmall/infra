@@ -1,0 +1,32 @@
+# aws-load-balancer-controller chart 1.14.0 / controller v2.14.0.
+# Terraform이 만든 ALB/TG에 Pod를 등록한다. 환경 runtime 파일과 함께 사용한다.
+replicaCount: 2
+nodeSelector:
+  workload-type: system
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    memory: 256Mi
+serviceAccount:
+  create: true
+  name: aws-load-balancer-controller
+  annotations: {}
+
+# Argo CD가 렌더링할 때마다 임의 인증서를 생성하지 않도록 기존 cert-manager 사용.
+# cert-manager Controller/webhook/cainjector를 먼저 준비한 뒤 수동 Sync한다.
+enableCertManager: true
+
+# ALB·WAF·SG는 Terraform 소유. 현재 진입점은 기존 TG의 TargetGroupBinding이다.
+createIngressClassResource: false
+enableServiceMutatorWebhook: false
+enableBackendSecurityGroup: false
+enableShield: false
+enableWaf: false
+enableWafv2: false
+
+# 일반 Pod가 IMDS로 노드 권한을 가져가는 fallback을 사용하지 않는다.
+# vpcId/region은 runtime 파일에 명시하고, IRSA 토큰으로 AWS API를 호출한다.
+env:
+  AWS_EC2_METADATA_DISABLED: "true"

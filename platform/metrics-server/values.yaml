@@ -1,0 +1,36 @@
+# metrics-server chart 3.14.0 / server v0.9.0. Stage·Prod 공통.
+# Prometheus와 별개로 HPA/kubectl top이 사용하는 metrics.k8s.io API를 제공한다.
+replicas: 1
+nodeSelector:
+  workload-type: system
+resources:
+  requests:
+    cpu: 100m
+    memory: 200Mi
+  limits:
+    memory: 400Mi
+serviceAccount:
+  create: true
+  name: metrics-server
+
+# EKS API server → Metrics Server의 serving 인증서를 기존 cert-manager로 관리.
+# kubelet 인증서 검증을 끄는 --kubelet-insecure-tls는 추가하지 않는다.
+tls:
+  type: cert-manager
+apiService:
+  create: true
+  insecureSkipTLSVerify: false
+hostNetwork:
+  enabled: false
+defaultArgs:
+  - --cert-dir=/tmp
+  - --kubelet-preferred-address-types=InternalIP
+  - --kubelet-use-node-status-port
+  - --metric-resolution=15s
+
+# 소규모 클러스터의 초기값. 한 개이므로 재시작 중에는 지표/HPA 계산이 일시 중단된다.
+# 앱 트래픽 자체가 중단되는 것은 아니며 HPA 2~4개 계약은 그대로 유지한다.
+addonResizer:
+  enabled: false
+serviceMonitor:
+  enabled: false
