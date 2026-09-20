@@ -103,3 +103,18 @@ waf_managed_rule_groups = [
 # ---------- 2026-09-19 추가: EBS CSI Driver 활성화 (PR #32 IRSA 머지 후) ----------
 # 🔴 false 면 CNPG·Redis·Prometheus 등 모든 PVC 가 Pending 에서 멈춘다.
 addons_ebs_csi_enabled = true
+
+# ============================================================
+# SSM Parameter Store 시크릿 값 설정
+# 실제 값으로 교체 후 사용하세요 (절대 Git에 커밋하지 말 것!)
+# ============================================================
+
+backend_ssm_parameters = {
+  db_password = "CHANGEME"   # DB 비밀번호 (예: RDS 마스터 비밀번호)
+  jwt_secret  = "CHANGEME"   # JWT 서명 키 (랜덤 문자열 권장, 최소 32자)
+}
+
+ai_ssm_parameters = {
+  api_key = "CHANGEME"       # AI 서비스 API 키 (예: OpenAI, Anthropic 등)
+}
+

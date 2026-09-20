@@ -659,3 +659,27 @@ variable "waf_managed_rule_groups" {
     error_message = "AWSManagedRules 규칙을 1개 이상 지정하고, 이름 및 0 이상의 정수 우선순위는 중복 없이 입력하세요."
   }
 }
+
+variable "backend_ssm_parameters" {
+  description = "backend 앱이 읽는 Parameter Store 키-값 쌍. 실제 값은 로컬 terraform.tfvars(gitignore)에서만 채운다. 경로는 irsa.tf의 backend-sa GetParameter Resource 패턴(/${var.env}/backend/*)과 일치해야 한다."
+  type        = map(string)
+  sensitive   = true
+  default     = {}
+
+  validation {
+    condition     = alltrue([for v in values(var.backend_ssm_parameters) : v != "CHANGEME"])
+    error_message = "backend_ssm_parameters 에 CHANGEME 값이 남아 있습니다. terraform.tfvars 에서 실제 값으로 교체하세요."
+  }
+}
+
+variable "ai_ssm_parameters" {
+  description = "ai 앱이 읽는 Parameter Store 키-값 쌍. 실제 값은 로컬 terraform.tfvars(gitignore)에서만 채운다. 경로는 irsa.tf의 ai-worker-sa GetParameter Resource 패턴(/${var.env}/ai/*)과 일치해야 한다."
+  type        = map(string)
+  sensitive   = true
+  default     = {}
+
+  validation {
+    condition     = alltrue([for v in values(var.ai_ssm_parameters) : v != "CHANGEME"])
+    error_message = "ai_ssm_parameters 에 CHANGEME 값이 남아 있습니다. terraform.tfvars 에서 실제 값으로 교체하세요."
+  }
+}
