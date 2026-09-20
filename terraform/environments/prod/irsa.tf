@@ -1,10 +1,14 @@
 # ── irsa-backend ──────────────────────────────────────────────
 data "aws_iam_policy_document" "backend" {
   statement {
-    sid       = "SSMRead"
-    effect    = "Allow"
-    actions   = ["ssm:GetParameter", "ssm:GetParametersByPath"]
-    resources = ["arn:aws:ssm:ap-northeast-2:*:parameter/${var.env}/backend/*"]
+    sid    = "SSMRead"
+    effect = "Allow"
+    # CSI는 GetParameters를 사용한다. AI 요청 토큰은 Backend와 AI가 같은 값을 읽는다.
+    actions = ["ssm:GetParameter", "ssm:GetParameters", "ssm:GetParametersByPath"]
+    resources = [
+      "arn:aws:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${var.env}/backend/*",
+      "arn:aws:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${var.env}/ai/internal-auth-token",
+    ]
   }
 
   statement {
@@ -34,10 +38,15 @@ data "aws_iam_policy_document" "backend" {
 # ── irsa-ai ───────────────────────────────────────────────────
 data "aws_iam_policy_document" "ai" {
   statement {
-    sid       = "SSMRead"
-    effect    = "Allow"
-    actions   = ["ssm:GetParameter"]
-    resources = ["arn:aws:ssm:ap-northeast-2:*:parameter/${var.env}/ai/*"]
+    sid     = "SSMRead"
+    effect  = "Allow"
+    actions = ["ssm:GetParameter", "ssm:GetParameters"]
+    # 공유 ai-worker-sa는 앱 비밀번호만 읽는다. 벡터DB 관리자 비밀번호는 제외한다.
+    resources = [
+      "arn:aws:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${var.env}/ai/internal-auth-token",
+      "arn:aws:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${var.env}/ai/vector-db/password",
+      "arn:aws:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${var.env}/backend/backend-auth-token",
+    ]
   }
 
   statement {
@@ -58,6 +67,55 @@ data "aws_iam_policy_document" "ai" {
     effect    = "Allow"
     actions   = ["s3:GetObject"]
     resources = ["arn:aws:s3:::jangin-${var.env}-s3-models/*"]
+  }
+}
+
+# CSI가 워크로드 ServiceAccount의 권한으로 파일을 마운트한다.
+# Redis·벡터DB에 Backend·AI의 다른 파라미터나 S3 접근 권한을 공유하지 않는다.
+data "aws_iam_policy_document" "redis" {
+  statement {
+    sid       = "SSMRead"
+    effect    = "Allow"
+    actions   = ["ssm:GetParameters"]
+    resources = ["arn:aws:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${var.env}/backend/redis-password"]
+  }
+
+  statement {
+    sid       = "KMSDecrypt"
+    effect    = "Allow"
+    actions   = ["kms:Decrypt"]
+    resources = [module.kms_app.key_arn]
+
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["ssm.${var.region}.amazonaws.com"]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "ai_vector_db" {
+  statement {
+    sid     = "SSMRead"
+    effect  = "Allow"
+    actions = ["ssm:GetParameters"]
+    resources = [
+      "arn:aws:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${var.env}/ai/vector-db/password",
+      "arn:aws:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${var.env}/ai/vector-db/postgres-password",
+    ]
+  }
+
+  statement {
+    sid       = "KMSDecrypt"
+    effect    = "Allow"
+    actions   = ["kms:Decrypt"]
+    resources = [module.kms_app.key_arn]
+
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["ssm.${var.region}.amazonaws.com"]
+    }
   }
 }
 
@@ -122,7 +180,7 @@ resource "aws_iam_policy" "alb_controller" {
 
 locals {
   irsa_roles = {
-    # ── IRSA 6종 (설계 문서 3-3 표 기준) ──
+    # CSI 소비자별 ServiceAccount를 신뢰 대상으로 지정한다.
     backend = {
       namespace           = "app"
       service_account     = "backend-sa"
@@ -133,6 +191,18 @@ locals {
       namespace           = "ai"
       service_account     = "ai-worker-sa"
       policy_json         = data.aws_iam_policy_document.ai.json
+      managed_policy_arns = []
+    }
+    redis = {
+      namespace           = "app"
+      service_account     = "redis-sa"
+      policy_json         = data.aws_iam_policy_document.redis.json
+      managed_policy_arns = []
+    }
+    ai-vector-db = {
+      namespace           = "ai"
+      service_account     = "ai-vector-db-sa"
+      policy_json         = data.aws_iam_policy_document.ai_vector_db.json
       managed_policy_arns = []
     }
     cnpg = {

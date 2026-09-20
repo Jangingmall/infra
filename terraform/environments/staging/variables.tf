@@ -660,26 +660,27 @@ variable "waf_managed_rule_groups" {
   }
 }
 
-variable "backend_ssm_parameters" {
-  description = "backend 앱이 읽는 Parameter Store 키-값 쌍. 실제 값은 로컬 terraform.tfvars(gitignore)에서만 채운다. 경로는 irsa.tf의 backend-sa GetParameter Resource 패턴(/${var.env}/backend/*)과 일치해야 한다."
-  type        = map(string)
-  sensitive   = true
-  default     = {}
-
-  validation {
-    condition     = alltrue([for v in values(var.backend_ssm_parameters) : v != "CHANGEME"])
-    error_message = "backend_ssm_parameters 에 CHANGEME 값이 남아 있습니다. terraform.tfvars 에서 실제 값으로 교체하세요."
-  }
-}
-
-variable "ai_ssm_parameters" {
-  description = "ai 앱이 읽는 Parameter Store 키-값 쌍. 실제 값은 로컬 terraform.tfvars(gitignore)에서만 채운다. 경로는 irsa.tf의 ai-worker-sa GetParameter Resource 패턴(/${var.env}/ai/*)과 일치해야 한다."
-  type        = map(string)
-  sensitive   = true
-  default     = {}
-
-  validation {
-    condition     = alltrue([for v in values(var.ai_ssm_parameters) : v != "CHANGEME"])
-    error_message = "ai_ssm_parameters 에 CHANGEME 값이 남아 있습니다. terraform.tfvars 에서 실제 값으로 교체하세요."
-  }
-}
+# 직접 등록 방식에서는 아래 입력 변수를 사용하지 않는다. ssm.tf와 함께 참고용으로 보관한다.
+# variable "backend_ssm_parameters" {
+#   description = "backend 앱이 읽는 Parameter Store 키-값 쌍. 실제 값은 비공개 terraform.tfvars에 입력한다. /<env>/backend/<키> 경로를 SecretProviderClass와 일치시킨다."
+#   type        = map(string)
+#   sensitive   = true
+#   default     = {}
+#
+#   validation {
+#     condition     = alltrue([for v in values(var.backend_ssm_parameters) : v != "CHANGEME"])
+#     error_message = "backend_ssm_parameters 에 CHANGEME 값이 남아 있습니다. terraform.tfvars 에서 실제 값으로 교체하세요."
+#   }
+# }
+#
+# variable "ai_ssm_parameters" {
+#   description = "ai 앱과 벡터DB가 읽는 Parameter Store 키-값 쌍. 실제 값은 비공개 terraform.tfvars에 입력한다. /<env>/ai/<키> 경로를 SecretProviderClass와 일치시킨다."
+#   type        = map(string)
+#   sensitive   = true
+#   default     = {}
+#
+#   validation {
+#     condition     = alltrue([for v in values(var.ai_ssm_parameters) : v != "CHANGEME"])
+#     error_message = "ai_ssm_parameters 에 CHANGEME 값이 남아 있습니다. terraform.tfvars 에서 실제 값으로 교체하세요."
+#   }
+# }
