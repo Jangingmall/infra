@@ -20,7 +20,7 @@ data "aws_iam_policy_document" "backend" {
     condition {
       test     = "StringEquals"
       variable = "kms:ViaService"
-      values   = ["ssm.ap-northeast-2.amazonaws.com"]
+      values   = ["ssm.${var.region}.amazonaws.com"]
     }
   }
 
@@ -58,7 +58,7 @@ data "aws_iam_policy_document" "ai" {
     condition {
       test     = "StringEquals"
       variable = "kms:ViaService"
-      values   = ["ssm.ap-northeast-2.amazonaws.com"]
+      values   = ["ssm.${var.region}.amazonaws.com"]
     }
   }
 
@@ -140,7 +140,7 @@ data "aws_iam_policy_document" "cnpg" {
     condition {
       test     = "StringEquals"
       variable = "kms:ViaService"
-      values   = ["s3.ap-northeast-2.amazonaws.com"]
+      values   = ["s3.${var.region}.amazonaws.com"]
     }
   }
 }
