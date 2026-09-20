@@ -240,3 +240,17 @@ resource "aws_default_security_group" "locked" {
     Name = "${local.name}-sg-default-locked"
   }
 }
+
+# VPC Flow Logs → S3 (NAT Gateway 조건: "CloudTrail 유지 + VPC Flow Logs")
+# CloudWatch Logs가 아니라 S3로 바로 보내는 방식이라 IAM Role이 필요 없음
+# delivery.logs.amazonaws.com 서비스가 직접 PutObject 하고, 권한은 대상 버킷 정책 쪽에서 허용
+resource "aws_flow_log" "this" {
+  vpc_id               = aws_vpc.main.id
+  traffic_type         = "ALL"
+  log_destination_type = "s3"
+  log_destination      = var.flow_log_destination
+
+  tags = {
+    Name = "${local.name}-flow-log"
+  }
+}

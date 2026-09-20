@@ -11,7 +11,7 @@ data "aws_iam_policy_document" "backend" {
     sid       = "KMSDecrypt"
     effect    = "Allow"
     actions   = ["kms:Decrypt", "kms:GenerateDataKey"]
-    #resources = [var.aws_kms_key.shared.arn]
+    resources = [module.kms_app.key_arn]
 
     condition {
       test     = "StringEquals"
@@ -41,6 +41,19 @@ data "aws_iam_policy_document" "ai" {
   }
 
   statement {
+    sid       = "KMSDecrypt"
+    effect    = "Allow"
+    actions   = ["kms:Decrypt", "kms:GenerateDataKey"]
+    resources = [module.kms_app.key_arn]
+
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["ssm.ap-northeast-2.amazonaws.com"]
+    }
+  }
+
+  statement {
     sid       = "S3ModelsRead"
     effect    = "Allow"
     actions   = ["s3:GetObject"]
@@ -64,7 +77,7 @@ data "aws_iam_policy_document" "cnpg" {
     sid       = "KMSForBackup"
     effect    = "Allow"
     actions   = ["kms:GenerateDataKey", "kms:Decrypt"]
-    #resources = [var.aws_kms_key.shared.arn]
+    resources = [module.kms_app.key_arn]
 
     condition {
       test     = "StringEquals"
@@ -84,6 +97,18 @@ data "aws_iam_policy_document" "loki" {
       "arn:aws:s3:::jangin-${var.env}-s3-logs",
       "arn:aws:s3:::jangin-${var.env}-s3-logs/loki/*",
     ]
+  }
+  statement {
+    sid       = "KMSForLogs"
+    effect    = "Allow"
+    actions   = ["kms:GenerateDataKey", "kms:Decrypt"]
+    resources = [module.kms_app.key_arn]
+
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["s3.${var.region}.amazonaws.com"]
+    }
   }
 }
 

@@ -33,4 +33,6 @@ module "network" {
   # 서브넷의 kubernetes.io/cluster/<이름> 태그에 쓰인다.
   # ⑥ EKS 단계에서 실제 생성할 클러스터 이름과 반드시 일치해야 한다.
   cluster_name = var.eks_cluster_name
+
+  flow_log_destination = "${module.s3_logs.bucket_arn}/vpc-flow/"
 }
