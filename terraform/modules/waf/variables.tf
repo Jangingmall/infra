@@ -33,3 +33,8 @@ variable "rule_mode" {
     error_message = "rule_mode는 \"count\" 또는 \"block\" 이어야 합니다."
   }
 }
+
+variable "log_destination_arn" {
+  description = "WAF 로그를 보낼 S3 버킷 ARN"
+  type        = string
+}

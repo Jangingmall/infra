@@ -96,3 +96,8 @@ output "default_security_group_id" {
   description = "규칙 0개로 잠근 기본 SG. 인계 문서·보안팀 검증용."
   value       = aws_default_security_group.locked.id
 }
+
+output "flow_log_id" {
+  description = "VPC Flow Log ID. 인계 문서/보안팀 검증용 (NAT Gateway 조건 4)."
+  value       = aws_flow_log.this.id
+}

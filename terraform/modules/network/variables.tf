@@ -57,3 +57,8 @@ variable "cluster_name" {
   description = "EKS 클러스터 이름. 서브넷의 kubernetes.io/cluster/<이름> 태그에 쓰인다."
   type        = string
 }
+
+variable "flow_log_destination" {
+  description = "VPC Flow Logs 대상 S3 ARN"
+  type        = string
+}
