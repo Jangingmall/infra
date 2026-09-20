@@ -34,6 +34,5 @@ module "network" {
   # ⑥ EKS 단계에서 실제 생성할 클러스터 이름과 반드시 일치해야 한다.
   cluster_name = var.eks_cluster_name
 
-  # jangin-infra-s3-logs는 이 환경(prod)에서 생성하므로 module 참조 가능
   flow_log_destination = "${module.s3_logs.bucket_arn}/vpc-flow/"
 }
