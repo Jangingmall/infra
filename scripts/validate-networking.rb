@@ -86,7 +86,7 @@ Dir.mktmpdir('network-contract-') do |tmp|
     container = pod['containers'].first
     check(container.dig('startupProbe','httpGet','path')=='/health' && container.dig('livenessProbe','httpGet','path')=='/health', 'liveness must not depend on model readiness')
     check(container.dig('readinessProbe','httpGet','path')=='/health/ready' && container.dig('readinessProbe','timeoutSeconds')>=5, 'readiness must allow both model checks')
-    check(container['env'].any? { |e| e['name']=='BACKEND_URL' && e['value']=='http://backend-active.app.svc.cluster.local:8080/internal/generations/complete/multipart' }, 'callback must use internal active service')
+    check(container['env'].any? { |e| e['name']=='BACKEND_URL' && e['value']=='http://backend-active.app.svc.cluster.local:8080' }, 'callback must use the internal base URL; the AI client appends the generation path')
     check(container['command']==['/bin/sh','/etc/ai-startup/start.sh'], 'CSI token wrapper not connected')
     startup = all.find { |r| r['kind']=='ConfigMap' && r.fetch('data',{}).key?('start.sh') }
     check(pod['volumes'].any? { |v| v.dig('configMap','name')==startup.dig('metadata','name') }, 'startup script hash must restart Pod')

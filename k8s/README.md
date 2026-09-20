@@ -150,11 +150,13 @@ DB Egress를 구현하려면 인프라팀에서 EKS API 접근 방식과 목적�
 | `ai-sglang` | `workload-type=gpu`, `gpu-model=l40s` | `jangin-ai/sglang` | `http://ai-sglang.ai.svc.cluster.local:8000` |
 | `ai-ollama` | `workload-type=gpu`, `gpu-model=t4` | `jangin-ai/ollama` | `http://ai-ollama.ai.svc.cluster.local:8000` |
 
-각 Deployment는 replica 1, GPU limit 1, Recreate, `nvidia.com/gpu=true:NoSchedule` toleration을 사용한다. Service는 각 Runtime의 고유 name 라벨만 선택하므로 두 엔진 사이에 요청이 섞이지 않는다. IRSA ServiceAccount는 문서의 `ai-worker-sa`를 공유한다. Ollama 11434 및 SGLang 내부 엔진 포트는 Service로 공개하지 않는다.
+두 Deployment는 replica 1, Recreate, `nvidia.com/gpu=true:NoSchedule` toleration을 사용한다. 상세페이지 통합 컨테이너에 GPU 1개를 할당한다. 챗봇 이미지는 현재 CPU API/BGE-M3이므로 GPU를 예약하지 않는다. T4의 GPU는 엔진·모델 확정 후 별도 LLM 컨테이너에 할당해야 한다. Service는 각 API의 고유 name 라벨을 선택하고, 두 Pod는 IRSA ServiceAccount `ai-worker-sa`를 공유한다. 추론 엔진 내부 포트는 Service로 공개하지 않는다.
 
-문서는 각 이미지가 FastAPI 8000과 해당 엔진을 제공하도록 AI팀에 요청하고 있으며, 단일 컨테이너와 동일 Pod의 다중 컨테이너 여부는 회신 대기다. 현재는 기존 단일 컨테이너 선언 방식을 사용하고 이미지 ENTRYPOINT에 기동을 맡긴다. 실제 이미지·Digest, 모델 로딩·볼륨·환경변수, CPU/Memory는 인계 후 반영한다. 이미지 키는 실제 발행 이미지가 아니다.
+최신 GenAI 코드상 상세페이지 ECR 이미지는 API·텍스트 추론·이미지 추론을 통합한다. 챗봇 ECR 이미지는 API/임베딩만 포함하므로 현재 선언만으로 답변 생성까지 동작하지 않는다. 앱 이미지 digest와 CPU/Memory 실측값도 배포 전에 반영해야 한다.
 
-Probe는 기존 계약의 `/ai/health`를 유지한다. 새 요청 문서의 `/health`는 예시이므로 확정으로 간주하지 않는다. 각 이미지에서 8000 바인딩과 실제 health 경로, 모델 로딩 후 readiness 및 startup 시간 예산을 확인해야 한다. 실제 클러스터 기동은 아직 검증하지 않았다.
+상세페이지는 `/health`로 시작·생존을, `/health/ready`로 추론 준비를 확인한다. 챗봇은 `/ai/health`로 시작·생존을, `/ai/ready`로 DB·임베딩·LLM 준비를 확인한다. 상세페이지 `BACKEND_URL`은 내부 Backend 기본 주소이고, AI 코드가 completion 경로를 붙인다.
+
+[AI 모델 저장소·이미지 복사 운영 문서](components/ai-model-storage/README.md)에 선택형 S3 → PVC 준비 구성, Stage/Prod 활성화, ECR 복사, 남은 AI 이미지 계약을 정리했다. 현재 상세페이지 시작 스크립트의 FLUX 로컬 경로 검사 수정과 실제 S3/IRSA/digest가 필요하므로 모델 컴포넌트는 기본 overlay에 활성화하지 않았다. 실제 GPU 기동은 검증 전이다.
 
 기존 `Deployment/ai-worker`, `Service/ai-worker`는 이 선언에서 `ai-sglang`으로 이름이 바뀌었다. 이미 배포된 환경이라면 Backend의 두 endpoint 설정 전환과 기존 리소스 정리를 함께 계획해야 한다. 특히 기존 GPU Pod가 남으면 새 SGLang Pod가 GPU 부족으로 Pending될 수 있다. GitOps prune 여부를 확인하고, Stage에서 이전 Pod 종료·신규 Pod 배치·각 Service endpoint를 검증한다. 기존 Service가 두 엔진을 무작위 분산하도록 호환 alias를 만들지 않는다.
 

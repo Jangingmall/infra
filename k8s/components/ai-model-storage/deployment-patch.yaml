@@ -1,0 +1,160 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-sglang
+  namespace: ai
+spec:
+  template:
+    spec:
+      securityContext:
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+      initContainers:
+        - name: model-preparation
+          image: ai-model-fetch
+          command: [/bin/sh, /etc/model-preparation/prepare-models.sh]
+          securityContext:
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+          env:
+            - name: HOME
+              value: /tmp
+            - name: AWS_DEFAULT_REGION
+              value: ap-northeast-2
+            - name: AWS_STS_REGIONAL_ENDPOINTS
+              value: regional
+            - name: MODEL_S3_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: ai-sglang-model-source
+                  key: s3-uri
+            - name: MODEL_BUNDLE_SHA256
+              valueFrom:
+                configMapKeyRef:
+                  name: ai-sglang-model-source
+                  key: manifest-sha256
+            - name: MODEL_KIND
+              value: sglang
+            - name: MODEL_ROOT
+              value: /var/lib/detail-page-ai/models/bundles
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: model-preparation
+              mountPath: /etc/model-preparation
+              readOnly: true
+            - name: ai-data
+              mountPath: /var/lib/detail-page-ai
+      containers:
+        - name: ai-sglang
+          env:
+            - name: MODEL_BUNDLE_SHA256
+              valueFrom:
+                configMapKeyRef:
+                  name: ai-sglang-model-source
+                  key: manifest-sha256
+            - name: TEXT_MODEL_PATH
+              value: /var/lib/detail-page-ai/models/bundles/$(MODEL_BUNDLE_SHA256)/text
+            - name: IMAGE_MODEL_PATH
+              value: /var/lib/detail-page-ai/models/bundles/$(MODEL_BUNDLE_SHA256)/image
+            - name: U2NET_HOME
+              value: /var/lib/detail-page-ai/models/bundles/$(MODEL_BUNDLE_SHA256)/u2net
+            - name: HF_HUB_OFFLINE
+              value: "1"
+            - name: TRANSFORMERS_OFFLINE
+              value: "1"
+          volumeMounts:
+            - name: ai-data
+              mountPath: /var/lib/detail-page-ai
+      volumes:
+        - name: model-preparation
+          configMap:
+            name: ai-model-preparation
+        - name: ai-data
+          persistentVolumeClaim:
+            claimName: ai-sglang-data
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-ollama
+  namespace: ai
+spec:
+  template:
+    spec:
+      securityContext:
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+      initContainers:
+        - name: model-preparation
+          image: ai-model-fetch
+          command: [/bin/sh, /etc/model-preparation/prepare-models.sh]
+          securityContext:
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+          env:
+            - name: HOME
+              value: /tmp
+            - name: AWS_DEFAULT_REGION
+              value: ap-northeast-2
+            - name: AWS_STS_REGIONAL_ENDPOINTS
+              value: regional
+            - name: MODEL_S3_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: ai-chatbot-model-source
+                  key: s3-uri
+            - name: MODEL_BUNDLE_SHA256
+              valueFrom:
+                configMapKeyRef:
+                  name: ai-chatbot-model-source
+                  key: manifest-sha256
+            - name: MODEL_KIND
+              value: chatbot
+            - name: MODEL_ROOT
+              value: /models
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: model-preparation
+              mountPath: /etc/model-preparation
+              readOnly: true
+            - name: chatbot-models
+              mountPath: /models
+      containers:
+        - name: ai-ollama
+          env:
+            - name: MODEL_BUNDLE_SHA256
+              valueFrom:
+                configMapKeyRef:
+                  name: ai-chatbot-model-source
+                  key: manifest-sha256
+            - name: EMBED_MODEL
+              value: /models/$(MODEL_BUNDLE_SHA256)/bge-m3
+            - name: HF_HUB_OFFLINE
+              value: "1"
+            - name: TRANSFORMERS_OFFLINE
+              value: "1"
+          volumeMounts:
+            - name: chatbot-models
+              mountPath: /models
+              readOnly: true
+      volumes:
+        - name: model-preparation
+          configMap:
+            name: ai-model-preparation
+        - name: chatbot-models
+          persistentVolumeClaim:
+            claimName: ai-chatbot-models

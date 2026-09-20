@@ -42,7 +42,8 @@ spec:
               protocol: TCP
           env:
             - name: BACKEND_URL
-              value: http://backend-active.app.svc.cluster.local:8080/internal/generations/complete/multipart
+              # AI 클라이언트가 /internal/generations/{generation_id}/completion을 붙인다.
+              value: http://backend-active.app.svc.cluster.local:8080
           startupProbe:
             httpGet:
               path: /health

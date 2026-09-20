@@ -121,3 +121,8 @@ kubeconfig
 !platform/networking/README.md
 !k8s/base/redis/README.md
 !platform/cnpg-backup/README.md
+
+# Backend CSI/configtree와 이미지 인계 절차를 코드와 함께 관리한다.
+!k8s/components/backend-configtree/README.md
+
+!k8s/components/ai-model-storage/README.md
