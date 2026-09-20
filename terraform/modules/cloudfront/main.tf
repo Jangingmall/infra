@@ -29,11 +29,11 @@ resource "aws_cloudfront_distribution" "this" {
   }
 
   default_cache_behavior {
-    allowed_methods         = ["GET", "HEAD"]
-    cached_methods           = ["GET", "HEAD"]
-    target_origin_id         = "s3-${var.bucket_name}"
-    viewer_protocol_policy   = "redirect-to-https"
-    cache_policy_id          = data.aws_cloudfront_cache_policy.optimized.id
+    allowed_methods        = ["GET", "HEAD"]
+    cached_methods         = ["GET", "HEAD"]
+    target_origin_id       = "s3-${var.bucket_name}"
+    viewer_protocol_policy = "redirect-to-https"
+    cache_policy_id        = data.aws_cloudfront_cache_policy.optimized.id
   }
 
   restrictions {
@@ -54,9 +54,9 @@ resource "aws_cloudfront_distribution" "this" {
 #    호출 측(environments)에서 aws_s3_bucket_policy 하나로 병합해 만든다
 data "aws_iam_policy_document" "oac" {
   statement {
-    sid     = "AllowCloudFrontOACGetProducts"
-    effect  = "Allow"
-    actions = ["s3:GetObject"]
+    sid       = "AllowCloudFrontOACGetProducts"
+    effect    = "Allow"
+    actions   = ["s3:GetObject"]
     resources = ["${var.bucket_arn}/products/*"]
 
     principals {

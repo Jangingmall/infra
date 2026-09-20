@@ -25,9 +25,9 @@ resource "aws_lb_target_group" "app" {
     port                = var.target_port
     healthy_threshold   = var.healthy_threshold
     unhealthy_threshold = var.unhealthy_threshold
-    timeout              = var.health_check_timeout
-    interval             = var.health_check_interval
-    matcher              = "200"
+    timeout             = var.health_check_timeout
+    interval            = var.health_check_interval
+    matcher             = "200"
   }
 
   deregistration_delay = var.deregistration_delay

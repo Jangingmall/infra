@@ -7,6 +7,7 @@ module "s3_images" {
 
   cors_allowed_origins = ["https://stg.midam.store", "http://localhost:3000"]
 
+  enable_logging        = true
   logging_target_bucket = module.s3_access.bucket_id
 
   additional_policy_json = module.cloudfront_images.oac_policy_json

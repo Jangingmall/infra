@@ -139,7 +139,7 @@ resource "aws_s3_bucket_cors_configuration" "this" {
 # 접근 로깅 (선택) → jangin-{env}-s3-access 로 전송
 # 대상 버킷 안에서 원본 버킷별로 자동 분리(partitioned prefix)해 로그가 한 버킷 안에서 섞이지 않게 함
 resource "aws_s3_bucket_logging" "this" {
-  count = var.logging_target_bucket == null ? 0 : 1
+  count = var.enable_logging ? 1 : 0
 
   bucket = aws_s3_bucket.this.id
 

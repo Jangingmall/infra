@@ -20,7 +20,7 @@ data "aws_iam_policy_document" "backend" {
     condition {
       test     = "StringEquals"
       variable = "kms:ViaService"
-      values   = ["ssm.ap-northeast-2.amazonaws.com"]
+      values   = ["ssm.${var.region}.amazonaws.com"]
     }
   }
 
@@ -58,7 +58,7 @@ data "aws_iam_policy_document" "ai" {
     condition {
       test     = "StringEquals"
       variable = "kms:ViaService"
-      values   = ["ssm.ap-northeast-2.amazonaws.com"]
+      values   = ["ssm.${var.region}.amazonaws.com"]
     }
   }
 
@@ -140,7 +140,7 @@ data "aws_iam_policy_document" "cnpg" {
     condition {
       test     = "StringEquals"
       variable = "kms:ViaService"
-      values   = ["s3.ap-northeast-2.amazonaws.com"]
+      values   = ["s3.${var.region}.amazonaws.com"]
     }
   }
 }
@@ -187,48 +187,56 @@ locals {
       namespace           = "app"
       service_account     = "backend-sa"
       policy_json         = data.aws_iam_policy_document.backend.json
+      create_policy       = true
       managed_policy_arns = []
     }
     ai = {
       namespace           = "ai"
       service_account     = "ai-worker-sa"
       policy_json         = data.aws_iam_policy_document.ai.json
+      create_policy       = true
       managed_policy_arns = []
     }
     redis = {
       namespace           = "app"
       service_account     = "redis-sa"
       policy_json         = data.aws_iam_policy_document.redis.json
+      create_policy       = true
       managed_policy_arns = []
     }
     ai-vector-db = {
       namespace           = "ai"
       service_account     = "ai-vector-db-sa"
       policy_json         = data.aws_iam_policy_document.ai_vector_db.json
+      create_policy       = true
       managed_policy_arns = []
     }
     cnpg = {
       namespace           = "database"
       service_account     = "cnpg-backup-sa"
       policy_json         = data.aws_iam_policy_document.cnpg.json
+      create_policy       = true
       managed_policy_arns = []
     }
     loki = {
       namespace           = "monitoring"
       service_account     = "loki-sa"
       policy_json         = data.aws_iam_policy_document.loki.json
+      create_policy       = true
       managed_policy_arns = []
     }
     ebs-csi = {
       namespace           = "kube-system"
       service_account     = "ebs-csi-controller-sa"
       policy_json         = null
+      create_policy       = false
       managed_policy_arns = ["arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"]
     }
     alb-controller = {
       namespace           = "kube-system"
       service_account     = "aws-load-balancer-controller"
       policy_json         = null
+      create_policy       = false
       managed_policy_arns = [aws_iam_policy.alb_controller.arn]
     }
     # secrets-csi ⏸ 보류 (위 data 블록 주석 참고) — 확정되면 여기 항목 추가
@@ -246,6 +254,7 @@ module "irsa" {
   namespace           = each.value.namespace
   service_account     = each.value.service_account
   policy_json         = each.value.policy_json
+  create_policy       = each.value.create_policy
   managed_policy_arns = each.value.managed_policy_arns
   oidc_provider_arn   = module.eks.oidc_provider_arn
   oidc_provider_url   = module.eks.oidc_provider_url

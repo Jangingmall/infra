@@ -8,6 +8,7 @@ module "s3_images" {
   # s3 모듈 기본값(PUT · Content-Type · ETag · 3000) - origin만
   cors_allowed_origins = ["https://midam.store", "http://localhost:3000"]
 
+  enable_logging        = true
   logging_target_bucket = module.s3_access.bucket_id
 
   additional_policy_json = module.cloudfront_images.oac_policy_json

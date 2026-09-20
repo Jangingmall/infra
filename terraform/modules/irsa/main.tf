@@ -38,13 +38,13 @@ resource "aws_iam_role" "this" {
 }
 
 resource "aws_iam_policy" "custom" {
-  count  = var.policy_json != null ? 1 : 0
+  count  = var.create_policy ? 1 : 0
   name   = "${var.project}-${var.env}-irsa-policy-${var.name}"
   policy = var.policy_json
 }
 
 resource "aws_iam_role_policy_attachment" "custom" {
-  count      = var.policy_json != null ? 1 : 0
+  count      = var.create_policy ? 1 : 0
   role       = aws_iam_role.this.name
   policy_arn = aws_iam_policy.custom[0].arn
 }
