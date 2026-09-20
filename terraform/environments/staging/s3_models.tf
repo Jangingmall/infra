@@ -6,6 +6,7 @@ module "s3_models" {
   bucket_name = "${var.project}-${var.env}-s3-models"
   kms_key_arn = null
 
+  enable_logging        = true
   logging_target_bucket = module.s3_access.bucket_id
 }
 

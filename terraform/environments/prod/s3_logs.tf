@@ -72,6 +72,7 @@ module "s3_logs" {
   bucket_name = local.logs_bucket_name
   kms_key_arn = module.kms_app.key_arn
 
+  enable_logging         = true
   logging_target_bucket  = module.s3_access.bucket_id
   additional_policy_json = data.aws_iam_policy_document.logs_delivery.json
 

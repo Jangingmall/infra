@@ -12,10 +12,10 @@
 module "github_oidc" {
   source = "../../modules/github_oidc"
 
-  github_org     = "Jangingmall"
-  github_repo    = "infra"
+  github_org      = "Jangingmall"
+  github_repo     = "infra"
   github_subjects = ["environment:staging"]
-  name_suffix    = "staging"
+  name_suffix     = "staging"
 
   policy_arns = [
     "arn:aws:iam::aws:policy/PowerUserAccess",

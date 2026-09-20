@@ -84,6 +84,12 @@ variable "cors_allowed_headers" {
 }
 
 # 접근 로깅
+variable "enable_logging" {
+  description = "aws_s3_bucket_logging 리소스를 생성할지 여부"
+  type        = bool
+  default     = false
+}
+
 variable "logging_target_bucket" {
   description = "S3 서버 접근 로그를 보낼 대상 버킷 이름"
   type        = string

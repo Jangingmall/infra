@@ -31,6 +31,12 @@ variable "policy_json" {
   default = null
 }
 
+variable "create_policy" {
+  description = "커스텀 IAM 정책(aws_iam_policy.custom)을 생성할지 여부"
+  type        = bool
+  default     = true
+}
+
 variable "managed_policy_arns" {
   type    = list(string)
   default = []
