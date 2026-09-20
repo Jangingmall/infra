@@ -9,7 +9,7 @@ metadata:
 spec:
   replicas: 1
   revisionHistoryLimit: 2
-  # T4 GPU 1개를 기존 Pod가 반환한 뒤 새 Pod를 시작한다.
+  # 단일 챗봇 인스턴스를 교체한다. LLM 추가 시에도 GPU 중복 할당을 피한다.
   strategy:
     type: Recreate
   selector:
@@ -49,7 +49,7 @@ spec:
               value: midam
             - name: DB_USER
               value: ai_chatbot
-            # TODO(AI, 배포 전): DB_PASSWORD_FILE을 읽는 이미지/digest가 필요하다.
+            # AI 코드에서 파일 읽기를 지원한다. 지원 코드가 포함된 발행 digest로 배포한다.
             - name: DB_PASSWORD_FILE
               value: /mnt/secrets-store/password
           startupProbe:
@@ -58,13 +58,15 @@ spec:
               port: http
             periodSeconds: 5
             timeoutSeconds: 2
-            failureThreshold: 30
+            # 앱 lifespan의 임베딩/LLM 예열이 완료되기까지 기다린다. GPU 검증 후 조정한다.
+            failureThreshold: 120
           readinessProbe:
             httpGet:
-              path: /ai/health
+              path: /ai/ready
               port: http
-            periodSeconds: 5
-            timeoutSeconds: 2
+            periodSeconds: 10
+            # DB 접속과 LLM 확인이 순차 실행된다. 실제 추론 성공은 별도 기능 검증 대상이다.
+            timeoutSeconds: 6
             failureThreshold: 3
           livenessProbe:
             httpGet:
@@ -74,7 +76,5 @@ spec:
             timeoutSeconds: 2
             failureThreshold: 3
 
-          resources:
-            limits:
-              nvidia.com/gpu: 1
+          # 현재 이미지는 CPU용 API/임베딩이다. GPU는 별도 LLM 컨테이너에 할당한다.
           # TODO(AI): 모델 실측 후 CPU/Memory requests·limits를 추가한다.

@@ -108,6 +108,7 @@ kubectl kustomize "$repo_root/platform/observability/platform" > "$validation_di
 ruby "$repo_root/scripts/validate-platform-monitoring.rb" "$validation_dir"
 ruby "$repo_root/scripts/validate-gitops.rb" "$validation_dir"
 ruby "$repo_root/scripts/validate-networking.rb"
+ruby "$repo_root/scripts/validate-ai-runtime.rb"
 bash "$repo_root/scripts/validate-observability-gitops.sh"
 
 printf '\nKubernetes configuration validation passed.\n'

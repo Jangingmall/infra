@@ -1,0 +1,53 @@
+name: Mirror AI runtime image to ECR
+
+on:
+  workflow_dispatch:
+    inputs:
+      runtime:
+        description: '복사할 공개 이미지 종류 (모델/실행 명령 확정 후 LLM 선택)'
+        required: true
+        type: choice
+        options: [model-fetch, sglang, ollama]
+      source_digest:
+        description: '출처에서 확인한 sha256:… digest (태그 입력 불가)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: ai-image-mirror
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Validate source before AWS login
+        env:
+          RUNTIME: ${{ inputs.runtime }}
+          SOURCE_DIGEST: ${{ inputs.source_digest }}
+        run: bash scripts/mirror-ai-image.sh --validate
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Install registry copy tool
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install --no-install-recommends -y skopeo
+      - name: Copy the pinned image and report its digest
+        env:
+          RUNTIME: ${{ inputs.runtime }}
+          SOURCE_DIGEST: ${{ inputs.source_digest }}
+        run: bash scripts/mirror-ai-image.sh

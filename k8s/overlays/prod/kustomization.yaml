@@ -16,3 +16,7 @@ components:
   - ../../components/gitops-protection
   - ../../components/ai-vector-db-secrets
   - ../../components/ai-sglang-secrets
+
+# 모델 S3/IRSA/ECR digest와 AI 이미지 계약 확인 후 활성화한다.
+# 절차: k8s/components/ai-model-storage/README.md
+# components에 ../../components/ai-model-storage를 추가한다.
