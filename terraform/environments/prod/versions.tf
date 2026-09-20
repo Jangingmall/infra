@@ -9,7 +9,7 @@ terraform {
   # 1.5 이상을 요구하는 이유: 이 환경에서 쓰는 문법(lifecycle precondition,
   # for_each map 패턴)이 안정적으로 지원되는 하한선이고,
   # CLAUDE.md 기준값이기도 하다.
-  required_version = ">= 1.5"
+  required_version = ">= 1.6"
 
   required_providers {
     aws = {

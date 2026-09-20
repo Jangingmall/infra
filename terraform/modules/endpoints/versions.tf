@@ -12,7 +12,7 @@
 # ============================================================
 
 terraform {
-  required_version = ">= 1.5" # moved 블록은 1.1+, 이 레포 기준 1.5+
+  required_version = ">= 1.6" # moved 블록은 1.1+, # tests/*.tftest.hcl(네이티브 테스트)이 1.6+ 필요
 
   required_providers {
     aws = {

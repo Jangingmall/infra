@@ -25,6 +25,24 @@ locals {
     )
   }
 
+  # 🔴 Launch Template 에 붙일 SG 목록 (노드그룹별)
+  #
+  #    클러스터 SG 가 항상 맨 앞에 들어갑니다 — variables.tf 의
+  #    cluster_security_group_id 주석 참고. 빠지면 노드가 조인하지 못합니다.
+  #
+  #    distinct 를 쓰는 이유: 같은 SG 가 두 번 들어가도 AWS 는 에러를 내지 않지만
+  #    plan diff 가 지저분해지고, 나중에 매핑을 고칠 때 혼란스럽습니다.
+  node_security_group_ids = {
+    for key, group in local.enabled_groups : key => distinct(concat(
+      [var.cluster_security_group_id],
+      lookup(
+        var.security_groups_by_workload_type,
+        lookup(group.labels, "workload-type", ""),
+        [],
+      ),
+    ))
+  }
+
   # 노드 IAM 역할에 항상 붙는 관리형 정책 4종
   base_node_policies = {
     # 노드가 클러스터에 조인하고 kubelet 이 API 서버와 통신

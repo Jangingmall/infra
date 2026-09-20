@@ -9,7 +9,7 @@
 # ============================================================
 
 terraform {
-  required_version = ">= 1.5"
+  required_version = ">= 1.6"
 
   required_providers {
     aws = {

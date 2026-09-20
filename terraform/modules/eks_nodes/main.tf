@@ -87,6 +87,28 @@ resource "aws_launch_template" "node" {
   name_prefix = "${local.name}-ng-${each.key}-"
   key_name    = var.ssh_key_name
 
+  # 🔴 이 한 줄이 없으면 노드에 클러스터 SG 만 붙습니다.
+  #    그러면 modules/security 의 SG 4종 중 3종(eks-node·db·gpu)과
+  #    규칙 12개가 아무 데도 적용되지 않는 코드가 됩니다.
+  #    특히 sg-alb 의 유일한 egress 가 "→ sg-eks-node" 라,
+  #    ALB 가 Pod 로 패킷을 보내지 못해 타깃이 영구 unhealthy 가 됩니다.
+  vpc_security_group_ids = local.node_security_group_ids[each.key]
+
+  # ── IMDSv2 강제 ───────────────────────────────────────────
+  # 커스텀 LT 를 쓰면 EKS 기본값이 아니라 EC2 기본값(IMDSv1 허용)이 적용됩니다.
+  # 노드 역할에는 AmazonEKS_CNI_Policy 까지 붙어 있어,
+  # 앱의 SSRF 취약점 하나로 노드 자격증명이 그대로 나갑니다 (DAST 지적 대상).
+  #
+  # hop_limit = 1 은 Pod 에서 IMDS 로 가는 경로를 끊습니다.
+  # 이 레포는 Pod 권한을 전부 IRSA 로 주므로 워크로드에는 영향이 없습니다.
+  # (aws-node·kube-proxy·ebs-csi-node 는 hostNetwork 라 그대로 동작)
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+    instance_metadata_tags      = "enabled"
+  }
+
   # AL2023 EKS AMI의 루트 장치. 용량은 기존 그룹별 설정을 보존한다.
   block_device_mappings {
     device_name = "/dev/xvda"
@@ -107,6 +129,20 @@ resource "aws_launch_template" "node" {
   }
 
   tags = { Name = "${local.name}-lt-${each.key}" }
+
+  lifecycle {
+    # 🔴 매핑 누락을 여기서 잡습니다.
+    #    새 workload-type 라벨을 추가했는데 SG 매핑을 안 넣으면,
+    #    그 노드는 클러스터 SG 만 달고 조용히 생성됩니다.
+    #    증상이 "ALB 헬스체크 실패" 로만 나타나 SG 문제인 줄 모릅니다.
+    precondition {
+      condition = contains(
+        keys(var.security_groups_by_workload_type),
+        lookup(each.value.labels, "workload-type", ""),
+      )
+      error_message = "노드그룹 '${each.key}': labels 의 workload-type 이 security_groups_by_workload_type 에 없습니다. 환경의 nodegroups.tf 에서 매핑을 추가하세요."
+    }
+  }
 }
 
 resource "aws_eks_node_group" "this" {

@@ -21,6 +21,17 @@ variables {
   subnet_ids                  = ["subnet-0123456789abcdef0"]
   node_role_extra_policy_arns = []
   ssh_key_name                = null
+
+  cluster_security_group_id = "sg-0000000000cluster"
+
+  # 각 run 이 labels 를 db 또는 gpu 로만 쓰지만,
+  # 네 계층 전부 넣어두면 나중에 run 을 추가할 때 손댈 일이 없습니다.
+  security_groups_by_workload_type = {
+    system = ["sg-0000000000node"]
+    app    = ["sg-0000000000node"]
+    db     = ["sg-0000000000db"]
+    gpu    = ["sg-0000000000gpu"]
+  }
 }
 run "db_running_and_instance_volume_tags" {
   command = plan
@@ -203,5 +214,49 @@ run "gpu_cost_tags" {
   assert {
     condition     = alltrue([for spec in aws_launch_template.node["test"].tag_specifications : spec.tags["NodePool"] == "ai"])
     error_message = "GPU cost tags must use the ai pool."
+  }
+}
+
+run "cluster_sg_and_tier_sg_attached" {
+  command = plan
+  variables {
+    node_groups = {
+      test = {
+        enabled       = true
+        instance_type = "t3.small"
+        ami_type      = "AL2023_x86_64_STANDARD"
+        desired_size  = 3
+        min_size      = 3
+        max_size      = 3
+        capacity_type = "ON_DEMAND"
+        disk_size     = 30
+        labels        = { "workload-type" = "db" }
+        taints        = []
+      }
+    }
+  }
+
+  # 🔴 클러스터 SG 가 빠지면 노드가 조인하지 못한다.
+  #    LT 에 SG 를 지정하면 EKS 가 이 SG 를 자동으로 붙여주지 않기 때문.
+  assert {
+    condition = contains(
+      aws_launch_template.node["test"].vpc_security_group_ids,
+      var.cluster_security_group_id,
+    )
+    error_message = "Cluster SG must always be attached or nodes fail to join."
+  }
+
+  # 계층 SG 가 실제로 붙는지 — 이게 빠지면 ALB → Pod 경로가 막힌다.
+  assert {
+    condition = contains(
+      aws_launch_template.node["test"].vpc_security_group_ids,
+      "sg-0000000000db",
+    )
+    error_message = "Tier SG from security_groups_by_workload_type must be attached."
+  }
+
+  assert {
+    condition     = aws_launch_template.node["test"].metadata_options[0].http_tokens == "required"
+    error_message = "IMDSv2 must be enforced on custom launch templates."
   }
 }

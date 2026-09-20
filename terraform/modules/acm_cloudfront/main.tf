@@ -7,10 +7,12 @@
 # 에서 만들어 이 모듈 호출 시 providers = { aws.us_east_1 = aws.us_east_1 }로 전달
 
 terraform {
+  required_version = ">= 1.6"
+
   required_providers {
     aws = {
       source                = "hashicorp/aws"
-      version               = ">= 5.0"
+      version               = "~> 5.0"
       configuration_aliases = [aws.us_east_1]
     }
   }
