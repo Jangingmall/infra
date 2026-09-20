@@ -3,19 +3,19 @@
 # key_id는 #46(SSE-KMS 모듈)에서 만드는 CMK를 그대로 참조한다.
 
 resource "aws_ssm_parameter" "backend" {
-  for_each = var.backend_ssm_parameters
+  for_each = nonsensitive(toset(keys(var.backend_ssm_parameters)))
 
   name   = "/${var.env}/backend/${each.key}"
   type   = "SecureString"
   key_id = module.kms_app.key_arn
-  value  = each.value
+  value  = var.backend_ssm_parameters[each.key]
 }
 
 resource "aws_ssm_parameter" "ai" {
-  for_each = var.ai_ssm_parameters
+  for_each = nonsensitive(toset(keys(var.ai_ssm_parameters)))
 
   name   = "/${var.env}/ai/${each.key}"
   type   = "SecureString"
   key_id = module.kms_app.key_arn
-  value  = each.value
+  value  = var.ai_ssm_parameters[each.key]
 }
