@@ -105,16 +105,42 @@ waf_managed_rule_groups = [
 addons_ebs_csi_enabled = true
 
 # ============================================================
-# SSM Parameter Store 시크릿 값 설정
-# 실제 값으로 교체 후 사용하세요 (절대 Git에 커밋하지 말 것!)
+# SSM Parameter Store 직접 등록 목록 (Terraform 입력 아님)
 # ============================================================
+# Backend·AI 담당자가 AWS 콘솔/CLI에서 SecureString으로 등록한다.
+# 암호화 키는 해당 환경의 module.kms_app CMK를 사용한다.
+# 경로: /staging/backend/<키>, /staging/ai/<키>. stage overlay의 접두사는 staging이다.
+# 아래는 이름·형식 참고용 주석이며 실제 값을 이 파일이나 terraform.tfvars에 넣지 않는다.
+# CHANGEME는 미입력 표시다. 실제 등록 절차·소유자는 terraform/workload-secrets.md를 따른다.
+# backend_ssm_parameters = {
+#   "db-url"                              = "jdbc:postgresql://jangingmall-postgres-rw.database.svc.cluster.local:5432/jangingmall"
+#   "db-username"                         = "jangingmall"
+#   "db-password"                         = "CHANGEME" # CNPG jangingmall-postgres-app의 앱 계정 비밀번호와 동일
+#   "redis-password"                      = "CHANGEME" # Redis 시작 스크립트가 요구하는 64자리 16진수, Backend와 공유
+#   "jwt-secret"                          = "CHANGEME" # JWT 서명용 비밀값
+#   "kakao-client-id"                     = "CHANGEME"
+#   "kakao-client-secret"                 = "CHANGEME"
+#   "naver-client-id"                     = "CHANGEME"
+#   "naver-client-secret"                 = "CHANGEME"
+#   "mail-host"                           = "CHANGEME" # SMTP 서버 주소
+#   "mail-username"                       = "CHANGEME"
+#   "mail-password"                       = "CHANGEME"
+#   "mail-from"                           = "CHANGEME" # 발신 이메일 주소
+#   "oauth-frontend-redirect-url"         = "CHANGEME" # 로그인 후 프론트 이동 URL
+#   "image-base-url"                      = "CHANGEME" # 이미지 조회 기본 URL
+#   "image-upload-bucket"                 = "CHANGEME" # 업로드 이미지 S3 버킷 이름
+#   "image-return-bucket"                 = "CHANGEME" # 비공개 반품 이미지 S3 버킷 이름
+#   "email-verification-url"              = "CHANGEME" # Backend의 공개 이메일 인증 URL
+#   "email-verification-success-redirect" = "CHANGEME" # 인증 성공 후 프론트 이동 URL
+#   "backend-auth-token"                  = "CHANGEME" # 상세페이지 AI → Backend 콜백, 양쪽이 같은 파라미터 조회
+# }
 
-backend_ssm_parameters = {
-  db_password = "CHANGEME"   # DB 비밀번호 (예: RDS 마스터 비밀번호)
-  jwt_secret  = "CHANGEME"   # JWT 서명 키 (랜덤 문자열 권장, 최소 32자)
-}
+# ai_ssm_parameters = {
+#   "internal-auth-token"         = "CHANGEME" # Backend → 상세페이지 AI 요청, 콜백 토큰과 별도 값
+#   "vector-db/password"          = "CHANGEME" # ai_chatbot 계정, 챗봇 API와 벡터DB가 공유
+#   "vector-db/postgres-password" = "CHANGEME" # 관리자 계정, ai-vector-db-sa만 조회
+# }
 
-ai_ssm_parameters = {
-  api_key = "CHANGEME"       # AI 서비스 API 키 (예: OpenAI, Anthropic 등)
-}
-
+# 프로비저닝 담당자가 적용 후 irsa_role_arns의 backend/ai/redis/ai-vector-db를 인계한다.
+# 네이티브는 실제 ARN을 해당 환경의 ServiceAccount annotation에 연결한 뒤 CSI 마운트를 검증한다.
+# SSM 등록만으로 기존 DB 비밀번호가 바뀌지는 않는다. DB 계정 변경과 Pod 재시작을 함께 조율한다.

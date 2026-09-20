@@ -126,3 +126,4 @@ kubeconfig
 !k8s/components/backend-configtree/README.md
 
 !k8s/components/ai-model-storage/README.md
+!terraform/workload-secrets.md

@@ -10,8 +10,6 @@
 #    이 Role은 PowerUserAccess+IAMFullAccess라는 넓은 권한을 가지므로,
 #    "prod는 인프라팀 경유" 정책을 여기서 실질적으로 강제하는 지점입니다.
 # ============================================================
-data "aws_caller_identity" "current" {}
-
 module "github_oidc" {
   source = "../../modules/github_oidc"
 
@@ -35,8 +33,8 @@ resource "aws_iam_policy" "gha_backend_ecr" {
     Statement = [
       { Effect = "Allow", Action = "ecr:GetAuthorizationToken", Resource = "*" },
       {
-        Effect = "Allow"
-        Action = ["ecr:BatchCheckLayerAvailability", "ecr:PutImage", "ecr:InitiateLayerUpload", "ecr:UploadLayerPart", "ecr:CompleteLayerUpload"]
+        Effect   = "Allow"
+        Action   = ["ecr:BatchCheckLayerAvailability", "ecr:PutImage", "ecr:InitiateLayerUpload", "ecr:UploadLayerPart", "ecr:CompleteLayerUpload"]
         Resource = "arn:aws:ecr:${var.region}:${data.aws_caller_identity.current.account_id}:repository/jangin-app"
       }
     ]
@@ -85,4 +83,4 @@ module "github_oidc_genai" {
 }
 
 output "github_actions_role_arn_backend" { value = module.github_oidc_backend.role_arn }
-output "github_actions_role_arn_genai"   { value = module.github_oidc_genai.role_arn }
+output "github_actions_role_arn_genai" { value = module.github_oidc_genai.role_arn }
