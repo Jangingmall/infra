@@ -9,7 +9,8 @@
 
 resource "aws_wafv2_web_acl" "this" {
   name        = var.name
-  description = "${var.name} - AWS Managed Rules (${var.rule_mode})"
+  # aws_wafv2_web_acl.description 은 AWS 쪽 정규식이 괄호를 허용하지 않는다.
+  description = "${var.name} - AWS Managed Rules mode: ${var.rule_mode}"
   scope       = var.scope
 
   default_action {
