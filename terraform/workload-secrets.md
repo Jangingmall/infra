@@ -36,6 +36,42 @@ Backend·AI 담당자가 AWS 콘솔/CLI로 Parameter Store 값을 직접 등록�
 | DB 운영 담당 | `/ai/vector-db/password`, `/ai/vector-db/postgres-password` 등록 및 실제 DB 계정과 일치 유지 |
 | 네이티브 | 파라미터 이름·CSI 매핑 유지, 실제 IRSA ARN 연결, 마운트·연결 검증 |
 
+### 등록 명령
+
+🔴 `--key-id` 를 생략하면 AWS 기본키(`alias/aws/ssm`)로 생성됩니다.
+IRSA 는 `module.kms_app` CMK 하나만 복호화할 수 있어, Pod 가 시크릿을 읽지 못하고
+ContainerCreating 에서 멈춥니다. 파라미터 자체는 정상 생성되므로 원인이 드러나지 않습니다.
+
+```bash
+aws ssm put-parameter \
+  --name "/staging/backend/jwt-secret" \
+  --type SecureString \
+  --key-id "alias/jangin-staging-app" \
+  --value "..." \
+  --overwrite
+```
+
+별칭은 `alias/jangin-<env>-app` 형식이며 `kms.tf` 의 `alias_name` 과 같습니다.
+ARN 대신 별칭을 쓰면 계정 ID 를 주고받을 필요가 없습니다.
+
+### 등록 후 확인
+
+```bash
+EXPECTED=$(aws kms describe-key --key-id alias/jangin-staging-app \
+  --query 'KeyMetadata.Arn' --output text)
+
+aws ssm describe-parameters \
+  --parameter-filters "Key=Path,Option=Recursive,Values=/staging" \
+  --query 'Parameters[].[Name,Type,KeyId]' --output text |
+while read -r name type keyid; do
+  [ "$type" = "SecureString" ] || echo "FAIL $name: type=$type"
+  [ "$keyid" = "$EXPECTED" ]    || echo "FAIL $name: KeyId 불일치 (--key-id 누락 의심)"
+done
+```
+
+값은 읽지 않고 메타데이터만 확인합니다.
+`validate-workload-secrets.rb` 는 AWS 에 접근하지 않으므로 이 검사는 별도입니다.
+
 등록자 권한은 사람의 IAM/SSO 역할에 부여한다. Pod IRSA에 `ssm:PutParameter`를 추가하지 않는다.
 공유 토큰은 위 담당자가 한 경로에 등록하고 양쪽 앱이 같은 파라미터를 읽는다.
 KMS와 등록자 권한이 준비되면 EKS 기동 전에도 등록할 수 있다.
@@ -75,7 +111,7 @@ Backend·AI의 기존 S3·KMS 권한은 유지한다. AI의 `/ai/*` 권한은 �
 
 ## 로컬 검증
 
-Terraform 1.5 이상과 잠긴 provider 버전, Ruby, kubectl이 필요하다. 아래 명령은 `infra` 루트에서 실행한다.
+Terraform 1.6 이상과 잠긴 provider 버전, Ruby, kubectl이 필요하다. 아래 명령은 `infra` 루트에서 실행한다.
 
 ```bash
 ruby scripts/validate-workload-secrets.rb

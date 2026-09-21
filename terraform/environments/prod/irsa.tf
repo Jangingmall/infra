@@ -20,7 +20,17 @@ data "aws_iam_policy_document" "backend" {
     condition {
       test     = "StringEquals"
       variable = "kms:ViaService"
-      values   = ["ssm.${var.region}.amazonaws.com"]
+
+      # 🔴 두 서비스가 모두 필요합니다.
+      #    ssm — SecureString 파라미터 복호화 (CSI 마운트)
+      #    s3  — s3-returns 가 SSE-KMS(CMK) 버킷이라, PutObject/GetObject 시
+      #          S3 가 backend 를 대신해 GenerateDataKey/Decrypt 를 호출합니다.
+      #          이게 없으면 반품 증빙 업로드·조회가 AccessDenied 로 실패합니다.
+      #    StringEquals 에 리스트를 주면 OR 로 평가됩니다.
+      values = [
+        "ssm.${var.region}.amazonaws.com",
+        "s3.${var.region}.amazonaws.com",
+      ]
     }
   }
 

@@ -27,6 +27,16 @@ bindings = {
   'ai-vector-db' => ['ai', 'ai-vector-db-sa', 'ai_vector_db', ['ai-vector-db-config']]
 }
 
+# 역할별로 허용되는 kms:ViaService.
+# backend 만 s3 를 포함한다 — s3-returns 가 SSE-KMS(CMK) 버킷이기 때문.
+# ai 는 s3-models 가 AES256 이라 ssm 만으로 충분하다.
+via_services = {
+  'backend' => %w[s3.ap-northeast-2.amazonaws.com ssm.ap-northeast-2.amazonaws.com],
+  'ai' => %w[ssm.ap-northeast-2.amazonaws.com],
+  'redis' => %w[ssm.ap-northeast-2.amazonaws.com],
+  'ai-vector-db' => %w[ssm.ap-northeast-2.amazonaws.com]
+}
+
 %w[staging prod].each do |environment|
   overlay = environment == 'staging' ? 'stage' : 'prod'
   manifests, error, status = Open3.capture3('kubectl', 'kustomize', File.join(root, 'k8s/overlays', overlay))
@@ -60,6 +70,7 @@ bindings = {
     check(binding[1].match?(/namespace\s*=\s*"#{namespace}"/) &&
           binding[1].match?(/service_account\s*=\s*"#{account}"/) &&
           binding[1].match?(/policy_json\s*=\s*data\.aws_iam_policy_document\.#{policy}\.json/) &&
+          binding[1].match?(/create_policy\s*=\s*true/) &&
           binding[1].match?(/managed_policy_arns\s*=\s*\[\s*\]/), "#{environment}: #{role} binding/policy mismatch")
     check(documents.any? { |d| d['kind'] == 'ServiceAccount' && d.dig('metadata', 'namespace') == namespace && d.dig('metadata', 'name') == account },
           "#{environment}: missing ServiceAccount #{namespace}/#{account}")
@@ -98,7 +109,7 @@ bindings = {
           (quoted_list(kms, 'actions') - %w[kms:Decrypt kms:GenerateDataKey]).empty? &&
           kms.match?(/resources\s*=\s*\[module\.kms_app\.key_arn\]/) &&
           kms.include?('"kms:ViaService"') && kms.include?('"StringEquals"') &&
-          quoted_list(kms, 'values').map { |v| v.gsub('${var.region}', 'ap-northeast-2') } == ['ssm.ap-northeast-2.amazonaws.com'],
+          quoted_list(kms, 'values').map { |v| v.gsub('${var.region}', 'ap-northeast-2') }.sort == via_services.fetch(role).sort,
           "#{environment}: #{role} needs KMS decrypt restricted to the app key via SSM")
     if %w[redis ai-vector-db].include?(role)
       check(statements.size == 2 && quoted_list(kms, 'actions') == ['kms:Decrypt'],

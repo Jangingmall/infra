@@ -34,5 +34,6 @@ module "alb" {
 
   # 기존 모듈 계약: IP target, 8080 /healthz, interval30/timeout5,
   # healthy2/unhealthy3, deregistration30. 관리 포트9090은 노출하지 않는다.
-  # TODO(BE/파트장): SSE용 idle timeout은 미확정. 현재 모듈/AWS 기본60초 유지.
+  # SSE(AI 스트리밍)용. AWS 기본 60초로는 추론 응답 도중 끊긴다.
+  idle_timeout = 300
 }
