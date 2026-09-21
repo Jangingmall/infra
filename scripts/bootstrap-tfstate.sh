@@ -164,6 +164,7 @@ JSON
            TagKey=Environment,TagValue=shared \
            TagKey=ManagedBy,TagValue=manual-cli \
            TagKey=Purpose,TagValue=terraform-state \
+           TagKey=Owner,TagValue=infra \
     --query 'KeyMetadata.KeyId' --output text)
 
   aws kms create-alias --region "$REGION" \
@@ -209,7 +210,7 @@ ok "BlockPublicAcls / IgnorePublicAcls / BlockPublicPolicy / RestrictPublicBucke
 say "6. 태그 부착 (비용 분석 선행조건)"
 aws s3api put-bucket-tagging \
   --bucket "$BUCKET" \
-  --tagging "TagSet=[{Key=Project,Value=${PROJECT_TAG}},{Key=Environment,Value=shared},{Key=ManagedBy,Value=manual-cli},{Key=Purpose,Value=terraform-state}]"
+  --tagging "TagSet=[{Key=Project,Value=${PROJECT_TAG}},{Key=Environment,Value=shared},{Key=ManagedBy,Value=manual-cli},{Key=Purpose,Value=terraform-state},{Key=Owner,Value=infra}]"
 ok "Project / Environment / ManagedBy / Purpose"
 
 # ===== 6-2. TLS 강제 버킷 정책 (CLAUDE.md 요구) =====
@@ -253,7 +254,8 @@ else
     --key-schema AttributeName=LockID,KeyType=HASH \
     --billing-mode PAY_PER_REQUEST \
     --tags Key=Project,Value="${PROJECT_TAG}" Key=Environment,Value=shared \
-           Key=ManagedBy,Value=manual-cli Key=Purpose,Value=terraform-state-lock >/dev/null
+           Key=ManagedBy,Value=manual-cli Key=Purpose,Value=terraform-state-lock \
+           Key=Owner,Value=infra >/dev/null
   printf "  테이블 활성화 대기 중"
   aws dynamodb wait table-exists --table-name "$TABLE" --region "$REGION"
   ok "생성됨: $TABLE"
