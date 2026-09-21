@@ -117,6 +117,9 @@ done
 validate_chart metrics-server metrics-server 3.14.0 kube-system \
   https://kubernetes-sigs.github.io/metrics-server/ platform/metrics-server/values.yaml \
   --kube-version 1.35.0
+validate_chart nvidia-device-plugin nvidia-device-plugin 0.20.0 kube-system \
+  https://nvidia.github.io/k8s-device-plugin platform/nvidia-device-plugin/values.yaml \
+  --kube-version 1.35.0
 ruby "$repo_root/scripts/validate-cluster-addons.rb" "$validation_dir"
 
 kubectl kustomize "$repo_root/platform/observability/platform" > "$validation_dir/platform-monitoring.yaml"

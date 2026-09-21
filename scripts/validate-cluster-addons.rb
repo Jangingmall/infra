@@ -89,5 +89,26 @@ render_dir = ARGV[0]
       check(allowed, "#{environment}: AppProject rejects #{r['kind']}")
     end
   end
+  app = argo.find { |r| r['kind'] == 'Application' && r.dig('metadata', 'name') == "#{environment}-nvidia-device-plugin" }
+  check(app, 'NVIDIA Application missing')
+  source = app.fetch('spec').fetch('sources').find { |s| s['chart'] == 'nvidia-device-plugin' }
+  check(source && source['targetRevision'] == '0.20.0' && source.dig('helm', 'valueFiles') == ['$values/platform/nvidia-device-plugin/values.yaml'], 'NVIDIA chart/values contract changed')
+  check(app.dig('spec', 'syncPolicy', 'automated', 'enabled') == false, 'NVIDIA must start with manual Sync')
+  resources = documents("#{render_dir}/nvidia-device-plugin.yaml")
+  check(resources.count { |r| r['kind'] == 'DaemonSet' } == 2 && resources.all? { |r| %w[DaemonSet ServiceAccount ClusterRole ClusterRoleBinding].include?(r['kind']) }, 'NVIDIA chart must contain plugin/MPS DaemonSets and their RBAC only')
+  mps = resources.find { |r| r.dig('metadata', 'name') == 'nvidia-device-plugin-mps-control-daemon' }
+  check(mps && mps.dig('spec', 'template', 'spec', 'nodeSelector', 'nvidia.com/mps.capable') == 'true', 'MPS must require an explicit activation label')
+  ds = resources.find { |r| r.dig('metadata', 'name') == 'nvidia-device-plugin' }
+  check(ds.dig('metadata', 'name') == 'nvidia-device-plugin' && ds.dig('metadata', 'namespace') == 'kube-system', 'NVIDIA identity changed')
+  pod = ds.dig('spec', 'template', 'spec')
+  check(pod['nodeSelector'] == {'kubernetes.io/os'=>'linux', 'workload-type'=>'gpu'} && !pod['affinity'], 'NVIDIA placement must rely on existing GPU labels')
+  check(pod.fetch('tolerations').include?({'key'=>'nvidia.com/gpu', 'operator'=>'Equal', 'value'=>'true', 'effect'=>'NoSchedule'}), 'NVIDIA GPU taint not tolerated')
+  container = pod.fetch('containers').first
+  check(container['image'] == 'nvcr.io/nvidia/k8s-device-plugin:v0.20.0', 'NVIDIA image version changed')
+  check(container.dig('resources', 'requests') == {'cpu'=>'50m', 'memory'=>'64Mi'}, 'NVIDIA request budget changed')
+  check(pod.fetch('containers').all? { |c| %w[requests limits].all? { |k| !c.dig('resources', k, 'nvidia.com/gpu') } }, 'Device plugin must not reserve GPU')
+  flags = container.fetch('env').to_h { |e| [e['name'], e['value']] }
+  check(flags['FAIL_ON_INIT_ERROR'] == 'true' && flags['MIG_STRATEGY'] == 'none' && flags['DEVICE_LIST_STRATEGY'] == 'envvar', 'NVIDIA discovery/exclusive allocation contract changed')
+  check(pod.fetch('volumes').any? { |v| v.dig('hostPath', 'path') == '/var/lib/kubelet/device-plugins' }, 'kubelet registration socket missing')
   puts "#{environment}: cluster addons rendering, TLS, resource budget and Argo permissions PASS"
 end

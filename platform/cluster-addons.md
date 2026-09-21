@@ -144,3 +144,39 @@ ruby scripts/validate-cluster-addons.rb --ready prod
 - [Controller v2.14.0 IAM 정책](https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.14.0/docs/install/iam_policy.json)
 - [Metrics Server 설치·요구사항](https://github.com/kubernetes-sigs/metrics-server)
 - [Metrics Server Helm chart](https://github.com/kubernetes-sigs/metrics-server/tree/master/charts/metrics-server)
+
+## NVIDIA Device Plugin
+
+- Chart / image: `0.20.0` / `nvcr.io/nvidia/k8s-device-plugin:v0.20.0`.
+- Stage·Prod `*-nvidia-device-plugin` Application, `kube-system` namespace, 수동 Sync.
+- `workload-type=gpu` Linux 노드마다 DaemonSet Pod 1개. GPU taint `nvidia.com/gpu=true:NoSchedule` 허용.
+- Pod당 requests 50m/64Mi, memory limit 256Mi. L40S/T4 두 노드에 총 100m/128Mi 추가. System 노드 예산에는 포함하지 않는다.
+- 드라이버·Container Toolkit은 `AL2023_x86_64_NVIDIA` AMI가 제공한다. 기본 NVIDIA runtime을 사용하며 별도 RuntimeClass/GPU Operator를 설치하지 않는다.
+- 공식 차트는 MPS DaemonSet 정의도 생성하지만 `nvidia.com/mps.capable=true` 노드에서만 실행된다. 현재 Terraform은 이 라벨을 부여하지 않으므로 MPS Pod는 0개다. 이 라벨을 임의로 추가하지 않는다. GFD/NFD·MIG·time-slicing·MPS 공유를 활성화하지 않는다. Plugin Pod 자체는 GPU를 예약하지 않는다.
+- 차트의 ServiceAccount·ClusterRole은 Kubernetes Node 조회(get/list/watch)에 사용한다. Pod→Kubernetes API TCP443·DNS 통신을 허용해야 하며 AWS IRSA는 필요하지 않다.
+- 초기 GPU 탐지 실패를 오류로 표시한다. GPU 노드 0대에서는 DaemonSet Pod 0개이며, 이 상태는 GPU 검증 성공이 아니다.
+- NVIDIA 이미지는 노드가 `nvcr.io`에서 pull한다. 인프라가 해당 레지스트리·이미지 레이어 다운로드 통신을 허용해야 한다. ECR 전용 사설 경로만으로는 충분하지 않다. 차트 저장소 접근은 Argo CD repo-server가 필요하다.
+
+### 배포 순서와 실제 수용 시험
+
+1. main에 설정 반영 후 GPU 노드 기동, NVIDIA AMI·드라이버·기본 container runtime 준비를 확인한다.
+2. 선택 환경 projects.yaml과 cluster-addons.yaml을 등록하고 아래 NVIDIA Application만 수동 Sync한다. ALB/metrics와 달리 cert-manager·IRSA가 필요하지 않다.
+3. Plugin 준비와 각 노드의 `nvidia.com/gpu=1` 등록을 확인한 뒤 AI를 배포한다. 기존 수동 Plugin이나 GPU Operator가 있다면 중복 설치하지 않는다.
+
+```bash
+# KUBE_CONTEXT 및 Argo CD 로그인 대상을 Stage로 맞춘 뒤 실행한다.
+kubectl --context "$KUBE_CONTEXT" apply -f argocd/applications/stage/projects.yaml
+kubectl --context "$KUBE_CONTEXT" apply -f argocd/applications/stage/cluster-addons.yaml
+argocd app sync stage-nvidia-device-plugin
+argocd app wait stage-nvidia-device-plugin --sync --health --timeout 600
+kubectl --context "$KUBE_CONTEXT" -n kube-system rollout status daemonset/nvidia-device-plugin --timeout=180s
+kubectl --context "$KUBE_CONTEXT" get nodes -l workload-type=gpu -o 'custom-columns=NAME:.metadata.name,GPU:.status.allocatable.nvidia\.com/gpu'
+kubectl --context "$KUBE_CONTEXT" -n kube-system logs daemonset/nvidia-device-plugin --all-pods=true --tail=100
+```
+
+노드별 allocatable 값 1은 등록된 GPU 총량이며 현재 미할당 수량이 아니다. 두 GPU 노드를 기동했다면 출력 행도 2개여야 한다.
+AI 배포 후 실제 GPU 할당 컨테이너에서 `nvidia-smi`와 추론 요청을 실행한다. 모델 초기화·CUDA 호환성과 결과까지 확인한다.
+Plugin만 정상이어도 미구현 챗봇 LLM 연결·모델·Secret 문제까지 해결되는 것은 아니다.
+Prod도 해당 환경 context·Application으로 같은 순서를 수행한다. 드라이버 버전과 실제 추론은 EKS에서 별도 검증한다.
+
+근거: [NVIDIA chart 0.20.0](https://github.com/NVIDIA/k8s-device-plugin/tree/v0.20.0/deployments/helm/nvidia-device-plugin), [EKS NVIDIA AMI 구성](https://docs.aws.amazon.com/eks/latest/userguide/ml-eks-optimized-ami.html).

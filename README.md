@@ -53,6 +53,7 @@ bash scripts/validate-k8s.sh
 | `platform/argo-rollouts` | `helm lint --strict` 및 `helm template --include-crds` | `2.43.1` |
 | `platform/secrets-store-csi` | AWS Provider와 포함된 CSI Driver 차트 검증·렌더링 | `3.1.3` |
 | `platform/aws-load-balancer-controller` | Stage·Prod 렌더링, TGB CRD·IRSA 연결 구조·웹훅 인증서 검증 | `1.14.0` |
+| `platform/nvidia-device-plugin` | GPU DaemonSet·taint·장치 등록 설정 검증 | `0.20.0` |
 | `platform/metrics-server` | Metrics API·자원·TLS·AppProject 권한 검증 | `3.14.0` |
 
 차트는 고정 버전의 패키지를 임시 디렉터리에 받아 사용하며, 검증이 끝나면 다운로드·렌더링 결과를 삭제한다. Chart 버전을 변경할 때는 해당 플랫폼 문서·values의 버전 표기와 검증 스크립트를 함께 갱신한다.

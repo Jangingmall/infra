@@ -69,6 +69,7 @@ spec:
   - https://cloudnative-pg.github.io/charts
   - https://aws.github.io/secrets-store-csi-driver-provider-aws
   - https://charts.jetstack.io
+  - https://nvidia.github.io/k8s-device-plugin
   - https://aws.github.io/eks-charts
   - https://kubernetes-sigs.github.io/metrics-server/
   destinations:
