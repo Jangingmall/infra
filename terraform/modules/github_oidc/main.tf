@@ -24,14 +24,18 @@ resource "aws_iam_role" "this" {
       Principal = { Federated = data.aws_iam_openid_connect_provider.github.arn }
       Action    = "sts:AssumeRoleWithWebIdentity"
       Condition = {
-        StringEquals = {
-          "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-        }
+        # sub는 항상 이름 기반(GitHub가 그렇게 발급함) — ID를 여기 섞지 않는다.
         StringLike = {
           "token.actions.githubusercontent.com:sub" = [
             for s in var.github_subjects : "repo:${var.github_org}/${var.github_repo}:${s}"
           ]
         }
+        # repository_id/repository_owner_id는 sub와 별개의 클레임
+        StringEquals = merge(
+          { "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com" },
+          var.github_org_id != null ? { "token.actions.githubusercontent.com:repository_owner_id" = var.github_org_id } : {},
+          var.github_repo_id != null ? { "token.actions.githubusercontent.com:repository_id" = var.github_repo_id } : {},
+        )
       }
     }]
   })
