@@ -73,3 +73,15 @@ variable "deregistration_delay" {
   type        = number
   default     = 30
 }
+
+variable "idle_timeout" {
+  description = <<-EOT
+    유휴 연결 유지 시간(초). AWS 기본값은 60 이다.
+
+    🔴 AI 스트리밍(SSE)에서 60초는 짧다. 토큰 사이 간격이 60초를 넘으면
+       ALB 가 연결을 끊고, 클라이언트에는 응답 중단으로 보인다.
+       GPU 추론은 첫 토큰까지 시간이 길어 특히 걸리기 쉽다.
+  EOT
+  type        = number
+  default     = 60
+}

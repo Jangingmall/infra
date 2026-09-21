@@ -9,6 +9,17 @@ resource "aws_s3_bucket" "this" {
     var.tags,
     { Name = var.bucket_name }
   )
+
+  lifecycle {
+    # 🔴 조용한 실패 방지.
+    #    enable_logging 은 default = false 라, logging_target_bucket 만 쓰고
+    #    이 값을 빠뜨리면 로깅이 에러 없이 꺼집니다.
+    #    S3 접근 로그는 보안 검수 항목이라 plan 단계에서 잡습니다.
+    precondition {
+      condition     = var.enable_logging || var.logging_target_bucket == null
+      error_message = "logging_target_bucket 을 지정했는데 enable_logging 이 false 입니다. 로깅이 켜지지 않습니다."
+    }
+  }
 }
 
 # (images의 products/* 공개는 CloudFront OAC가 담당하며, 이 설정을 우회하지 않는다)
@@ -149,6 +160,13 @@ resource "aws_s3_bucket_logging" "this" {
   target_object_key_format {
     partitioned_prefix {
       partition_date_source = "EventTime"
+    }
+  }
+
+  lifecycle {
+    precondition {
+      condition     = var.logging_target_bucket != null
+      error_message = "enable_logging = true 이면 logging_target_bucket 이 필요합니다."
     }
   }
 }
