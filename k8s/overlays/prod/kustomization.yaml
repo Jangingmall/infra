@@ -18,5 +18,6 @@ components:
   - ../../components/ai-sglang-secrets
 
 # 모델 S3/IRSA/ECR digest와 AI 이미지 계약 확인 후 활성화한다.
+# S3 원본은 Prod 관리 공용 버킷 jangin-prod-s3-models를 사용한다(PVC는 환경별).
 # 절차: k8s/components/ai-model-storage/README.md
 # components에 ../../components/ai-model-storage를 추가한다.

@@ -3,7 +3,7 @@
 ## 적용 범위와 현재 상태
 
 이 구성은 infra 저장소에서 관리하는 이미지 복사, 모델 준비, Kubernetes 볼륨 연결이다.
-Backend·GenAI 소스와 Terraform은 수정하지 않는다. 실제 AWS 리소스 생성, 이미지 복사, 모델 업로드, 클러스터 배포는 실행하지 않았다.
+Backend·GenAI 소스는 수정하지 않는다. 모델 버킷은 Terraform Prod에서 관리하고 Stage는 참조한다. 실제 AWS 리소스 생성, 이미지 복사, 모델 업로드, 클러스터 배포는 실행하지 않았다.
 
 | 대상 | 이번 코드의 동작 | 활성화 상태 |
 | --- | --- | --- |
@@ -113,6 +113,19 @@ Actions Summary에 나온 `ECR주소@sha256:...`를 배포 설정에서 사용�
 
 ## Stage·Prod 활성화 방법
 
+### 공용 모델 버킷
+
+- 기본 프로젝트 이름 기준 `jangin-prod-s3-models` 하나를 Stage·Prod에서 공유한다.
+- 버킷·버킷 정책·접근 로깅은 `terraform/environments/prod/s3_models.tf`에서만 관리한다.
+- Stage는 `data.aws_s3_bucket.models`로 조회하고 AI IRSA에 공용 버킷의 `s3:GetObject`를 허용한다. Stage 삭제는 공용 버킷을 삭제하지 않는다.
+- 인프라팀 확인상 Stage 모델 버킷은 미생성이다. 실제 적용 전 Stage plan에서 기존 모델 버킷 삭제가 없는지 확인한다. Prod 버킷 생성이 Stage 조회보다 먼저여야 한다.
+- Prod 삭제는 공용 버킷에도 영향을 준다. Stage 사용 여부와 모델 보존을 확인한 뒤 처리한다.
+- 모델 업로드 담당자의 쓰기 권한은 별도이며, Pod에는 다운로드용 읽기 권한만 제공한다.
+- 상세페이지는 `page-generation/<번들>/` 아래 `text/`, `image/`, `u2net/`을, 임베딩은 `chatbot/embedding/<번들>/` 아래 `bge-m3/`를 둔다. 각 번들 루트에 `SHA256SUMS`가 필요하다.
+- 챗봇 LLM도 같은 버킷의 `chatbot/llm/` 경로를 사용할 수 있지만, LLM 컨테이너·다운로드 연결은 별도 구현이 필요하다.
+- 모델 후보는 Hugging Face `main`에서 준비할 수 있다. S3 번들은 환경 간 재현을 위해 덮어쓰지 않는 경로를 사용하고 다운로드 시점의 revision을 기록한다.
+- 두 클러스터는 S3 원본만 공유하며 PVC와 모델 복사본은 각각 유지한다. 실제 번들·해시·이미지 digest가 준비되기 전에는 컴포넌트를 활성화하지 않는다.
+
 두 환경에 같은 구조를 제공하되 **각 클러스터의 실제 값**으로 별도 구성한다. 현재는 필수 값과 AI 수정이 미완료라 기본 overlay의 `components`에 추가하지 않았다.
 아래 내용은 `k8s/overlays/<stage 또는 prod>/kustomization.yaml`의 기존 항목에 합쳐 넣는 예시이며, `<...>`를 그대로 적용하면 안 된다.
 
@@ -125,12 +138,12 @@ configMapGenerator:
   - name: ai-sglang-model-source
     namespace: ai
     literals:
-      - s3-uri=s3://<실제 모델 버킷>/<상세페이지 버전 prefix>
+      - s3-uri=s3://jangin-prod-s3-models/page-generation/<번들>
       - manifest-sha256=<상세페이지 SHA256SUMS의 64자리 hash>
   - name: ai-chatbot-model-source
     namespace: ai
     literals:
-      - s3-uri=s3://<실제 모델 버킷>/<BGE 버전 prefix>
+      - s3-uri=s3://jangin-prod-s3-models/chatbot/embedding/<번들>
       - manifest-sha256=<BGE SHA256SUMS의 64자리 hash>
 
 images:

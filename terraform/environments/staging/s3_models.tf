@@ -1,18 +1,6 @@
-# [s3-models] jangin-{env}-s3-models - AI 모델 가중치, 비공개, SSE-S3
-
-module "s3_models" {
-  source = "../../modules/s3"
-
-  bucket_name = "${var.project}-${var.env}-s3-models"
-  kms_key_arn = null
-
-  enable_logging        = true
-  logging_target_bucket = module.s3_access.bucket_id
-}
-
-resource "aws_s3_bucket_policy" "models" {
-  bucket = module.s3_models.bucket_id
-  policy = module.s3_models.policy_json
-
-  depends_on = [module.s3_models]
+# 공용 AI 모델 버킷은 Prod state에서만 생성·관리한다.
+# Stage는 기존 버킷을 조회하므로 Stage destroy로 공용 버킷/정책을 삭제하지 않는다.
+# Prod의 모델 버킷 생성 후 Stage plan/apply를 수행해야 한다.
+data "aws_s3_bucket" "models" {
+  bucket = "${var.project}-prod-s3-models"
 }

@@ -76,7 +76,7 @@ data "aws_iam_policy_document" "ai" {
     sid       = "S3ModelsRead"
     effect    = "Allow"
     actions   = ["s3:GetObject"]
-    resources = ["arn:aws:s3:::jangin-${var.env}-s3-models/*"]
+    resources = ["${module.s3_models.bucket_arn}/*"]
   }
 }
 
