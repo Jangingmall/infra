@@ -44,8 +44,8 @@ resource "aws_iam_policy" "gha_backend_ecr" {
 module "github_oidc_backend" {
   source = "../../modules/github_oidc"
 
-  github_org      = "Jangingmall"
-  github_repo     = "backend"
+  github_org      = "Jangingmall@316382159"
+  github_repo     = "backend@1353029814"
   github_subjects = ["ref:refs/heads/*"]
   name_suffix     = "ci"
 
@@ -74,8 +74,8 @@ resource "aws_iam_policy" "gha_genai_ecr" {
 module "github_oidc_genai" {
   source = "../../modules/github_oidc"
 
-  github_org      = "Jangingmall"
-  github_repo     = "GenAI"
+  github_org      = "Jangingmall@316382159"
+  github_repo     = "GenAI@1354414273"
   github_subjects = ["ref:refs/heads/*"]
   name_suffix     = "ci"
 
