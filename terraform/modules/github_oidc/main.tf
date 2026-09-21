@@ -24,15 +24,25 @@ resource "aws_iam_role" "this" {
       Principal = { Federated = data.aws_iam_openid_connect_provider.github.arn }
       Action    = "sts:AssumeRoleWithWebIdentity"
       Condition = {
-        # sub는 항상 이름 기반(GitHub가 그렇게 발급함) — ID를 여기 섞지 않는다.
+        # 🔴 2026-07-15부터 GitHub는 신규/개명/이전된 레포에 sub를
+        # "repo:org@ownerID/repo@repoID:subject" 형식(불변 ID 포함)으로 발급한다.
+        # 그 이전에 만들어진 레포는 예전 이름 형식 그대로다.
+        # 저희 레포는 전부 2026-09 생성이라 신형식 대상이라, 구형+신형 둘 다 매칭 리스트에
+        # 넣는다(OR 매칭이라 안전). ID를 모르면(null) 신형식은 생략한다.
         StringLike = {
-          "token.actions.githubusercontent.com:sub" = [
-            for s in var.github_subjects : "repo:${var.github_org}/${var.github_repo}:${s}"
-          ]
+          "token.actions.githubusercontent.com:sub" = concat(
+            [for s in var.github_subjects : "repo:${var.github_org}/${var.github_repo}:${s}"],
+            var.github_org_id != null && var.github_repo_id != null ? [
+              for s in var.github_subjects : "repo:${var.github_org}@${var.github_org_id}/${var.github_repo}@${var.github_repo_id}:${s}"
+            ] : []
+          )
         }
-        # repository_id/repository_owner_id는 sub와 별개의 클레임
-        StringEquals = merge(
-          { "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com" },
+        StringEquals = {
+          "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+        }
+        # repository_id/repository_owner_id는 sub와 별개의 클레임(AWS가 2026-01부터
+        # trust policy 조건 키로 지원). IfExists라 클레임이 없어도 인증 자체는 막지 않는다.
+        StringEqualsIfExists = merge(
           var.github_org_id != null ? { "token.actions.githubusercontent.com:repository_owner_id" = var.github_org_id } : {},
           var.github_repo_id != null ? { "token.actions.githubusercontent.com:repository_id" = var.github_repo_id } : {},
         )
