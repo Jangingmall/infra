@@ -17,6 +17,9 @@ module "github_oidc" {
   github_subjects = ["environment:staging"]
   name_suffix     = "staging"
 
+  github_org_id  = "316382159"
+  github_repo_id = "1357893008"
+
   policy_arns = [
     "arn:aws:iam::aws:policy/PowerUserAccess",
     "arn:aws:iam::aws:policy/IAMFullAccess",

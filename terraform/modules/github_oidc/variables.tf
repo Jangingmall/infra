@@ -22,3 +22,13 @@ variable "policy_arns" {
   description = "이 Role에 붙일 관리형 정책 ARN 목록"
   type        = list(string)
 }
+
+variable "github_org_id" {
+  description = "GitHub Organization의 불변 숫자 ID (repository_owner_id 클레임 검증용)"
+  type        = string
+}
+
+variable "github_repo_id" {
+  description = "GitHub Repository의 불변 숫자 ID (repository_id 클레임 검증용)"
+  type        = string
+}
