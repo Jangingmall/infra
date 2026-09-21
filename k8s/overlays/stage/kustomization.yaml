@@ -11,6 +11,41 @@ resources:
   - ai-chatbot-secret-provider.yaml
   - ai-sglang-secret-provider.yaml
 
+# Stage는 GPU 노드 min/desired=0 상태에서 Backend·DB·Redis부터 검증한다.
+# AI 2종과 벡터DB의 Pod 생성만 보류한다. Service·SecretProviderClass 정의는 유지한다.
+# Argo CD selfHeal이 적용되므로 kubectl scale 대신 이 replicas 블록을 Git에서 변경한다.
+# GPU·IRSA·SSM·이미지·모델 및 챗봇 LLM 연결 준비 후 세 항목을 함께 재검토해 활성화한다.
+# AI Service는 실행 중인 endpoint가 없으므로 AI 기능 호출은 성공하지 않는다.
+# Backend가 참조하는 /staging/ai/internal-auth-token은 이 보류와 별개로 준비해야 한다.
+replicas:
+  - name: ai-sglang
+    count: 0
+  - name: ai-ollama
+    count: 0
+  - name: ai-vector-db
+    count: 0
+
+# Stage에 생성된 IRSA 역할을 각 Pod의 ServiceAccount에 연결한다.
+# 신뢰 정책의 app/backend-sa, app/redis-sa와 이름·namespace가 일치해야 한다.
+# 이 annotation은 권한 연결만 담당하며 SSM 값이나 DB 초기 Secret을 생성하지 않는다.
+patches:
+  - patch: |-
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: backend-sa
+        namespace: app
+        annotations:
+          eks.amazonaws.com/role-arn: arn:aws:iam::750240012008:role/jangin-staging-irsa-backend
+  - patch: |-
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: redis-sa
+        namespace: app
+        annotations:
+          eks.amazonaws.com/role-arn: arn:aws:iam::750240012008:role/jangin-staging-irsa-redis
+
 components:
   - ../../components/backend-configtree
   - ../../components/gitops-protection

@@ -1,3 +1,7 @@
-# TODO: stage의 targetGroupARN, vpcID, albSourceCidrs를 입력한 뒤 enabled: true.
 # ALB/TG/리스너/ACM/WAF/DNS/SG는 인프라 담당자가 관리한다.
-{}
+enabled: true
+targetGroupARN: arn:aws:elasticloadbalancing:ap-northeast-2:750240012008:targetgroup/jangin-staging-alb-tg/cb4f52c5d070fb8b
+vpcID: vpc-00e8c4af83a1cc801
+albSourceCidrs:
+  - 10.1.0.0/24
+  - 10.1.1.0/24
