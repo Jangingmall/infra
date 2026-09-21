@@ -36,6 +36,13 @@ resource "aws_iam_policy" "gha_backend_ecr" {
         Effect   = "Allow"
         Action   = ["ecr:BatchCheckLayerAvailability", "ecr:PutImage", "ecr:InitiateLayerUpload", "ecr:UploadLayerPart", "ecr:CompleteLayerUpload"]
         Resource = "arn:aws:ecr:${var.region}:${data.aws_caller_identity.current.account_id}:repository/jangin-app"
+      },
+      {
+        # build-deploy.yml 의 batch-get-image, promote.yml 의 describe-images 용
+        Sid      = "ReadJanginApp"
+        Effect   = "Allow"
+        Action   = ["ecr:DescribeImages", "ecr:BatchGetImage"]
+        Resource = "arn:aws:ecr:${var.region}:${data.aws_caller_identity.current.account_id}:repository/jangin-app"
       }
     ]
   })
@@ -66,6 +73,22 @@ resource "aws_iam_policy" "gha_genai_ecr" {
           "arn:aws:ecr:${var.region}:${data.aws_caller_identity.current.account_id}:repository/jangin-ai/sglang",
           "arn:aws:ecr:${var.region}:${data.aws_caller_identity.current.account_id}:repository/jangin-ai/ollama",
         ]
+      },
+      {
+        Sid    = "PushPullChatbotLlm"
+        Effect = "Allow"
+        Action = [
+          "ecr:DescribeRepositories",
+          "ecr:DescribeImages",
+          "ecr:BatchGetImage",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:InitiateLayerUpload",
+          "ecr:UploadLayerPart",
+          "ecr:CompleteLayerUpload",
+          "ecr:PutImage",
+        ]
+        Resource = "arn:aws:ecr:${var.region}:${data.aws_caller_identity.current.account_id}:repository/jangin-ai/chatbot-llm"
       }
     ]
   })
