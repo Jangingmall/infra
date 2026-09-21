@@ -30,6 +30,7 @@ AppProject는 Argo CD 내부 제한이며 Kubernetes 사용자 RBAC 또는 GitHu
 | argo-rollouts | chart 2.43.1 + infra/main values | Rollouts Controller/CRD |
 | secrets-store-csi | chart 3.1.3 + infra/main values | CSI Driver + AWS Provider |
 | aws-load-balancer-controller | chart 1.14.0 + 공통/환경 runtime values | 기존 ALB TG에 Pod 등록, 최초 수동 Sync |
+| nvidia-device-plugin | chart 0.20.0 + 공통 values | GPU 노드별 장치 등록, 최초 수동 Sync |
 | metrics-server | chart 3.14.0 + 공통 values | HPA·kubectl top용 Metrics API, 최초 수동 Sync |
 | backend-networking | platform/networking + 환경별 values | 기존 ALB TargetGroupBinding·수신 정책, 값 준비 후 수동 Sync |
 | workloads | k8s/overlays/stage 또는 prod | Backend·업무 DB·AI·공통 리소스 |
@@ -64,11 +65,11 @@ Namespace/StorageClass를 다른 도구가 이미 관리 중이라면 첫 sync �
 ## 최초 설치 순서
 
 1. 환경 context, EKS와 System/App/DB/GPU 노드 준비 상태를 확인한다.
-2. EBS CSI·NVIDIA Device Plugin·NetworkPolicy enforcement 등 외부 플랫폼 의존성을 준비한다.
+2. EBS CSI·NetworkPolicy enforcement 등 외부 플랫폼 의존성을 준비한다.
 3. `platform/argocd/README.md`대로 Argo CD를 설치하고 read-only Git credential을 등록한다.
 4. **선택한 환경의 projects.yaml만** 먼저 적용한다.
 5. 해당 환경 platform.yaml을 적용하고 세 Application이 Synced/Healthy가 될 때까지 확인한다. CRD Established와 Controller/DaemonSet 준비도 함께 확인한다.
-6. [클러스터 애드온 설치 안내](../platform/cluster-addons.md)에 따라 기존 cert-manager를 먼저 Sync하고, `cluster-addons.yaml`의 Metrics Server·ALB Controller를 등록·수동 Sync한다. ALB의 실제 VPC ID·IRSA를 먼저 반영한다.
+6. [클러스터 애드온 설치 안내](../platform/cluster-addons.md)에 따라 기존 cert-manager를 먼저 Sync하고, `cluster-addons.yaml`의 Metrics Server·ALB Controller를 등록·수동 Sync한다. ALB의 실제 VPC ID·IRSA를 먼저 반영한다. GPU 노드 준비 후 같은 안내의 NVIDIA Device Plugin을 수동 Sync하고 GPU 등록을 확인한다.
 7. 실제 이미지 digest, Backend IRSA·SSM, DB Secrets, AI 모델 설정·용량을 확인한다. 이전 작업의 협업 대기 항목이 남아 있으면 중단한다.
 8. 해당 환경 workloads.yaml을 적용한다. ALB Controller·TGB CRD 준비 후 별도 backend-networking Application을 Sync한다.
 
