@@ -114,6 +114,7 @@ resource "aws_eks_addon" "ebs_csi" {
   # 🔑 Pod 단위 권한. 노드 역할에 EBS 권한을 붙이는 우회를 쓰지 않는 이유는
   #    그 노드의 모든 Pod 가 EBS 를 조작할 수 있게 되기 때문입니다.
   service_account_role_arn = var.ebs_csi_irsa_role_arn
+  configuration_values     = local.ebs_csi_config
 
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "OVERWRITE"

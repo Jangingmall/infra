@@ -33,6 +33,8 @@ module "eks_addons" {
   ebs_csi_enabled       = var.addons_ebs_csi_enabled
   ebs_csi_version       = var.addons_ebs_csi_version
   ebs_csi_irsa_role_arn = module.irsa["ebs-csi"].role_arn
+  # PVC 볼륨은 CSI 가 만들므로 Terraform 이 아니라 CSI 가 만들었다고 정직하게 표기
+  ebs_csi_extra_volume_tags = merge(local.common_tags, { ManagedBy = "ebs-csi-driver" })
 
   # 🔑 노드가 먼저 떠야 CoreDNS·EBS CSI 컨트롤러 Pod 가 뜹니다.
   #    이 참조 한 줄이 순서를 만듭니다.
