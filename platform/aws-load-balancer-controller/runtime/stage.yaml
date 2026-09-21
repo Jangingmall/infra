@@ -1,9 +1,6 @@
-# 클러스터 이름·리전은 Terraform 예시와 동일하다. 실제 output과 다시 대조한다.
 clusterName: jangin-staging-eks-cluster
 region: ap-northeast-2
-# TODO(인프라 인계): 실제 vpc_id. 빈 상태로 Controller를 Sync하지 않는다.
-vpcId: ""
+vpcId: vpc-00e8c4af83a1cc801
 serviceAccount:
-  annotations: {}
-  # TODO: irsa_role_arns["alb-controller"]의 실제 ARN을 annotations 아래에 입력.
-  # eks.amazonaws.com/role-arn: 실제 Stage Role ARN
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::750240012008:role/jangin-staging-irsa-alb-controller
