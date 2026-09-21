@@ -128,3 +128,5 @@ kubeconfig
 !k8s/components/ai-model-storage/README.md
 !terraform/workload-secrets.md
 !platform/cluster-addons.md
+
+tfplan*
