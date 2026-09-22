@@ -76,8 +76,8 @@ resource "aws_iam_policy" "gha_genai_ecr" {
         Effect = "Allow"
         Action = ["ecr:BatchCheckLayerAvailability", "ecr:PutImage", "ecr:InitiateLayerUpload", "ecr:UploadLayerPart", "ecr:CompleteLayerUpload"]
         Resource = [
-          "arn:aws:ecr:${var.region}:${data.aws_caller_identity.current.account_id}:repository/jangin-ai/sglang",
-          "arn:aws:ecr:${var.region}:${data.aws_caller_identity.current.account_id}:repository/jangin-ai/ollama",
+          "arn:aws:ecr:${var.region}:${data.aws_caller_identity.current.account_id}:repository/jangin-ai/page-generation",
+          "arn:aws:ecr:${var.region}:${data.aws_caller_identity.current.account_id}:repository/jangin-ai/chatbot-api",
         ]
       },
       {

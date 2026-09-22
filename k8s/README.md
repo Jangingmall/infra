@@ -36,7 +36,7 @@ Stage와 Prod는 별도 EKS 클러스터를 사용하는 설계다. 따라서 Na
 - Replica·CPU·메모리: 현재 base 값을 상속한다. 환경별 운영 수치가 확정되면 patch로 관리한다.
 - 도메인·IRSA·시크릿: 실제 연결 값과 사용 방식이 확정된 뒤 환경별 설정을 추가한다.
 
-Backend·AI 이미지에는 아직 base의 자리표시자(`jangin-app`, `jangin-ai/sglang`, `jangin-ai/ollama`)가 사용된다. 이번 구조 추가는 배포 준비 단계이며, 실제 이미지·인증·설정 연결 및 EKS 실행 검증까지 완료된 상태는 아니다.
+Backend·AI 이미지에는 아직 base의 자리표시자(`jangin-app`, `jangin-ai/page-generation`, `jangin-ai/chatbot-api`)가 사용된다. 이번 구조 추가는 배포 준비 단계이며, 실제 이미지·인증·설정 연결 및 EKS 실행 검증까지 완료된 상태는 아니다.
 
 ## AI 전용 벡터DB
 
@@ -147,8 +147,8 @@ DB Egress를 구현하려면 인프라팀에서 EKS API 접근 방식과 목적�
 
 | Deployment / Service | 노드 조건 | 이미지 교체 키 | Backend 호출 주소 |
 | --- | --- | --- | --- |
-| `ai-sglang` | `workload-type=gpu`, `gpu-model=l40s` | `jangin-ai/sglang` | `http://ai-sglang.ai.svc.cluster.local:8000` |
-| `ai-ollama` | `workload-type=gpu`, `gpu-model=t4` | `jangin-ai/ollama` | `http://ai-ollama.ai.svc.cluster.local:8000` |
+| `ai-sglang` | `workload-type=gpu`, `gpu-model=l40s` | `jangin-ai/page-generation` | `http://ai-sglang.ai.svc.cluster.local:8000` |
+| `ai-ollama` | `workload-type=gpu`, `gpu-model=t4` | `jangin-ai/chatbot-api` | `http://ai-ollama.ai.svc.cluster.local:8000` |
 
 두 Deployment는 replica 1, Recreate, `nvidia.com/gpu=true:NoSchedule` toleration을 사용한다. 상세페이지 통합 컨테이너에 GPU 1개를 할당한다. 챗봇 이미지는 현재 CPU API/BGE-M3이므로 GPU를 예약하지 않는다. T4의 GPU는 엔진·모델 확정 후 별도 LLM 컨테이너에 할당해야 한다. Service는 각 API의 고유 name 라벨을 선택하고, 두 Pod는 IRSA ServiceAccount `ai-worker-sa`를 공유한다. 추론 엔진 내부 포트는 Service로 공개하지 않는다.
 
