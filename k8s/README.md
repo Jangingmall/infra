@@ -150,7 +150,7 @@ DB Egress를 구현하려면 인프라팀에서 EKS API 접근 방식과 목적�
 | `ai-sglang` | `workload-type=gpu`, `gpu-model=l40s` | `jangin-ai/page-generation` | `http://ai-sglang.ai.svc.cluster.local:8000` |
 | `ai-ollama` | `workload-type=gpu`, `gpu-model=t4` | `jangin-ai/chatbot-api` | `http://ai-ollama.ai.svc.cluster.local:8000` |
 
-두 Deployment는 replica 1, Recreate, `nvidia.com/gpu=true:NoSchedule` toleration을 사용한다. 상세페이지 통합 컨테이너에 GPU 1개를 할당한다. 챗봇 이미지는 현재 CPU API/BGE-M3이므로 GPU를 예약하지 않는다. T4의 GPU는 엔진·모델 확정 후 별도 LLM 컨테이너에 할당해야 한다. Service는 각 API의 고유 name 라벨을 선택하고, 두 Pod는 IRSA ServiceAccount `ai-worker-sa`를 공유한다. 추론 엔진 내부 포트는 Service로 공개하지 않는다.
+두 Deployment는 replica 1, Recreate, `nvidia.com/gpu=true:NoSchedule` toleration을 사용한다. 상세페이지 통합 컨테이너에 GPU 1개를 할당한다. 챗봇 이미지는 현재 CPU API/BGE-M3이므로 GPU를 예약하지 않는다. T4의 GPU 1개는 같은 Pod의 `chatbot-llm` 컨테이너에 할당한다. API는 loopback 30000 포트의 SGLang을 호출한다. 모델 저장소 component의 LLM 전용 PVC·S3 경로를 연결한 후 활성화한다. Service는 각 API의 고유 name 라벨을 선택하고, 두 Pod는 IRSA ServiceAccount `ai-worker-sa`를 공유한다. 추론 엔진 내부 포트는 Service로 공개하지 않는다.
 
 최신 GenAI 코드상 상세페이지 ECR 이미지는 API·텍스트 추론·이미지 추론을 통합한다. 챗봇 ECR 이미지는 API/임베딩만 포함하므로 현재 선언만으로 답변 생성까지 동작하지 않는다. 앱 이미지 digest와 CPU/Memory 실측값도 배포 전에 반영해야 한다.
 

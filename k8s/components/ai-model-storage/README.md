@@ -9,9 +9,9 @@ Backend·GenAI 소스는 수정하지 않는다. 모델 버킷은 Terraform Prod
 | --- | --- | --- |
 | 상세페이지 API | Backend 기본 주소로 callback 전달. AI 코드가 `/internal/generations/{generation_id}/completion`을 붙임 | Base/Stage/Prod 반영 |
 | 챗봇 API | `/ai/ready`로 DB·임베딩·LLM 준비 확인, `/ai/health`로 생존 확인. CPU 이미지의 GPU 예약 제거 | Base/Stage/Prod 반영 |
-| 모델 저장소 | 상세페이지 100Gi, 챗봇 BGE-M3 10Gi, S3 준비용 initContainer | 선택형 컴포넌트, 두 환경 모두 미활성 |
+| 모델 저장소 | 상세페이지 100Gi, BGE-M3 10Gi, LLM 30Gi 및 번들별 S3 initContainer | 선택형 컴포넌트, 두 환경 모두 미활성 |
 | 공개 이미지 복사 | 수동 Actions 실행 시 지정한 digest를 ECR로 복사 | workflow 추가, 실제 실행 전 |
-| 챗봇 LLM | 사용할 엔진·이미지 digest·모델·실행 명령 확정 필요 | 컨테이너 미구현, 챗봇 답변 생성 배포 완료 아님 |
+| 챗봇 LLM | 동일 Pod의 SGLang 컨테이너·GPU 1개·API loopback 연결 구현 | 실제 이미지 digest·모델 인계·T4 검증 전, Stage replicas 0 유지 |
 
 상세페이지 통합 이미지는 API·텍스트 추론·이미지 추론을 함께 실행한다. 별도 상세페이지 LLM 이미지를 추가하지 않는다.
 챗봇의 `jangin-ai/chatbot-api`는 CPU용 API/BGE-M3 이미지다. 이 이미지 자체에 Ollama/SGLang 서버가 들어 있지는 않다.
@@ -19,8 +19,8 @@ Backend·GenAI 소스는 수정하지 않는다. 모델 버킷은 Terraform Prod
 ## 실행 순서
 
 ```text
-GenAI CI: 소스 테스트 → 상세페이지 이미지/챗봇 API 이미지 → ECR
-infra 수동 workflow: 공개 런타임 @digest → 기존 ECR 저장소 (다시 빌드하지 않음)
+GenAI CI: 소스 테스트 → 상세페이지 / 챗봇 API / 챗봇 LLM 이미지 → ECR
+infra 수동 workflow: 모델 다운로드 도구 @digest → model-fetch ECR (다시 빌드하지 않음)
 
 Kubernetes Pod 생성
   → 노드가 ECR 이미지를 받음
@@ -40,13 +40,20 @@ Kubernetes Pod 생성
 **AI팀이 TEXT는 `config.json`, IMAGE는 `model_index.json`을 검사하도록 수정하고 CI로 새 이미지를 발행해야 한다.**
 infra에서 가짜 `config.json`을 만들거나 AI 시작 스크립트를 덮어쓰지 않는다. 해당 변경이 포함된 digest를 확인한 후 이 컴포넌트를 활성화한다.
 
-챗봇 README-docker.md와 env.example은 배포용 엔진을 SGLang으로 지정한다. 다만 T4에서 사용할 실제 이미지 버전/digest, 모델 ID/고정 버전·정밀도, 모델 형식, 실행 명령, 메모리 요구량은 추가 확인이 필요하다. 앱의 기본 Ollama 모델 값은 SGLang용 모델 인계로 간주하지 않는다.
-확정 뒤 같은 챗봇 Pod에 LLM 컨테이너를 추가하고 다음을 연결한다.
+## 챗봇 API·LLM 구성
 
-- GPU `nvidia.com/gpu: 1`은 LLM 컨테이너에만 할당한다.
-- API에 `LLM_BACKEND=sglang`, `SGLANG_HOST=http://127.0.0.1:30000`을 연결하고, `LLM_MODEL`은 서버의 served-model-name과 맞춘다. 이 주소는 같은 Pod의 SGLang을 30000 포트로 실행할 때 사용한다.
-- LLM 모델 형식에 맞는 볼륨과 준비 절차, startup/readiness, CPU/RAM을 추가한다.
-- 현재 10Gi 챗봇 PVC는 BGE-M3용이다. LLM까지 충분하다는 의미가 아니다.
+`ai-ollama` Pod는 기존 Service/NetworkPolicy 라벨을 유지하고 두 컨테이너를 실행한다.
+`ai-ollama`는 챗봇의 기존 Kubernetes 리소스 이름이며 실제 LLM 엔진은 SGLang이다. 이번 작업에서는 `ai-sglang` 상세페이지 리소스 이름도 유지한다. ECR 이미지 이름과 Kubernetes 리소스 이름은 같을 필요가 없다.
+
+- `ai-ollama`: `jangin-ai/chatbot-api`, CPU BGE-M3/API, `LLM_BACKEND=sglang`, `SGLANG_HOST=http://127.0.0.1:30000`, `LLM_MODEL=gemma4-12b-awq`.
+- `chatbot-llm`: GenAI의 `chat_bot/deploy/sglang/Dockerfile`로 빌드한 `jangin-ai/chatbot-llm`, GPU 1개, AWQ·outlines 옵션, served name `gemma4-12b-awq`.
+- LLM은 `127.0.0.1:30000`에만 bind한다. Service에는 포트를 추가하지 않으며 probe는 컨테이너 내부에서 `/v1/models`를 조회한다. API readiness는 DB·임베딩 파일·LLM 모델 이름까지 검사한다.
+- LLM은 Python 서버를 PID 1로 직접 실행해 종료 신호를 받는다. 이미지의 Hub `MODEL_REVISION`은 로컬 번들 실행 인자에 사용하지 않고 manifest hash로 모델 버전을 고정한다.
+- SGLang 시작 probe는 최대 20분, API 시작 probe는 기존 10분을 초기값으로 둔다. API warmup 실패는 현재 앱에서 처리하고 readiness로 트래픽을 보류한다. 실제 T4 로딩·API 예열 시간에 맞춰 조정한다.
+- LLM 프로세스 종료는 Kubernetes가 재시작한다. 별도 liveness 추론을 주기 실행하지 않으며 `/v1/models` readiness로 실패한 Pod의 트래픽을 차단한다.
+- `/dev/shm`은 메모리 기반 emptyDir, 상한 1Gi다. 사용분은 노드 RAM에 포함된다. CPU/RAM requests·limits와 KV cache·동시성은 실측 후 확정한다.
+
+기존 BGE PVC 10Gi는 유지하고 **LLM 전용 PVC 30Gi**를 추가한다. 각각 별도 S3 prefix·manifest hash·initContainer를 사용하므로 임베딩과 LLM 버전을 독립적으로 교체한다. 30Gi는 시작 용량이며 실제 전체 snapshot과 이전 번들 보존량을 확인한 뒤 활성화한다.
 
 ## 모델 번들 계약
 
@@ -63,6 +70,10 @@ S3의 변경하지 않는 버전별 prefix에 **전체 런타임 파일과 `SHA2
 챗봇 prefix/
   SHA256SUMS
   bge-m3/     SentenceTransformer 런타임 전체 파일
+
+챗봇 LLM prefix/
+  SHA256SUMS
+  llm/        config.json, tokenizer.json, tokenizer_config.json, 전체 safetensors 가중치와 index 등
 ```
 
 현재 소스가 지정한 모델:
@@ -71,6 +82,7 @@ S3의 변경하지 않는 버전별 prefix에 **전체 런타임 파일과 `SHA2
 | --- | --- | --- |
 | 상세페이지 텍스트 | `cyankiwi/Qwen3.8-27B-AWQ-INT4` | `6e134bae811fb5adac50ee042ae5f029ac6779aa` |
 | 상세페이지 이미지 | `circulus/FLUX.2-klein-9B-bnb-4bit` | `58c2804f31af12c8888504b96250010c50b55e44` |
+| 챗봇 LLM | `mattbucci/gemma-4-12B-AWQ` | `c4a82eea03b40ecaeb4ef265b3fd27461c8a87ed` (GenAI Dockerfile 기준, T4 미검증) |
 | 챗봇 CPU 임베딩 | `BAAI/bge-m3` | `5617a9f61b028005a4858fdac845db406aefb181` |
 | 배경 제거 | rembg 2.0.69의 BiRefNet general | 로컬 파일명 `birefnet-general.onnx`; upstream asset `BiRefNet-general-epoch_244.onnx` |
 
@@ -90,6 +102,8 @@ BiRefNet 파일은 rembg 기대 MD5 `7a35a0141cbbc80de11d9c9a28f52697`도 확인
 번들 hash마다 다른 하위 디렉터리를 사용하므로 이전 모델 파일과 앱 SQLite/출력 파일을 삭제하지 않는다. 이전 번들 정리는 배포/롤백 기간이 끝난 뒤 별도 수행한다.
 
 ## 공개 이미지 → ECR 수동 복사
+
+**현재 챗봇 LLM 배포에는 AI팀이 빌드한 이미지를 사용한다. 아래 LLM 공개 이미지 복사는 기존 도구의 선택 기능이며 이번 배포 경로에서는 실행하지 않는다. 모델 준비용 model-fetch 이미지만 이 절차로 준비한다.**
 
 `.github/workflows/ai-image-mirror.yml`은 `workflow_dispatch` 전용이다. main 반영 후 Actions의 **Mirror AI runtime image to ECR**에서 실행한다.
 
@@ -122,7 +136,7 @@ Actions Summary에 나온 `ECR주소@sha256:...`를 배포 설정에서 사용�
 - Prod 삭제는 공용 버킷에도 영향을 준다. Stage 사용 여부와 모델 보존을 확인한 뒤 처리한다.
 - 모델 업로드 담당자의 쓰기 권한은 별도이며, Pod에는 다운로드용 읽기 권한만 제공한다.
 - 상세페이지는 `page-generation/<번들>/` 아래 `text/`, `image/`, `u2net/`을, 임베딩은 `chatbot/embedding/<번들>/` 아래 `bge-m3/`를 둔다. 각 번들 루트에 `SHA256SUMS`가 필요하다.
-- 챗봇 LLM도 같은 버킷의 `chatbot/llm/` 경로를 사용할 수 있지만, LLM 컨테이너·다운로드 연결은 별도 구현이 필요하다.
+- 챗봇 LLM은 `chatbot/llm/<번들>/` 아래 `llm/` 전체 snapshot과 `SHA256SUMS`를 둔다. `ai-chatbot-llm-model-source` ConfigMap으로 해당 prefix와 manifest hash를 전달한다.
 - 모델 후보는 Hugging Face `main`에서 준비할 수 있다. S3 번들은 환경 간 재현을 위해 덮어쓰지 않는 경로를 사용하고 다운로드 시점의 revision을 기록한다.
 - 두 클러스터는 S3 원본만 공유하며 PVC와 모델 복사본은 각각 유지한다. 실제 번들·해시·이미지 digest가 준비되기 전에는 컴포넌트를 활성화하지 않는다.
 
@@ -145,9 +159,17 @@ configMapGenerator:
     literals:
       - s3-uri=s3://jangin-prod-s3-models/chatbot/embedding/<번들>
       - manifest-sha256=<BGE SHA256SUMS의 64자리 hash>
+  - name: ai-chatbot-llm-model-source
+    namespace: ai
+    literals:
+      - s3-uri=s3://jangin-prod-s3-models/chatbot/llm/<번들>
+      - manifest-sha256=<LLM SHA256SUMS의 64자리 hash>
 
 images:
-  # 기존 앱 이미지 digest 설정 유지
+  - name: jangin-ai/chatbot-llm
+    newName: <account>.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-ai/chatbot-llm
+    digest: sha256:<AI팀이 발행한 실제 digest>
+  # 상세페이지·챗봇 API도 각각 실제 ECR 주소와 digest를 지정한다.
   - name: ai-model-fetch
     newName: <account>.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-ai/model-fetch
     digest: sha256:<확인한 원본과 동일한 digest>
@@ -158,13 +180,13 @@ images:
 Pod의 S3·regional STS TCP 443 접근을 확인한다. 기본 overlay는 AI **ingress** 정책만 포함한다. 전체 AI egress default deny를 활성화할 때는 S3/STS 목적지 허용을 먼저 추가해야 한다. 표준 NetworkPolicy에 S3 도메인 이름이나 AWS prefix-list ID를 그대로 넣을 수 없다. 확인된 네트워크 방식에 맞춰 별도 구성한다.
 
 모델 initContainer는 Pod와 같은 ServiceAccount, 노드 선택, NetworkPolicy를 사용한다. 앱보다 먼저 실행되고 GPU는 예약하지 않는다.
-UID/GID 10001과 `fsGroup: 10001`로 새 PVC에 쓰고 앱에서 읽을 수 있게 한다. 상세페이지는 같은 PVC를 `/var/lib/detail-page-ai`에 마운트하여 모델뿐 아니라 SQLite·결과물·캐시도 유지한다. 챗봇 API는 `/models`를 읽기 전용으로 마운트한다.
+UID/GID 10001과 `fsGroup: 10001`로 새 PVC에 쓰고 앱에서 읽을 수 있게 한다. 상세페이지는 같은 PVC를 `/var/lib/detail-page-ai`에 마운트하여 모델뿐 아니라 SQLite·결과물·캐시도 유지한다. 챗봇 API와 LLM은 각자의 PVC를 `/models`에 읽기 전용으로 마운트한다. LLM 경로는 `/models/$(MODEL_BUNDLE_SHA256)/llm`이다. 다운로드용 두 initContainer가 성공해야 두 앱 컨테이너가 시작된다.
 
 ## 자원과 배포 전 검증
 
 - L40S: 통합 상세페이지 컨테이너에 GPU 1개. 텍스트/이미지 동시 실행의 VRAM, RAM, 시작 시간은 실측 전이다. `/dev/shm` 요구량도 실제 SGLang 실행으로 확인해야 한다.
-- T4: CPU용 챗봇 API + 별도 LLM + vector DB의 합계로 산정한다. 현재 API의 GPU 할당 제거만 완료됐고 LLM 컨테이너는 아직 없다.
-- 100Gi/10Gi는 시작 용량이며, 이전 번들·앱 출력·캐시 여유를 포함해 검증한다. EBS는 AZ에 묶이므로 대체 GPU 노드가 PVC와 같은 AZ에서 뜰 수 있어야 한다.
+- T4: CPU용 챗봇 API + 별도 LLM + vector DB의 합계로 산정한다. API는 CPU, LLM 컨테이너만 GPU 1개를 요청한다. 아직 T4 추론·품질·RAM/VRAM 용량 검증은 하지 않았다.
+- 상세페이지 100Gi / BGE 10Gi / LLM 30Gi는 시작 용량이며, 이전 번들·앱 출력·캐시 여유를 포함해 검증한다. EBS는 AZ에 묶이므로 대체 GPU 노드가 PVC와 같은 AZ에서 뜰 수 있어야 한다.
 - StorageClass는 `WaitForFirstConsumer`, `Retain`, 확장 허용이다. PVC 삭제 후 남는 EBS 정리 절차가 필요하다.
 - startupProbe 시간 600초는 챗봇 예열을 위한 초기값이다. readiness는 준비 여부이고 실제 답변 품질·GPU 사용량 검증은 별도다.
 

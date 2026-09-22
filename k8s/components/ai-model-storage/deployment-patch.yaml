@@ -158,3 +158,74 @@ spec:
         - name: chatbot-models
           persistentVolumeClaim:
             claimName: ai-chatbot-models
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-ollama
+  namespace: ai
+spec:
+  template:
+    spec:
+      initContainers:
+      - name: llm-model-preparation
+        image: ai-model-fetch
+        command:
+        - "/bin/sh"
+        - "/etc/model-preparation/prepare-models.sh"
+        securityContext:
+          runAsUser: 10001
+          runAsGroup: 10001
+          allowPrivilegeEscalation: false
+        env:
+        - name: HOME
+          value: "/tmp"
+        - name: AWS_DEFAULT_REGION
+          value: ap-northeast-2
+        - name: AWS_STS_REGIONAL_ENDPOINTS
+          value: regional
+        - name: MODEL_S3_URI
+          valueFrom:
+            configMapKeyRef:
+              name: ai-chatbot-llm-model-source
+              key: s3-uri
+        - name: MODEL_BUNDLE_SHA256
+          valueFrom:
+            configMapKeyRef:
+              name: ai-chatbot-llm-model-source
+              key: manifest-sha256
+        - name: MODEL_KIND
+          value: chatbot-llm
+        - name: MODEL_ROOT
+          value: "/models"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        volumeMounts:
+        - name: model-preparation
+          mountPath: "/etc/model-preparation"
+          readOnly: true
+        - name: chatbot-llm-models
+          mountPath: "/models"
+      containers:
+      - name: chatbot-llm
+        env:
+        - name: MODEL_BUNDLE_SHA256
+          valueFrom:
+            configMapKeyRef:
+              name: ai-chatbot-llm-model-source
+              key: manifest-sha256
+        - name: MODEL_PATH
+          value: "/models/$(MODEL_BUNDLE_SHA256)/llm"
+        volumeMounts:
+        - name: chatbot-llm-models
+          mountPath: "/models"
+          readOnly: true
+      volumes:
+      - name: chatbot-llm-models
+        persistentVolumeClaim:
+          claimName: ai-chatbot-llm-models

@@ -38,3 +38,18 @@ spec:
   resources:
     requests:
       storage: 10Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ai-chatbot-llm-models
+  namespace: ai
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=confirm,Delete=confirm
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: gp3-ai-models
+  resources:
+    requests:
+      storage: 30Gi

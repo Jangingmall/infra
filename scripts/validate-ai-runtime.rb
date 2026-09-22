@@ -26,7 +26,7 @@ Dir.mktmpdir('ai-runtime-') do |tmp|
   FileUtils.cp_r('k8s', tmp)
   %w[stage prod].each do |environment|
     original = YAML.load_stream(run('kubectl', 'kustomize', "k8s/overlays/#{environment}")).compact
-    chatbot = original.find { |r| r['kind']=='Deployment' && r.dig('metadata','name')=='ai-ollama' }.dig('spec','template','spec','containers',0)
+    chatbot = original.find { |r| r['kind']=='Deployment' && r.dig('metadata','name')=='ai-ollama' }.dig('spec','template','spec','containers').find { |c| c['name']=='ai-ollama' }
     check(chatbot.dig('readinessProbe','httpGet','path')=='/ai/ready', 'chatbot must gate DB/embedding/LLM readiness')
     check(!chatbot.dig('resources','limits','nvidia.com/gpu'), 'CPU chatbot image must not reserve a GPU')
     check(original.none? { |r| r.dig('metadata','name')=='ai-sglang-data' }, 'unconfigured model storage must remain opt-in')
@@ -34,25 +34,42 @@ Dir.mktmpdir('ai-runtime-') do |tmp|
     path = "#{overlay}/kustomization.yaml"
     config = YAML.load_file(path)
     config['components'] << '../../components/ai-model-storage'
-    config['configMapGenerator'] = %w[sglang chatbot].map do |service|
+    config['configMapGenerator'] = %w[sglang chatbot chatbot-llm].map do |service|
       {'name'=>"ai-#{service}-model-source", 'namespace'=>'ai', 'literals'=>['s3-uri=s3://test-models/bundle', "manifest-sha256=#{'a'*64}"]}
     end
     config['images'] = [{'name'=>'ai-model-fetch', 'newName'=>'123456789012.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-ai/model-fetch', 'digest'=>"sha256:#{'b'*64}"}]
     File.write(path, config.to_yaml)
     docs = YAML.load_stream(run('kubectl', 'kustomize', overlay)).compact
-    check(docs.count { |r| r['kind']=='PersistentVolumeClaim' && %w[ai-sglang-data ai-chatbot-models].include?(r.dig('metadata','name')) }==2, 'model claims missing')
+    check(docs.count { |r| r['kind']=='PersistentVolumeClaim' && %w[ai-sglang-data ai-chatbot-models ai-chatbot-llm-models].include?(r.dig('metadata','name')) }==3, 'model claims missing')
     %w[ai-sglang ai-ollama].each do |name|
       pod = docs.find { |r| r['kind']=='Deployment' && r.dig('metadata','name')==name }.dig('spec','template','spec')
       init = pod['initContainers'].find { |c| c['name']=='model-preparation' }
       check(init['image'].end_with?("@sha256:#{'b'*64}"), 'fetch image digest must replace alias')
       check(init.dig('securityContext','runAsUser')==10001 && pod.dig('securityContext','fsGroup')==10001, 'PVC ownership mismatch')
       check(pod['volumes'].any? { |v| v.dig('configMap','name')&.start_with?('ai-model-preparation-') }, 'hashed preparation ConfigMap not connected')
-      container = pod['containers'].first
+      container = pod['containers'].find { |c| c['name']==name }
       names = container['env'].map { |e| e['name'] }
       model_env = name=='ai-sglang' ? 'TEXT_MODEL_PATH' : 'EMBED_MODEL'
       check(names.index('MODEL_BUNDLE_SHA256') < names.index(model_env), 'Kubernetes dependent environment expansion order is invalid')
       check(pod['volumes'].any? { |v| v['csi'] }, 'existing CSI secrets lost')
     end
+pod = docs.find { |r| r['kind']=='Deployment' && r.dig('metadata','name')=='ai-ollama' }.dig('spec','template','spec')
+api = pod['containers'].find { |c| c['name']=='ai-ollama' }
+llm = pod['containers'].find { |c| c['name']=='chatbot-llm' }
+check(llm && llm.dig('resources','limits','nvidia.com/gpu')==1, 'LLM must reserve one GPU')
+check(pod['containers'].sum { |c| c.dig('resources','limits','nvidia.com/gpu').to_i }==1, 'chatbot Pod GPU allocation must total one')
+api_env = api['env'].to_h { |e| [e['name'], e['value']] }
+llm_env = llm['env'].to_h { |e| [e['name'], e['value']] }
+check(api_env['LLM_BACKEND']=='sglang' && api_env['SGLANG_HOST']=='http://127.0.0.1:30000', 'API must reach local SGLang')
+check(api_env['LLM_MODEL']==llm_env['SERVED_MODEL_NAME'], 'model names must agree')
+check(llm['command']==%w[python3 -m sglang.launch_server] && !llm['args'].include?('--revision'), 'local model must bypass shell and Hub revision')
+check(llm['env'].map { |e| e['name'] }.index('MODEL_BUNDLE_SHA256') < llm['env'].map { |e| e['name'] }.index('MODEL_PATH'), 'LLM model hash must precede path expansion')
+check(llm_env['MODEL_PATH']=='/models/$(MODEL_BUNDLE_SHA256)/llm' && llm_env['HF_HUB_OFFLINE']=='1', 'LLM must use offline local bundle')
+check(llm['volumeMounts'].any? { |v| v['name']=='chatbot-llm-models' && v['readOnly'] }, 'LLM models must mount read-only')
+check(llm['volumeMounts'].any? { |v| v['mountPath']=='/dev/shm' }, 'LLM shared memory must remain mounted')
+llm_init = pod['initContainers'].find { |c| c['name']=='llm-model-preparation' }
+check(llm_init && llm_init['env'].any? { |e| e['name']=='MODEL_KIND' && e['value']=='chatbot-llm' }, 'LLM init download contract missing')
+check(llm_init['image'].end_with?("@sha256:#{'b'*64}"), 'LLM fetch image digest must be pinned')
     puts "#{environment}: default gate and enabled model-storage rendering PASS"
   end
 
@@ -93,7 +110,28 @@ Dir.mktmpdir('ai-runtime-') do |tmp|
   manifest = files.map { |f| "#{Digest::SHA256.file("#{bundle}/#{f}").hexdigest}  #{f}\n" }.join
   File.write("#{bundle}/SHA256SUMS", manifest)
   run(env.merge('MODEL_KIND'=>'sglang', 'MODEL_BUNDLE_SHA256'=>Digest::SHA256.hexdigest(manifest)), 'sh', script)
-  puts 'Model preparation: both layouts, first download, verified cache, corruption repair, missing file and bad manifest PASS'
+llm_files = %w[llm/config.json llm/tokenizer.json llm/tokenizer_config.json llm/model.safetensors]
+llm_files.each { |f| FileUtils.mkdir_p(File.dirname("#{bundle}/#{f}")); File.write("#{bundle}/#{f}", 'llm-fixture') }
+llm_manifest = llm_files.map { |f| "#{Digest::SHA256.file("#{bundle}/#{f}").hexdigest}  #{f}\n" }.join
+File.write("#{bundle}/SHA256SUMS", llm_manifest)
+llm_hash = Digest::SHA256.hexdigest(llm_manifest)
+llm_env = env.merge('MODEL_KIND'=>'chatbot-llm', 'MODEL_BUNDLE_SHA256'=>llm_hash)
+run(llm_env, 'sh', script)
+check(File.exist?("#{tmp}/models/#{llm_hash}/llm/model.safetensors"), 'LLM weights not downloaded')
+calls = File.read(env['TEST_CALLS'])
+run(llm_env, 'sh', script)
+check(File.read(env['TEST_CALLS'])==calls, 'LLM verified cache must be reused')
+incomplete = llm_manifest.lines.reject { |l| l.include?('model.safetensors') }.join
+File.write("#{bundle}/SHA256SUMS", incomplete)
+_, _, status = Open3.capture3(llm_env.merge('MODEL_BUNDLE_SHA256'=>Digest::SHA256.hexdigest(incomplete)), 'sh', script)
+check(!status.success?, 'LLM manifest without weights must fail')
+File.write("#{bundle}/SHA256SUMS", llm_manifest)
+FileUtils.rm("#{tmp}/models/#{llm_hash}/.complete")
+File.write("#{bundle}/llm/model.safetensors", 'corrupt')
+_, _, status = Open3.capture3(llm_env, 'sh', script)
+check(!status.success? && !File.exist?("#{tmp}/models/#{llm_hash}/.complete"), 'corrupt LLM weights must fail without readiness marker')
+puts 'Model preparation: three layouts, cache reuse, missing weights and corrupted download rejection PASS'
+
 end
 run('bash', 'scripts/mirror-ai-image.sh', '--help')
 %w[model-fetch sglang ollama].each do |runtime|
