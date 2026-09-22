@@ -13,7 +13,7 @@ Stage·Prod에서 Kubernetes의 CSI 파일 마운트에 필요한 파라미터 �
 Backend·AI 담당자가 AWS 콘솔/CLI로 Parameter Store 값을 직접 등록·갱신한다.
 애플리케이션이 파라미터를 생성하는 방식이 아니며, Pod는 기존 CSI·IRSA로 값을 읽는다.
 
-각 환경의 `terraform.tfvars.example`에는 Backend 20개·AI 3개 등록 목록을 **주석**으로 보관한다.
+각 환경의 `terraform.tfvars.example`에는 환경별 Backend·AI 등록 목록을 **주석**으로 보관한다.
 `ssm.tf`의 생성 리소스와 `variables.tf`의 두 입력 변수도 삭제하지 않고 주석 처리한다.
 이 블록들은 Terraform에서 실행되지 않는다. 실제 값을 예시 파일·`terraform.tfvars`·Git에 입력하지 않는다.
 주석의 `CHANGEME`는 미입력 표시이며, 직접 등록한 실제 값은 Terraform 변수 검증 대상이 아니다.
@@ -107,7 +107,9 @@ Backend·AI의 기존 S3·KMS 권한은 유지한다. AI의 `/ai/*` 권한은 �
 - `/<env>/backend/backend-auth-token`: 상세페이지 AI → Backend 콜백 인증에 양쪽이 함께 사용한다. 요청 토큰과 별도 값이다.
 - 벡터DB 앱 비밀번호: 챗봇 API와 DB 초기화가 같은 파라미터를 사용한다. 관리자 비밀번호는 별도 값이다.
 - SSM 값 변경만으로 기존 PostgreSQL 계정 비밀번호가 변경되지 않는다. DB 계정 변경과 앱 재시작을 조율한다.
-- 현재 매핑은 결제·배송 조회 API 키를 포함하지 않는다. 해당 기능 사용 시 Backend의 TOSS/SWEET_TRACKER 키와 CSI 매핑을 추가한다.
+- 배송 조회는 `/<env>/backend/sweet_tracker_api_key` → `SWEET_TRACKER_API_KEY`, `/<env>/backend/sweet_tracker_api_base_url` → `SWEET_TRACKER_API_BASE_URL`로 연결한다. 등록된 이름의 밑줄을 유지한다. Stage·Prod에서 각각 등록해야 하며, 앱의 기본값과 별개로 CSI가 참조하는 두 파라미터는 마운트 전에 존재해야 한다. 결제 TOSS 키는 아직 매핑에 포함하지 않는다.
+- Stage는 사용자 확정에 따라 `naver-client-id`, `naver-client-secret`, `mail-password`, `email-verification-url`, `email-verification-success-redirect`를 미사용으로 지정하고 CSI 및 등록 예시에서 제외했다. Prod 사용 여부는 별도 확정 전까지 기존 매핑을 유지한다.
+- **Stage 배포 선행 조건:** 현재 고정 이미지의 소스 `70e64f32306104dd3ef87c6ae7137bfc2089cab0`에는 네이버 OAuth·SMTP 비밀번호·이메일 URL 의존성이 남아 있다. Backend팀이 관련 설정과 기능을 제거 또는 비활성화한 이미지를 발행하고, 네이티브가 새 digest를 연결한 뒤 배포한다. CSI에서 항목을 제외하는 것만으로 앱 기능이 비활성화되지 않는다. 남아 있는 `mail-host`, `mail-username`, `mail-from`은 이번 변경에서 유지한다.
 
 ## 로컬 검증
 

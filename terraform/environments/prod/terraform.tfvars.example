@@ -176,6 +176,8 @@ addons_ebs_csi_enabled = true
 # 아래는 이름·형식 참고용 주석이며 실제 값을 이 파일이나 terraform.tfvars에 넣지 않는다.
 # CHANGEME는 미입력 표시다. 실제 등록 절차·소유자는 terraform/workload-secrets.md를 따른다.
 # backend_ssm_parameters = {
+#   "sweet_tracker_api_key" = "CHANGEME"
+#   "sweet_tracker_api_base_url" = "CHANGEME"
 #   "db-url"                              = "jdbc:postgresql://jangingmall-postgres-rw.database.svc.cluster.local:5432/jangingmall"
 #   "db-username"                         = "jangingmall"
 #   "db-password"                         = "CHANGEME" # CNPG jangingmall-postgres-app의 앱 계정 비밀번호와 동일
