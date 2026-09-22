@@ -34,7 +34,7 @@ spec:
       containers:
         - name: ai-ollama
           # 실제 ECR image/digest는 환경 Overlay에서 교체한다.
-          image: jangin-ai/ollama
+          image: jangin-ai/chatbot-api
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

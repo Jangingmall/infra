@@ -14,7 +14,7 @@ Backend·GenAI 소스는 수정하지 않는다. 모델 버킷은 Terraform Prod
 | 챗봇 LLM | 사용할 엔진·이미지 digest·모델·실행 명령 확정 필요 | 컨테이너 미구현, 챗봇 답변 생성 배포 완료 아님 |
 
 상세페이지 통합 이미지는 API·텍스트 추론·이미지 추론을 함께 실행한다. 별도 상세페이지 LLM 이미지를 추가하지 않는다.
-챗봇의 `jangin-ai/ollama`는 이름과 달리 CPU용 API/BGE-M3 이미지다. 이 이미지 자체에 Ollama/SGLang 서버가 들어 있지는 않다.
+챗봇의 `jangin-ai/chatbot-api`는 CPU용 API/BGE-M3 이미지다. 이 이미지 자체에 Ollama/SGLang 서버가 들어 있지는 않다.
 
 ## 실행 순서
 

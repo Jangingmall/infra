@@ -34,7 +34,7 @@ spec:
       containers:
         - name: ai-sglang
           # 실제 ECR image/digest는 환경 Overlay에서 교체한다.
-          image: jangin-ai/sglang
+          image: jangin-ai/page-generation
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
