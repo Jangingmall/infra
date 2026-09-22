@@ -13,4 +13,9 @@ locals {
   vpc_cni_config = jsonencode({
     enableNetworkPolicy = var.vpc_cni_enable_network_policy ? "true" : "false"
   })
+  ebs_csi_config = jsonencode({
+    controller = {
+      extraVolumeTags = var.ebs_csi_extra_volume_tags
+    }
+  })
 }

@@ -8,7 +8,8 @@ provisioner: ebs.csi.aws.com
 parameters:
   type: gp3
   encrypted: "true"
-
+  tagSpecification_1: "NodePool=db"
+  
 volumeBindingMode: WaitForFirstConsumer
 
 allowVolumeExpansion: true

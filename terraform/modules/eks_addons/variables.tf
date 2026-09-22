@@ -91,6 +91,11 @@ variable "ebs_csi_irsa_role_arn" {
   type        = string
 }
 
+variable "ebs_csi_extra_volume_tags" {
+  description = "EBS CSI 가 만드는 모든 볼륨에 붙일 태그. PVC 볼륨은 Terraform 이 만들지 않아 default_tags 가 안 붙으므로 여기서 준다."
+  type        = map(string)
+}
+
 # ------------------------------------------------------------
 # CoreDNS · kube-proxy
 # ------------------------------------------------------------

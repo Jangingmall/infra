@@ -8,6 +8,7 @@ provisioner: ebs.csi.aws.com
 parameters:
   type: gp3
   encrypted: "true"
+  tagSpecification_1: "NodePool=system"
 reclaimPolicy: Retain
 allowVolumeExpansion: true
 volumeBindingMode: WaitForFirstConsumer
