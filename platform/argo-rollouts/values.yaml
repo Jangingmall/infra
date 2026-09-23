@@ -28,6 +28,20 @@ controller:
       memory: 256Mi
   nodeSelector:
     workload-type: system
+  # 두 Controller가 같은 System 노드에 몰리지 않도록 서로 다른 hostname을 우선한다.
+  # 현재 차트는 새 Pod를 먼저 만드는 RollingUpdate 전략을 고정하므로, 강제
+  # anti-affinity는 노드 Pod 슬롯/CPU 요청량이 부족할 때 업데이트를 멈출 수 있다.
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: argo-rollouts
+                app.kubernetes.io/instance: argo-rollouts
+                app.kubernetes.io/component: rollouts-controller
   topologySpreadConstraints:
     - maxSkew: 1
       topologyKey: kubernetes.io/hostname
