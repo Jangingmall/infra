@@ -4,10 +4,24 @@ kind: Kustomization
 # Backend source: 70e64f32306104dd3ef87c6ae7137bfc2089cab0
 # 이미지 발행: https://github.com/Jangingmall/backend/actions/runs/35676892944
 # 검증한 이미지를 digest로 고정한다. 다음 배포는 이 값을 변경하는 PR로 진행한다.
+# GenAI source: 1ba5d35a0832dafe24fa1627af3d5fe94a62fbc4
+# 이미지 발행: https://github.com/Jangingmall/GenAI/actions/runs/35813926528
 images:
   - name: jangin-app
     newName: 750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-app
     digest: sha256:90cc90145ab3a86d0a0d81acbdc1bae7533945a4c811ec5dd88e5a9379b5cb74
+  - name: jangin-ai/page-generation
+    newName: 750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-ai/page-generation
+    digest: sha256:978a3ac77635b418b9f55586ed55629d7266e63c8baf2424b05ebe641afa5d0b
+  - name: jangin-ai/chatbot-api
+    newName: 750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-ai/chatbot-api
+    digest: sha256:bda469b330a7b05b9b04de5c72b948cbd340dcea816dbf2acd81abc1fdebcacf
+  - name: jangin-ai/chatbot-llm
+    newName: 750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-ai/chatbot-llm
+    digest: sha256:1285a6a682d73e47e0aebc0be76b1e34ad42f19d4d8e7918beb5f564e7b7e23e
+  - name: ai-model-fetch
+    newName: 750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-ai/model-fetch
+    digest: sha256:cd2b1ed9b2181b2b8341f6584ec019b117cc13d3ec142a244d8908e1bb8ea487
 
 resources:
   - ../../base
@@ -19,19 +33,31 @@ resources:
   - ai-chatbot-secret-provider.yaml
   - ai-sglang-secret-provider.yaml
 
-# Stage는 GPU 노드 min/desired=0 상태에서 Backend·DB·Redis부터 검증한다.
-# AI 2종과 벡터DB의 Pod 생성만 보류한다. Service·SecretProviderClass 정의는 유지한다.
+configMapGenerator:
+  - name: ai-sglang-model-source
+    namespace: ai
+    literals:
+      - s3-uri=s3://jangin-prod-s3-models/page-generation/20260923/
+      - manifest-sha256=91f2cb7959cfa0e76d80b9e60ec239fa397eb3bd023c04b27196a87fd8095661
+  - name: ai-chatbot-model-source
+    namespace: ai
+    literals:
+      - s3-uri=s3://jangin-prod-s3-models/chatbot/embedding/20260923-v2/
+      - manifest-sha256=d440eafd3342b8042500871d5929d79c36f0a3412ca2b4cdde890baf682f5ed1
+  - name: ai-chatbot-llm-model-source
+    namespace: ai
+    literals:
+      - s3-uri=s3://jangin-prod-s3-models/chatbot/llm/20260923-v2/
+      - manifest-sha256=1b713aa6e90a3209fd4ea05f3349bad39eedd811470edd4d2205dd56ad6a6470
+
 # Argo CD selfHeal이 적용되므로 kubectl scale 대신 이 replicas 블록을 Git에서 변경한다.
-# GPU·IRSA·SSM·이미지·모델 및 챗봇 LLM 연결 준비 후 세 항목을 함께 재검토해 활성화한다.
-# AI Service는 실행 중인 endpoint가 없으므로 AI 기능 호출은 성공하지 않는다.
-# Backend가 참조하는 /staging/ai/internal-auth-token은 이 보류와 별개로 준비해야 한다.
 replicas:
   - name: ai-sglang
-    count: 0
+    count: 1
   - name: ai-ollama
-    count: 0
+    count: 1
   - name: ai-vector-db
-    count: 0
+    count: 1
 
 # Stage에 생성된 IRSA 역할을 각 Pod의 ServiceAccount에 연결한다.
 # 신뢰 정책의 app/backend-sa, app/redis-sa와 이름·namespace가 일치해야 한다.
@@ -53,14 +79,26 @@ patches:
         namespace: app
         annotations:
           eks.amazonaws.com/role-arn: arn:aws:iam::750240012008:role/jangin-staging-irsa-redis
+  - patch: |-
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: ai-worker-sa
+        namespace: ai
+        annotations:
+          eks.amazonaws.com/role-arn: arn:aws:iam::750240012008:role/jangin-staging-irsa-ai
+  - patch: |-
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: ai-vector-db-sa
+        namespace: ai
+        annotations:
+          eks.amazonaws.com/role-arn: arn:aws:iam::750240012008:role/jangin-staging-irsa-ai-vector-db
 
 components:
   - ../../components/backend-configtree
   - ../../components/gitops-protection
   - ../../components/ai-vector-db-secrets
   - ../../components/ai-sglang-secrets
-
-# 모델 S3/IRSA/ECR digest와 AI 이미지 계약 확인 후 활성화한다.
-# S3 원본은 Prod 관리 공용 버킷 jangin-prod-s3-models를 사용한다(PVC는 환경별).
-# 절차: k8s/components/ai-model-storage/README.md
-# components에 ../../components/ai-model-storage를 추가한다.
+  - ../../components/ai-model-storage
