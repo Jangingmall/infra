@@ -24,6 +24,9 @@ concurrency:
 jobs:
   mirror:
     runs-on: ubuntu-24.04
+    # jangin-gha-infra-prod 의 신뢰 정책이 sub = repo:<org>/infra:environment:prod 만 허용한다.
+    # 이 줄이 없으면 토큰 sub 가 ref:refs/heads/... 가 되어 AssumeRoleWithWebIdentity 가 거부된다.
+    environment: prod
     timeout-minutes: 60
     env:
       AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
