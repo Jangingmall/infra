@@ -52,7 +52,7 @@ nat_alarm_sns_topic_arns = []
 
 # TODO(staging 값 확정): Q-PL-02 — 공용 ECR 소유 state 확정 전 false 유지.
 ecr_enabled              = false
-ecr_repositories         = ["jangin-app", "jangin-ai/page-generation", "jangin-ai/chatbot-api", "jangin-ai/chatbot-llm"]
+ecr_repositories         = ["jangin-app", "jangin-ai/page-generation", "jangin-ai/chatbot-api", "jangin-ai/chatbot-llm", "jangin-ai/model-fetch"]
 ecr_keep_last_images     = 10
 ecr_untagged_expire_days = 7
 ecr_kms_key_arn          = null
