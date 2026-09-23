@@ -3,15 +3,15 @@
 ## 적용 범위와 현재 상태
 
 이 구성은 infra 저장소에서 관리하는 이미지 복사, 모델 준비, Kubernetes 볼륨 연결이다.
-Backend·GenAI 소스는 수정하지 않는다. 모델 버킷은 Terraform Prod에서 관리하고 Stage는 참조한다. 실제 AWS 리소스 생성, 이미지 복사, 모델 업로드, 클러스터 배포는 실행하지 않았다.
+Backend·GenAI 소스는 수정하지 않는다. 모델 버킷은 Terraform Prod에서 관리하고 Stage는 참조한다. Stage overlay에는 이미지 digest, 모델 번들 경로·해시, 모델 저장소 component와 IRSA Role ARN을 연결했다. Stage의 AI 2종과 벡터DB는 각각 replicas 1로 설정했다. GPU 노드가 없으면 AI Pod는 Pending으로 대기하며, 실제 GPU 기동은 아직 검증하지 않았다.
 
 | 대상 | 이번 코드의 동작 | 활성화 상태 |
 | --- | --- | --- |
 | 상세페이지 API | Backend 기본 주소로 callback 전달. AI 코드가 `/internal/generations/{generation_id}/completion`을 붙임 | Base/Stage/Prod 반영 |
 | 챗봇 API | `/ai/ready`로 DB·임베딩·LLM 준비 확인, `/ai/health`로 생존 확인. CPU 이미지의 GPU 예약 제거 | Base/Stage/Prod 반영 |
-| 모델 저장소 | 상세페이지 100Gi, BGE-M3 10Gi, LLM 30Gi 및 번들별 S3 initContainer | 선택형 컴포넌트, 두 환경 모두 미활성 |
-| 공개 이미지 복사 | 수동 Actions 실행 시 지정한 digest를 ECR로 복사 | workflow 추가, 실제 실행 전 |
-| 챗봇 LLM | 동일 Pod의 SGLang 컨테이너·GPU 1개·API loopback 연결 구현 | 실제 이미지 digest·모델 인계·T4 검증 전, Stage replicas 0 유지 |
+| 모델 저장소 | 상세페이지 100Gi, BGE-M3 10Gi, LLM 30Gi 및 번들별 S3 initContainer | Stage 연결 완료·replicas 1, Prod 미활성 |
+| 공개 이미지 복사 | 수동 Actions 실행 시 지정한 digest를 ECR로 복사 | model-fetch ECR 복사 완료, Stage digest 연결 |
+| 챗봇 LLM | 동일 Pod의 SGLang 컨테이너·GPU 1개·API loopback 연결 구현 | Stage 이미지·모델 연결 완료, replicas 1·T4 검증 전 |
 
 상세페이지 통합 이미지는 API·텍스트 추론·이미지 추론을 함께 실행한다. 별도 상세페이지 LLM 이미지를 추가하지 않는다.
 챗봇의 `jangin-ai/chatbot-api`는 CPU용 API/BGE-M3 이미지다. 이 이미지 자체에 Ollama/SGLang 서버가 들어 있지는 않다.
@@ -35,10 +35,7 @@ Kubernetes Pod 생성
 
 ## 먼저 해결할 AI 이미지 계약
 
-현재 GenAI `page_generation/deploy/sglang/entrypoint.sh`의 `validate_local_model`은 TEXT와 IMAGE 모두 루트 `config.json`을 요구한다.
-하지만 고정된 FLUX diffusion 저장소에는 루트 `model_index.json`이 있고, 구성 요소별 하위 폴더에 `config.json`이 있다.
-**AI팀이 TEXT는 `config.json`, IMAGE는 `model_index.json`을 검사하도록 수정하고 CI로 새 이미지를 발행해야 한다.**
-infra에서 가짜 `config.json`을 만들거나 AI 시작 스크립트를 덮어쓰지 않는다. 해당 변경이 포함된 digest를 확인한 후 이 컴포넌트를 활성화한다.
+현재 GenAI `page_generation/deploy/sglang/entrypoint.sh`는 TEXT의 `config.json`과 IMAGE의 `model_index.json`을 각각 검사한다. Stage에 고정한 이미지의 소스 SHA에도 이 수정이 포함돼 있다. 실제 L40S 기동과 추론은 GPU 노드에서 검증해야 한다.
 
 ## 챗봇 API·LLM 구성
 
