@@ -29,11 +29,18 @@ Dir.mktmpdir('ai-runtime-') do |tmp|
     chatbot = original.find { |r| r['kind']=='Deployment' && r.dig('metadata','name')=='ai-ollama' }.dig('spec','template','spec','containers').find { |c| c['name']=='ai-ollama' }
     check(chatbot.dig('readinessProbe','httpGet','path')=='/ai/ready', 'chatbot must gate DB/embedding/LLM readiness')
     check(!chatbot.dig('resources','limits','nvidia.com/gpu'), 'CPU chatbot image must not reserve a GPU')
-    check(original.none? { |r| r.dig('metadata','name')=='ai-sglang-data' }, 'unconfigured model storage must remain opt-in')
+    model_claims = original.select { |r| r['kind']=='PersistentVolumeClaim' && %w[ai-sglang-data ai-chatbot-models ai-chatbot-llm-models].include?(r.dig('metadata','name')) }
+    check(model_claims.length==(environment=='stage' ? 3 : 0), 'model storage activation differs from environment')
+    if environment=='stage'
+      %w[ai-sglang ai-ollama].each do |name|
+        deployment = original.find { |r| r['kind']=='Deployment' && r.dig('metadata','name')==name }
+        check(deployment.dig('spec','replicas')==1, 'stage AI must request one replica')
+      end
+    end
     overlay = "#{tmp}/k8s/overlays/#{environment}"
     path = "#{overlay}/kustomization.yaml"
     config = YAML.load_file(path)
-    config['components'] << '../../components/ai-model-storage'
+    config['components'] << '../../components/ai-model-storage' unless config['components'].include?('../../components/ai-model-storage')
     config['configMapGenerator'] = %w[sglang chatbot chatbot-llm].map do |service|
       {'name'=>"ai-#{service}-model-source", 'namespace'=>'ai', 'literals'=>['s3-uri=s3://test-models/bundle', "manifest-sha256=#{'a'*64}"]}
     end
