@@ -52,3 +52,4 @@ resource "aws_eks_access_policy_association" "security_audit_view" {
     type = "cluster"
   }
 }
+
