@@ -9,16 +9,16 @@ kind: Kustomization
 images:
   - name: jangin-app
     newName: 750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-app
-    digest: sha256:a3bc84d3908ade3956ddb2868c32919e07aec216de83e0f69ecdbcf9e9dad7df
+    digest: sha256:f8f5e2e39834dc483f817ed064ac1b6def11e6568176cabcfaa37e9c091afdca
   - name: jangin-ai/page-generation
     newName: 750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-ai/page-generation
-    digest: sha256:978a3ac77635b418b9f55586ed55629d7266e63c8baf2424b05ebe641afa5d0b
+    digest: sha256:a90b2ba76170bb75fba4dae358942bad69ea0591b565ba03a9bfc6d2d1163063
   - name: jangin-ai/chatbot-api
     newName: 750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-ai/chatbot-api
-    digest: sha256:bda469b330a7b05b9b04de5c72b948cbd340dcea816dbf2acd81abc1fdebcacf
+    digest: sha256:40f311a7311dc3582315491eea0f73501ca0012cf2344bb008cac7e67df7fa68
   - name: jangin-ai/chatbot-llm
     newName: 750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-ai/chatbot-llm
-    digest: sha256:1285a6a682d73e47e0aebc0be76b1e34ad42f19d4d8e7918beb5f564e7b7e23e
+    digest: sha256:e1a92e3811b93d3c0c064f831ebadd1a6fb02ade8b0f3d1d23f4ca29e9040f19
   - name: ai-model-fetch
     newName: 750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-ai/model-fetch
     digest: sha256:cd2b1ed9b2181b2b8341f6584ec019b117cc13d3ec142a244d8908e1bb8ea487
