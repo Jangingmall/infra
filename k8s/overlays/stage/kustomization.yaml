@@ -1,11 +1,11 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# Backend source: e0e9ffb1c7688b9adfdaf94ed3c18af8091827b0
-# 이미지 발행: https://github.com/Jangingmall/backend/actions/runs/35813759501
+# Backend source: c4d3f52cccbbee29950f396a888962138790088e
+# 이미지 발행: https://github.com/Jangingmall/backend/actions/runs/35863468813
 # 검증한 이미지를 digest로 고정한다. 다음 배포는 이 값을 변경하는 PR로 진행한다.
-# GenAI source: 1ba5d35a0832dafe24fa1627af3d5fe94a62fbc4
-# 이미지 발행: https://github.com/Jangingmall/GenAI/actions/runs/35813926528
+# GenAI source: d4b4281a6902a3f3f572e93b789a189f6a875d5a
+# 이미지 발행: https://github.com/Jangingmall/GenAI/actions/runs/35875564032
 images:
   - name: jangin-app
     newName: 750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-app
