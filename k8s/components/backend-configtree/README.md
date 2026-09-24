@@ -56,7 +56,7 @@ Backend → AI는 `AI_INTERNAL_AUTH_TOKEN`, AI → Backend 콜백은 `BACKEND_AU
 사용하지 않는 `AI_BASE_URL`은 조회 목록에서 제외했다. 실제 AWS 파라미터를 삭제하는 변경은 아니다.
 Redis 비밀번호는 Redis 서버와 동일 파라미터를 읽는다. OAuth는 현재 Backend 코드의 Kakao·Naver 설정과 일치한다.
 SMTP 587, 이메일 TTL 1800초 등 기본값이 있는 선택 항목은 필요할 때만 별도 공급한다.
-결제·택배 기능을 사용할 때는 Backend의 TOSS/SWEET_TRACKER 설정과 실제 자격증명도 별도로 준비한다.
+Stage는 `/staging/backend/toss-client-key`와 `/staging/backend/toss-secret-key`를 각각 `TOSS_CLIENT_KEY`, `TOSS_SECRET_KEY` 파일로 마운트한다. 최신 Backend의 prod 프로필은 두 키를 필수로 요구하므로 Parameter Store 등록과 CSI 매핑을 함께 준비해야 한다. 파일 내용은 Git에 저장하지 않는다. 실제 결제 기능은 별도 검증한다. Prod는 환경별 파라미터와 매핑을 별도로 준비해야 한다.
 
 ## 배포 전 인계값
 
