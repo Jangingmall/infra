@@ -32,6 +32,18 @@
 
 ## 활성화 순서
 
+### Stage 준비 점검 (2026-09-27)
+
+- 버킷: `jangin-staging-s3-backup`, 경로: `cnpg/staging`.
+- IRSA: `arn:aws:iam::750240012008:role/jangin-staging-irsa-cnpg`; trust subject는 `system:serviceaccount:database:cnpg-backup-sa`와 일치한다.
+- 버킷 KMS: `arn:aws:kms:ap-northeast-2:750240012008:key/48fa2655-2c4e-43c4-828c-ca511da66c26`.
+- IAM simulator에서 해당 prefix의 GetObject/PutObject는 allowed, DeleteObject는 implicitDeny다. IAM 담당자에게 `arn:aws:s3:::jangin-staging-s3-backup/cnpg/staging/*` 범위 DeleteObject 추가를 요청한다. 이는 보존기간 정리에 필요하며, 현재 읽기·쓰기 자체가 거부된다는 의미는 아니다. 실제 Pod의 STS/KMS/S3 접근은 아직 미검증이다.
+- `stage-barman-cloud`를 등록·수동 Sync했다. 처음에는 System CPU/Pod 한도로 Pending이었으나, EBS CSI Controller 한 개가 App으로 재배치된 뒤 System Medium에서 1/1 Ready를 확인했다. 이 수동 배치는 재기동 후 고정 보장이 아니다.
+- Stage 버킷과 ServiceAccount annotation은 로컬 브랜치에 작성했다. main 반영 전에는 실제 ObjectStore/IRSA 연결이 적용되지 않는다. 정기 백업은 `suspend: true`다.
+- `cnpg-backup` component는 아직 연결하지 않았다. 플러그인 Ready, IAM 보완, ObjectStore 수동 Sync를 확인한 다음 별도 변경으로 연결한다. 현재 DB는 3/3 Healthy이며 WAL archiver 변경·백업 실행·복원 시험은 하지 않았다.
+
+배포 순서: System 배치 조정 및 IAM 보완 → 이 준비 변경 merge → `stage-cnpg-backup` 등록·수동 Sync → ObjectStore 확인 → WAL component 연결 → 수동 백업 → 별도 복원 검증 → 정기 백업 활성화.
+
 1. Infra 담당에게 환경별 버킷/리전/KMS, S3·regional STS 통신 경로, IRSA ARN을 받는다. trust subject는 `system:serviceaccount:database:cnpg-backup-sa`다. 버킷 목록 조회는 prefix 조건, 객체 권한은 해당 환경 prefix의 Get/Put/Delete 등 백업 도구에 필요한 범위로 제한한다. KMS 사용 시 키 정책과 Encrypt/Decrypt/GenerateDataKey 권한도 확인한다.
 2. cert-manager를 Sync하고 webhook/CRD 준비를 확인한다. plugin을 Sync하고 Deployment·인증서·`barman-cloud:9090`을 확인한다. 이 TLS 인증서 Secret은 컨트롤러 인증서이며 앱 비밀번호 복제를 의미하지 않는다.
 3. `platform/cnpg-backup/{stage,prod}.yaml`에 실제 `bucket`, `enabled: true`를 넣는다. `suspend: true`는 유지한다. backup Application을 Sync하여 ObjectStore부터 생성한다.
@@ -68,7 +80,7 @@ CNPG Operator → Barman plugin TCP 9090 ingress만 선택적으로 허용한다
 
 ## 추가 자원 및 로컬 검사
 
-- System 상시 requests: cert-manager 3개 150m/192Mi + plugin 100m/128Mi = **250m/320Mi**. 설치 Job은 별도 50m/32Mi.
+- System 상시 requests: cert-manager 3개 75m/192Mi + plugin 100m/128Mi = **175m/320Mi**. 설치 Job은 별도 50m/32Mi.
 - DB 각 Pod sidecar requests 100m/128Mi, limits CPU 1/512Mi. 3개 합계 requests **300m/384Mi**.
 - 백업 시 압축 CPU, WAL 보관 디스크, 임시 메모리를 실측해야 한다. t3.small DB 노드가 충분하다고 단정하지 않는다.
 - `ruby scripts/validate-data-services.rb`는 두 환경의 Secret 계약·배치·백업 비활성 기본값·환경 경로 격리·WAL component·수동 Sync를 확인한다.

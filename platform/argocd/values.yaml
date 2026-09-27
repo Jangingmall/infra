@@ -21,7 +21,7 @@ controller:
   replicas: 1
   resources:
     requests:
-      cpu: 250m
+      cpu: 150m
       memory: 512Mi
     limits:
       memory: 1Gi
@@ -39,7 +39,7 @@ server:
     enabled: false
   resources:
     requests:
-      cpu: 100m
+      cpu: 50m
       memory: 128Mi
     limits:
       memory: 256Mi
