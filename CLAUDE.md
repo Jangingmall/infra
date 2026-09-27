@@ -2,8 +2,19 @@
 
 > kt cloud TECH UP 2기 3팀 "삼성가고싶어요" 통합프로젝트 · 서비스 **장인몰**
 > Claude Code가 매 세션 자동으로 읽습니다. **결정사항 위주로 짧게 유지하세요.**
-> 기준: **통합프로젝트 Context 2026-09-27** + **팀 컨텍스트 v1.1** + **네트워크·계정 설계서 최종본(9/14)** + **모듈화 전략 B안(9/15 19:21 파트장 최종)** + **비용 재산정 v2.0(9/17 창원)** + **엣지·S3 버킷 설계서(9/16 파트장)** + **인터페이스 명세서 v0.6(9/17)** + 🆕 **보안 점검 5종(9/21~23) · staging 실측(9/27)**
-> 최종 갱신 **2026-09-27** (이전판 09-17)
+> 기준: **통합프로젝트 Context 2026-09-27** + **팀 컨텍스트 v1.1** + **네트워크·계정 설계서 최종본(9/14)** + **모듈화 전략 B안(9/15 19:21 파트장 최종)** + **비용 재산정 v2.0(9/17 창원)** + **엣지·S3 버킷 설계서(9/16 파트장)** + **인터페이스 명세서 v0.6(9/17)** + 🆕 **보안 점검 5종(9/21~23) · staging 실측(9/27)** + 🆕 **다정님 프로비저닝 점검(9/27 18:00) · PR #83~#85(9/27~28)**
+> 최종 갱신 **2026-09-28** (이전판 09-27)
+>
+> 🆕 **09-28 현재 상태 — 이 블록이 아래 서술보다 우선합니다**
+> - 📅 **마감 10/2(금) 산출물 · 10/6 발표** → 실질 구축일 **9/28~30**. 9/28 prod 인프라 → 9/29 앱 배포·검증 → 9/30 예비·보안 회신 (다정님 9/27 재조정)
+> - 👥 **역할 재분배 (9/28 prod 기준)** — 윤주님 apply·종료 전권 / 다정님 시크릿·보안회신·비용 / 명수님 K8s·앱·AI / 창원님 ECR·도메인·FE / **신준한 코드 검토(원격·비동기)**
+> - 🟡 **staging: 노드 0 · PR #80·#82 머지됐으나 apply 전 (H15)** — plan `LT 6 + 노드그룹 6 in-place`. 노드 0일 때 apply 하면 롤링 교체 없음. ⚠️ plan 에 `public_access_cidrs` 가 보이면 멈춤 (규칙 31)
+> - 🔴 **prod 클러스터 미생성** — `ecr_enabled = true` 필수 (막힌 24 · PR #84) · `eks_endpoint_public_access` 명시 필수 (PR #85) · 결정 ⑤(KMS) 생성 전 확정 (막힌 28)
+> - ⚠️ **SG egress 허용 목록화(PR #83)는 "축소"이지 "해소"가 아님** — 모든 노드에 붙는 EKS 클러스터 SG 가 egress 전체 허용 (규칙 29 · 막힌 27)
+> - ✅ AWS 쿼터 증설 — EIP 5→10 · Standard vCPU 32→64 (GPU 8→16 심사 중)
+> - 🟢 staging `/api/products` 500 = **DB 사용자 테이블 0개(F21) — BE 문제**, 인프라 아님
+>
+> ⬇️ 아래 09-27 블록은 **이력**입니다.
 >
 > 🆕 **09-27 현재 상태 — 이 블록이 아래 09-17 서술보다 우선합니다**
 > - ✅ **staging 클러스터 존재** — `jangin-staging-eks-cluster` · 1.35 · **9/21 14:58 KST 생성** · 9/22~23 플랫폼 전체 배포 후 **노드그룹 6개 전부 `desired=0`**
@@ -50,9 +61,9 @@
 | 3 | **App `requests` 구체값** | BE | 롤링 배포 가능 여부 |
 | 4 | **AI 컨테이너 이미지·모델 배포 경로**<br>🔄 09-16: 명수님 PR #24 의 AI 이미지가 **임시 값** — *"실제 ECR 주소·Digest 로 교체 필요"* | AI + CN + 창원 | NAT 처리료 $13 · **Pod 가 안 뜸** |
 | 5 | **staging / prod 운영 방식** (가)순차·(나)staging축소·(다)prod단일 | 파트장 + 그룹장 | **동시 운영은 예산 2배로 불가** |
-| 6 | **공용 ECR State 위치** — 🔴 현재 `ecr_enabled = false` **양쪽 다 꺼져 있음**<br>🔄 09-16 창원님 제안: *"동일 digest 승격이라 환경별 분리 시 승격 모델이 깨짐 → **prod state 단일 생성 + staging 공유**"* → 인프라 동의. **파트장 확정 대기**<br>🔴 **지금 정해야 함** — state 간 이동은 `moved` 로 안 되고, Immutable 태그라 재생성 시 BE 이미지 소실 | 창원 + 파트장 | **BE가 `docker push` 못 함** |
+| ~~6~~ | ~~공용 ECR State 위치~~ | — | ✅ **9/27 확인 — prod state 소유** (실물: prod state 에 저장소 5개 · staging `ecr_enabled = false` 고정). `.example` 표기 정리는 **PR #84** |
 | 7 | **최종 설계서 ↔ 코드 차이 4건** (아래 「설계서 차이」) | 파트장 | ⑦⑧ 코드 작성 |
-| ~~8~~ | ~~EKS 버전 · 인증 모드 · 엔드포인트 공개~~ | — | ✅ **9/17 해소** (아래) — 1.35 / `API` / **(B) public+IP제한 → 9/21 private only** |
+| ~~8~~ | ~~EKS 버전 · 인증 모드 · 엔드포인트 공개~~ | — | ✅ **9/17 해소** (아래) — 1.35 / `API` / **(B) public+IP제한 → 9/21 private only** · 🔄 **9/21 전환 보류 → 막힌 26 (결정 ⑦)** |
 | **9** | 🔄 **Redis 배치** — 09-17 **k8s Pod 로 확정**(ElastiCache 미사용). 명수님: *"redis는 app 노드에 띄우는 게 좋긴 한데 그러면 large를 써야 할 것 같다"*<br>🔴 **남은 것: 최종 배치 노드** — 제 v0.6 통보안은 **System 노드 512Mi**, 명수님은 **App 노드** 선호 | CN(명수) + 인프라 | ⑦ 노드 사양은 **이미 App `t3.medium`×2 로 반영**했으므로 apply 는 막지 않음 |
 | ~~10~~ | ~~App 노드 메모리(OOM 위험)~~ | — | ✅ **9/17 해소** — App 노드가 **`t3.medium` × 2** 로 늘어 Pod 2개가 **노드 1대씩** 쓰게 됨. 한 노드에 2개가 몰리던 구조가 사라짐 |
 | **11** | 🆕 **ALB Idle Timeout** — BE가 **SSE + AI 응답 Streaming** 사용. 기본 60초면 끊김 | 인프라(⑩) | SSE 연결 유지 |
@@ -68,11 +79,28 @@
 | **21** | 🆕 **예산 한도 500,000원의 범위** — 클라우드/보안 그룹 한도인지 8개 직군 전체 한도인지<br>FE Vercel $20 · 보안 LLM 10,000원이 같은 한도면 여유가 줄어듦 | PM + 그룹장 | 80.4% 라는 수치의 의미가 달라짐 |
 | **22** | 🆕🔴 **산출물3 초본 ↔ 확정 설계 불일치 10건** (Aurora vs CNPG · Karpenter/KEDA · Modal · CloudFront 미도입 · console-first · Multi-AZ · 크레딧 $150 등) | 다정 + 인프라 | **평가가 "실제 동작 여부"를 보므로 문서와 실물이 다르면 신뢰 손실** |
 | **23** | 🆕🔴 **Trivy `KSV-*` 17그룹 147건(전체의 80%)의 담당 과정** — 대상이 전부 `k8s/**`·`platform/**` (Terraform 0건) | 그룹장·파트장 | 보안 회신 불가 · 인프라가 흡수하면 규칙 13 위반 |
-| **24** | 🆕🔴 **prod ECR destroy 10건** — `prod/terraform.tfvars`(및 `.example`)에서 `ecr_enabled` 가 **주석** → 변수 기본값 `false` → `modules/ecr` 의 `for_each` 가 빈 집합 → **저장소 5 + 수명주기 정책 5 삭제 계획.** 현재 이미지 **82개**<br>⚠️ 9/27 에 *"bf6d367 이름 변경 때문"* 으로 공유한 원인은 **틀렸음** | 창원 + 파트장 | 🔴 이미지 유실, 또는 `force_delete=false` 로 **apply 중간 실패** |
+| **24** | 🆕🔴 **prod ECR destroy 10건** — `prod/terraform.tfvars`(및 `.example`)에서 `ecr_enabled` 가 **주석** → 변수 기본값 `false` → `modules/ecr` 의 `for_each` 가 빈 집합 → **저장소 5 + 수명주기 정책 5 삭제 계획.** 현재 이미지 **82개**<br>⚠️ 9/27 에 *"bf6d367 이름 변경 때문"* 으로 공유한 원인은 **틀렸음**<br>🔄 **09-28**: 윤주님 tfvars 는 이미 `true`(다정님 확인) → 실제 위험은 **`.example` 을 복사하는 사람.** **PR #84** 로 `.example` 수정 (머지 대기). ❓ `prod/variables.tf` 의 default 를 `true` 로 할지는 창원님 판단 | 창원 + 파트장 | 🔴 이미지 유실, 또는 `force_delete=false` 로 **apply 중간 실패** |
 | **25** | 🆕 **staging 유휴 EBS 11개 / 238GB** — 전부 `available`, 과금 중. CSI 생성분이라 **`destroy` 로 안 지워짐** | BE·AI 판단 | 비용 지속 |
-| **26** | 🆕🔴 **AWS-0040 private only 전환 여부·시점** | 파트장 + CN(Helm 4종 확인) | prod 생성값 확정 불가 |
+| **26** | 🆕🔴 **AWS-0040 private only 전환 여부·시점 (= 결정 ⑦)**<br>🔄 **09-28**: staging Helm 4종 **설치 완료**(다정님 9/27) · staging 전환은 **불가**(Bastion·VPN 0, 노드 0이면 SSM 도 0 → kubectl 단절) · prod 는 **생성 시 public 필수 → 부트스트랩 후 전환** ((a) 권고)<br>코드: **PR #85** — 변수 기본값 제거 + `validation` (명시 필수) | 파트장 | prod 전환 시점 확정 · 보안 회신 본문 |
+| **27** | 🆕🔴 **AWS-0104 실효 범위** — PR #83 으로 우리 SG 3종의 Out All 제거·포트 축소(443/465/587). 그러나 모든 노드에 **EKS 클러스터 SG(Terraform 밖, egress `-1 / 0.0.0.0/0`)** 가 붙어 **실효 egress 는 전체 허용 그대로** (9/27 실물 확인). Trivy 재스캔 시 3→5건 가능 | 파트장 (회신 문구) | 보안 회신을 "해소"로 쓰면 사실과 다름 → **"축소 + 예외"** |
+| **28** | 🆕 **결정 ⑤ EKS Secret KMS** — prod **생성 시점에만** 정해지고 해제 불가. 보안팀 근거(1.28+ 기본 봉투 암호화 → 예외 대상)로 **(b) 미적용 + 예외 기록** 권고 (다정님) | 파트장 | prod apply 전 확정 필요 |
+| **29** | 🆕 **H7 Terraform CI 산출물 범위** — 남은 기간에 파이프라인 구축 어려움 → **「설계·범위 정의까지」 조정 제안** (신준한 10/1 까지 범위 정의) | 파트장 | 산출물 제목과 실물 불일치 |
 
 > 위 값이 안 나온 상태에서 **임의값으로 채우지 말 것.** `variable` + `TODO` 주석으로 남기고 진행.
+
+### ✅ 9/28 해소·정정된 것
+
+| 항목 | 결론 |
+|---|---|
+| 🔴 **prod ECR destroy 원인** | ✅ **확정** — `.example` 118행 `# ecr_enabled = false` 주석 → 기본값 `false` → `for_each` 빈 집합. `true` 로 두면 prod plan `164 add / 0 destroy`. 9/15 신준한이 "소유 환경 미정" 상태로 주석 처리한 줄이 남아 있던 것 → **PR #84** |
+| **staging `.example` `eks_bootstrap_creator_admin = true`** | 🔴 실물은 `false` — 복사해 apply 하면 **클러스터 재생성** → **PR #85** 에서 `false` 로 |
+| **Helm 4종 (staging)** | ✅ 설치 완료 — Argo CD·Rollouts·CNPG·Secrets Store CSI Synced, CRD 4종 (다정님 9/27) |
+| **SG egress (AWS-0104)** | 🔄 **PR #83 (윤주님 9/27)** — 허용 목록 추가 → Out All 제거 → staging apply. ⚠️ 실효 범위는 막힌 27 |
+| 🔴 **"노드가 있을 때 SG egress 를 조이면 ECR pull 이 막힌다"** | **틀렸음(정정)** — 클러스터 SG 가 egress 전체 허용이라 통신은 끊기지 않음. 9/27 신준한·다정님 경고 모두 해당 (규칙 29) |
+| **AWS 쿼터** | ✅ EIP 5→10 · Standard vCPU 32→64 승인 (9/27 19:4x). GPU 8→16 심사 중. 확인은 `get-service-quota` 로 (CASE_CLOSED ≠ 거절) |
+| **F21 `/api/products` 500** | 🟢 **인프라 아님** — DB `jangingmall` 사용자 테이블 0개(42P01). BE 스키마 초기화 문제, prod 에서도 재발 |
+| **창원님 EKS 접근 불가(IP 변경)** | 🟢 외부 컴퓨터 임시 사용 — 조치 불필요 (본인 확인) |
+| **staging CIDR — 신준한 로컬 tfvars** | 🟡 4건 중 **1건이 실물과 다름** (9/28 개수 대조) → 신준한은 staging apply 하지 않음 (규칙 31) |
 
 ### ✅ 9/27 해소·정정된 것
 
@@ -628,6 +656,9 @@ enableNetworkPolicy = "true"    ← aws-vpc-cni addon configuration
 | **26** | 🆕🔴 **권한 오류는 조회로 확인한다.** `aws sts get-caller-identity` → `aws sso login --profile jangin` → `aws iam simulate-principal-policy`.<br>`--policy-source-arn` 은 **IAM 역할 ARN**(`/aws-reserved/sso.amazonaws.com/<region>/AWSReservedSSO_*`) — assumed-role ARN 을 넣으면 `InvalidInput`.<br>*(09-21 실제 사고: `AccessDenied` 1건으로 "IAM blocker" 를 단정해 팀에 오보)* |
 | **27** | 🆕🔴 **`terraform.tfvars` 백업은 저장소 바깥에 둔다.** `terraform.tfvars.bak` 은 `.gitignore` 의 `*.tfvars` 패턴에 **안 걸려 커밋됩니다** (팀원 IP 유출) |
 | **28** | 🆕🔴 **plan 결과로 팀에 이슈를 제기하기 전: ① 내 tfvars 가 `.example`·실물과 맞는가 ② 다른 사람 환경에서도 같은가.** plan 출력은 통째로 공유하지 않는다(`eks_public_access_cidrs` = 팀원 IP) — `grep -E '^Plan:'` 또는 `grep -E '^\s+# '` 결과만 |
+| **29** | 🆕🔴 **SG 변경의 효과는 노드에 붙은 "모든 SG 의 합집합"으로 판단한다.** 모든 노드그룹에 **EKS 클러스터 SG** 가 자동으로 붙고(`modules/eks_nodes/locals.tf:35-43`), 이 SG 는 Terraform 밖·egress 전체 허용이다.<br>확인: `aws eks describe-cluster --query cluster.resourcesVpcConfig.clusterSecurityGroupId` → `aws ec2 describe-security-groups --group-ids <ID> --query 'SecurityGroups[0].IpPermissionsEgress'`<br>*(09-27 실제 사례: "Out All 을 빼면 ECR pull 이 막힌다"는 경고가 틀렸고, 반대로 "egress 를 조였다"는 보고도 실효가 없었음)* |
+| **30** | 🆕🔴 **빠뜨리면 "조용히" 적용되는 기본값을 위험 변수에 두지 않는다.** 공개 여부·생성 시점 전용 값처럼 틀리면 되돌리기 어려운 변수는 `default = null` + `nullable = true` + `validation { condition = var.x != null }` 으로 **명시 필수**. 모듈 변수 무기본값(검수 14)·CIDR precondition 과 같은 원칙<br>⚠️ 이 패턴을 쓰면 `tests/*.tftest.hcl` 의 `variables {}` 에도 값을 넣어야 테스트가 깨지지 않음 (PR #85) |
+| **31** | 🆕🔴 **apply 전 plan 에 `public_access_cidrs` 변경이 보이면 멈춘다.** 내 tfvars 의 IP 목록이 실물과 다르다는 뜻 → 그대로 apply 하면 **실물에만 있는 팀원 IP 가 빠져 그 사람 kubectl 이 끊김.** IP 는 공유하지 말고 **개수만** 대조 (아래 명령 절) |
 
 > 📌 **규칙 10 보충 (2026-09-13)**: `NodePool` 값은 `system｜app｜db｜ai` 중 하나여야 Cost Explorer 필터가 의미를 갖습니다.
 > VPC·서브넷·IGW·라우팅·SG·Endpoint 는 **요금이 $0** 이고 저 넷 중 어디에도 속하지 않으므로 **부여하지 않습니다.**
@@ -731,7 +762,8 @@ gp3 PV 20Gi × 3 (CNPG)  +  reclaimPolicy: Retain
 | 9/22~23 | 플랫폼 전체 배포 (CNPG·Redis·벡터DB·AI·관찰성) · Ansible 점검 · DAST |
 | 9/23~26 | 노드 0 전환 · ECR 관련 커밋 3건 · PR #79 머지 · `tfvars.example` 갱신(9/26) |
 | **9/27** | 보안 5종 전수 확인 · **IAM 오진 정정** · AWS-0041 오탐 규명 · **PR #80** |
-| **9/28** | 🔴 **prod apply 예정** — PR #80 선행 머지 · prod tfvars 의 `ecr_enabled` 확인 |
+| **9/27 (계속)** | PR #80·#81·#82 머지 · 명수님 staging 종단 검증(healthz 200, F21 발견) · 다정님 **일정 재조정(마감 10/2)** · 쿼터 증설 · **PR #83 (SG egress)** 머지·apply · 클러스터 SG egress 전체 허용 확인 |
+| **9/28** | **PR #84·#85 제출** (`.example` 함정 3건) · 🔴 **prod 인프라 apply (윤주님)** → 9/29 앱 배포·검증 → 9/30 예비·보안 회신 · 10/1~2 산출물 |
 
 **운영 스케줄**: 09:00~18:00 (하루 9시간) · 🔄 **09-17 재산정 기준 실운영 7일** (9/21~23 · 9/28~30 · 10/1)
 
@@ -1025,6 +1057,9 @@ moved {
 | **19** | 🆕🔴 **plan 에 `aws_eks_cluster` 의 `access_config`·`name`·`role_arn`·`encryption_config` 변경이 있는가** — 전부 **클러스터 재생성.** `bootstrap_cluster_creator_admin_permissions` 는 생성 시점 전용 값 |
 | **20** | 🆕🔴 **LT `user_data` 가 MIME multipart 인가** — `ami_id` 미지정 관리형 노드그룹은 EKS 가 NodeConfig 파트를 덧붙임. 일반 셸 스크립트면 **노드가 클러스터에 합류 못 함** (PR #80) |
 | **21** | 🆕🔴 **CSI 가 만든 EBS 는 `terraform destroy` 로 안 지워진다** — 환경 종료 시 `aws ec2 describe-volumes --filters Name=status,Values=available` 로 별도 정리 |
+| **22** | 🆕🔴 **plan 에 `public_access_cidrs` 변경이 있는가** — 있으면 멈추고 실물과 개수 대조 (규칙 31) |
+| **23** | 🆕 **SG 규칙을 줄이는 PR 인가** — 클러스터 SG 까지 포함해 실효를 판단했는가 (규칙 29). 보안 회신 문구는 "축소" |
+| **24** | 🆕 **새 필수 변수(`validation`)를 추가했는가** — 양쪽 `.example` 과 `tests/*.tftest.hcl` 의 `variables {}` 에 값이 있는가 (규칙 30) |
 
 💡 **plan 출력**: `Plan: N to add, 0 to change, 0 to destroy`
 **`to destroy`가 0이 아니면 절대 apply하지 마세요.**
@@ -1066,6 +1101,22 @@ for ng in $(aws eks list-nodegroups --cluster-name "$C" --query 'nodegroups[]' -
 ```
 ⚠️ `grep -rn` 은 **`--exclude-dir=.terraform` 필수** — 프로바이더 바이너리를 스캔해 멈춥니다.
 
+```bash
+# plan 을 grep 할 때는 -no-color — 색상 코드 때문에 '^Plan:' 이 안 걸림 (09-27)
+# -lock=false — 읽기 전용 plan 이 팀원 apply 의 state 잠금을 막지 않게
+terraform plan -input=false -lock=false -no-color 2>&1 | grep -E '^Plan:|must be replaced|public_access_cidrs'
+# 바뀌는 "속성 이름"만 보기 (값·IP 노출 없음)
+terraform plan -no-color 2>&1 | sed -n '/aws_eks_cluster.main will be updated/,/^    }$/p' | grep -E '^\s+~ ' | sed -E 's/=.*//'
+# 변수 누락 재현: -var 로는 null 을 못 넣음(bool 변환 실패) → -var-file 은 HCL 이라 가능
+echo 'eks_endpoint_public_access = null' > /tmp/x.tfvars
+terraform plan -input=false -lock=false -no-color -var-file=/tmp/x.tfvars 2>&1 | grep -A8 Error; rm /tmp/x.tfvars
+# CIDR 목록 개수만 대조 (규칙 31) — grep 범위를 목록 블록으로 한정 + 주석 줄 제외
+aws eks describe-cluster --name <클러스터> --query 'cluster.resourcesVpcConfig.publicAccessCidrs' --output text | tr '\t' '\n' | sort > /tmp/a
+sed -n '/^eks_public_access_cidrs/,/^]/p' terraform.tfvars | grep -v '^\s*#' | grep -oE '"[0-9.]+/[0-9]+"' | tr -d '"' | sort > /tmp/b
+echo "실물에만 $(comm -23 /tmp/a /tmp/b | wc -l) / 내 파일에만 $(comm -13 /tmp/a /tmp/b | wc -l)"; rm /tmp/a /tmp/b
+```
+⚠️ **디스코드에 명령을 올릴 때** `\|` 의 역슬래시가 사라져 `grep 'a|b'` 가 **아무것도 못 찾습니다** → `grep -E 'a|b'` 형태로 공유 (09-28)
+
 ---
 
 ## 평가 기준 (클라우드·보안 그룹)
@@ -1096,15 +1147,15 @@ for ng in $(aws eks list-nodegroups --cluster-name "$C" --query 'nodegroups[]' -
 | 인증 | **`API`** · `bootstrap_cluster_creator_admin_permissions = false` (state 값) |
 | 엔드포인트 | public `true` · private `true` · 허용 CIDR **4건** |
 | Access Entry | **5건** — Backend-Dev / Infra-Admin / Security-Audit (SSO, `eks_access.tf` 코드 관리) + EKS 서비스역할 / 노드역할(자동)<br>prod 는 `backend_dev → _view`, staging 은 `_edit` (환경별 차등) |
-| 노드그룹 | **6개** 전부 `desired=0 / min=0` (max 3/3/1/1/2/2) · 전부 `ON_DEMAND` |
-| Launch Template | `KeyName: null` · user-data **없음** → PR #80 에서 추가 |
+| 노드그룹 | **6개** 전부 `desired=0 / min=0` (max 3/3/1/1/2/2) · 전부 `ON_DEMAND` · 🔄 9/27 00:19~16:20 기동(8대, 종단 검증 healthz 200) 후 다시 0 |
+| Launch Template | `KeyName: null` · user-data **없음** → PR #80 **머지(9/27 15:28)** · 🟡 **apply 전 — LT version 1 그대로 (H15)** |
 | PVC EBS | **11개 / 238GB · 전부 `available`** (9/22~23 생성)<br>postgres-1·2·3 / data-redis-0 / data-ai-vector-db-0 / ai 모델 3종 / prometheus·alertmanager·grafana |
 | ECR 이미지 | jangin-app 28 · chatbot-api 15 · chatbot-llm 19 · model-fetch 3 · page-generation 17 = **82** |
 | prod | 🔴 클러스터 **미생성** |
 
 > 🔑 **9/22~23 에 플랫폼 전체가 실제로 배포되어 동작했습니다** — PVC 11개가 증거. 평가 기준 *"실제 환경에 적용되어 동작하는지"* 의 실물 근거 (완성도 30).
 
-### 🆕 보안 점검 현황 (2026-09-27)
+### 🆕 보안 점검 현황 (🔄 2026-09-28)
 
 | 자료 | 결과 |
 |---|---|
@@ -1116,10 +1167,10 @@ for ng in $(aws eks list-nodegroups --cluster-name "$C" --query 'nodegroups[]' -
 | 체크 | 판정 |
 |---|---|
 | AWS-0041 공개 CIDR | 🟢 **오탐** (막힌 항목 해소표 참조) |
-| AWS-0040 공개 엔드포인트 | 🔴 **사실** — 전환 결정 대기 (막힌 항목 26) |
+| AWS-0040 공개 엔드포인트 | 🔴 **사실** — 실물 전환은 결정 ⑦ (막힌 26) · 코드는 **PR #85** (명시 필수) — ⚠️ 재스캔 통과해도 실물은 public 이므로 "해소" 아님 |
 | AWS-0039 Secrets 암호화 | 🟢 보고서가 오탐 확인 (EKS 1.28+ 기본 봉투 암호화) |
-| AWS-0104 SG egress | 윤주님(P1-1) — ⚠️ **노드 기동 전에** 조일 것 (기동 후면 ECR pull 차단) |
-| AWS-0010 / 0011 CloudFront 로그·WAF | 🟢 Trivy + Prowler **두 도구가 동시 지적** → 우선순위 1·2 제안. WAF 는 **us-east-1 CLOUDFRONT scope Web ACL 별도** 필요 |
+| AWS-0104 SG egress | 🔄 **PR #83 (윤주님) 허용 목록화 완료** — ⚠️ 클러스터 SG 때문에 실효는 **축소**. 회신은 **"축소 + 예외"** (막힌 27 · 규칙 29) |
+| AWS-0010 / 0011 CloudFront 로그·WAF | Trivy + Prowler 동시 지적. 🔄 **0011(WAF) 은 예외 #4** 방향 (다정님 초안 — 이미지 정적 배포 전용, OAC·BPA 로 보완) · 0010(로그) 미지정 |
 | Ansible FAIL 28 | 🔄 **PR #80 으로 전부 해소 예정** |
 
 ### 🆕 ① State 백엔드 상세 (09-16 갱신)
@@ -1207,6 +1258,14 @@ aws s3api head-object --bucket jangin-infra-s3-tfstate \
 ---
 
 ## 변경 이력
+
+**09-28 (PR #83~#85 · 클러스터 SG · 역할 재분배 · `.example` 함정 제거)**
+- 🆕 상단 「09-28 현재 상태」 블록 · 「9/28 해소·정정」 표 — 일정(마감 10/2)·역할 재분배(다정님 9/27 문서) 반영
+- ✅ 막힌 항목 **6 해소**(ECR prod 소유) · **24·26 갱신** · 🆕 **27**(AWS-0104 실효) · **28**(결정 ⑤) · **29**(H7 범위)
+- 🔴 **정정**: "노드가 있을 때 SG egress 를 조이면 ECR pull 차단" → 클러스터 SG 때문에 사실 아님 → **규칙 29**
+- 🆕 **규칙 30** (위험 변수는 명시 필수 — PR #85 패턴) · **규칙 31** (plan 에 CIDR 변경 보이면 멈춤)
+- 🆕 검수 체크리스트 **22~24** · 명령 절 (`-no-color` · `-var-file` null · CIDR 개수 대조 · 디스코드 `\|` 함정)
+- 🔗 PR #83 (윤주님, SG egress) 리뷰·머지 · **PR #84** (ECR `.example`) · **PR #85** (endpoint 명시 필수 + staging bootstrap `false`) 제출
 
 **09-27 (보안 점검 전수 확인 · 오진 정정 · staging 실측 · PR #80)**
 - 🔴🔴 **"IAM 권한 blocker"(9/21 인계문서) 전면 철회** — 오진. 시뮬레이터로 전 권한 `allowed`. 원인 SSO 세션 만료 → **규칙 26 신설**
