@@ -1,0 +1,51 @@
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="//"
+
+--//
+Content-Type: text/x-shellscript; charset="us-ascii"
+
+#!/bin/bash
+# =============================================================================
+# 노드 SSH 하드닝 — 보안 조치 P2-1
+# 대상: Ansible SSH-001 / SSH-004 / SSH-005 (SSH-010은 위 3건 해소 시 자동 해소)
+# 근거: ansible-jangin-staging-20260923-002 (FAIL 28 = 7노드 x 4항목)
+# 통합프로젝트 3팀 · 클라우드 인프라 · 2026-09
+# =============================================================================
+set -euo pipefail
+
+DROPIN=/etc/ssh/sshd_config.d/00-jangin-hardening.conf
+MARKER=/var/log/jangin-hardening.failed
+
+install -d -m 0755 /etc/ssh/sshd_config.d
+
+cat > "$DROPIN" <<'CONF'
+# 파일명 접두사 00- 은 의도입니다.
+# sshd 는 드롭인 병합 시 "먼저 읽은 값이 이깁니다"(first-obtained-value-wins).
+# nginx / systemd 등 대부분의 설정 시스템과 정반대라,
+# 60- 같은 관행적 번호를 붙이면 기존 설정에 눌려 효과가 없습니다.
+PermitRootLogin no
+MaxAuthTries 4
+X11Forwarding no
+CONF
+
+chmod 0600 "$DROPIN"
+
+# 문법 검사를 통과한 경우에만 재기동합니다.
+# reload 가 아니라 restart 인 이유:
+#   Ansible SSH-009 는 "sshd 활성화 시각 이후에 수정된 sshd_config 파일이 없을 것"을 봅니다.
+#   reload 는 ActiveEnterTimestamp 를 갱신하지 않아, 드롭인 파일이 더 최신으로 남아
+#   현재 PASS(7/7) 인 SSH-009 가 FAIL 로 뒤집힙니다. restart 는 갱신합니다.
+if /usr/sbin/sshd -t; then
+  systemctl restart sshd
+  rm -f "$MARKER"
+else
+  # 노드 부팅 자체를 실패시키지 않습니다.
+  # 여기서 exit 1 을 내면 sshd 설정 하나 때문에 노드가 클러스터에 못 들어옵니다.
+  # 설정만 되돌리고 마커를 남겨 Ansible 재점검에서 드러나게 합니다.
+  rm -f "$DROPIN"
+  echo "[jangin-hardening] sshd -t FAILED at $(date -Is) - drop-in reverted" > "$MARKER"
+fi
+
+exit 0
+
+--//--
