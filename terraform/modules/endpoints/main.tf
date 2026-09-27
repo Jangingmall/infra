@@ -130,8 +130,8 @@ resource "aws_vpc_endpoint" "s3" {
 #    이 Endpoint는 ECR "이미지 레이어"(S3에 저장된 부분)만 덮는다.
 #    ECR API 인증(ecr.api / ecr.dkr)과 STS는 못 덮는다.
 #    → DB 노드그룹을 data 서브넷에 두면 이미지 pull 이 실패한다.
-#      security_group.tf 의 db_out_all 주석에 적어둔 미해결 사안 그대로이고,
-#      ⑦ 노드그룹 착수 전 파트장(강윤주) 확인이 필요하다.
+#      → ⑦ 에서 DB 노드그룹을 app 서브넷에 두는 것으로 해소됐다
+#        (environments/*/nodegroups.tf · modules/security 의 db_out_https 주석).
 
 resource "aws_vpc_endpoint_route_table_association" "s3" {
   # 🔴 여기에 public 이 없다는 사실 자체가 설계 문서다.
