@@ -2,8 +2,17 @@
 
 > kt cloud TECH UP 2기 3팀 "삼성가고싶어요" 통합프로젝트 · 서비스 **장인몰**
 > Claude Code가 매 세션 자동으로 읽습니다. **결정사항 위주로 짧게 유지하세요.**
-> 기준: **통합프로젝트 Context 2026-09-14** + **팀 컨텍스트 v0.8** + **네트워크·계정 설계서 최종본(9/14)** + **모듈화 전략 B안(9/15 19:21 파트장 최종)** + 🆕 **비용 재산정 v2.0(9/17 창원)** + **엣지·S3 버킷 설계서(9/16 파트장)** + 🆕 **인터페이스 명세서 v0.6(9/17)**
-> 최종 갱신 **2026-09-17** (이전판 09-16)
+> 기준: **통합프로젝트 Context 2026-09-27** + **팀 컨텍스트 v1.1** + **네트워크·계정 설계서 최종본(9/14)** + **모듈화 전략 B안(9/15 19:21 파트장 최종)** + **비용 재산정 v2.0(9/17 창원)** + **엣지·S3 버킷 설계서(9/16 파트장)** + **인터페이스 명세서 v0.6(9/17)** + 🆕 **보안 점검 5종(9/21~23) · staging 실측(9/27)**
+> 최종 갱신 **2026-09-27** (이전판 09-17)
+>
+> 🆕 **09-27 현재 상태 — 이 블록이 아래 09-17 서술보다 우선합니다**
+> - ✅ **staging 클러스터 존재** — `jangin-staging-eks-cluster` · 1.35 · **9/21 14:58 KST 생성** · 9/22~23 플랫폼 전체 배포 후 **노드그룹 6개 전부 `desired=0`**
+> - 🔴 **prod 클러스터 미생성** — 9/28 apply 예정. ⚠️ `prod/terraform.tfvars` 에서 `ecr_enabled` 가 주석이면 **ECR 저장소 5개(이미지 82개) destroy** 가 계획됨 (막힌 항목 24)
+> - ✅ **PR #80** (노드 SSH 하드닝 user-data) — **prod apply 전** 머지 필요
+> - 🔴🔴 **9/21 "IAM 권한 blocker" 는 오진 — 철회.** 원인은 SSO 세션 토큰 만료 (규칙 26)
+> - 🔴 신준한 9/21~10/1 미국(EDT = KST −13) — 실행이 아니라 **검토·자문** 역할
+>
+> ⬇️ 아래 09-17 상태 블록은 **이력**입니다.
 >
 > 🔴 **현재 AWS 상태: 여전히 리소스 없음.** ②③④ 는 코드만 `main` 에 머지(PR #18)됐고 **apply 는 9/18 일괄**입니다.
 > ✅ **예외 — ① State 백엔드는 살아 있고, 9/16 에 SSE-KMS(CMK)로 전환**했습니다. 「배포 리소스 현황」 참조.
@@ -55,11 +64,27 @@
 | **17** | 🆕🔴 **무효 리소스 ID 가 타 직군 문서에 살아 있음** — `vpce-02f0b40…` 등 9/15 destroy 된 ID | **인프라** (즉시 공지) | 잘못된 값으로 설계·구현이 진행됨 |
 | **18** | 🆕🔴 **앱용 KMS CMK 담당자 미정** — 다정님 PR #32 의 `kms:Decrypt` statement 가 `#resources = [var.aws_kms_key.shared.arn]` 로 **주석 처리**돼 있고, 가리킬 CMK 가 레포에 없음<br>⚠️ **State 용 CMK(`alias/jangin-infra-s3-tfstate`)와 별개 키**입니다 | 파트장 + 다정 | 🔴 **9/18 apply 가 `MalformedPolicyDocument` 로 실패.** `plan` 에서는 안 잡힘 |
 | **19** | 🆕🔴 **⑩ 엣지 모듈이 환경에서 호출되지 않음** — `modules/{alb,waf,cloudfront,acm_alb,acm_cloudfront}` 는 있는데 `environments/*/` 에 호출 파일(`alb.tf` 등)이 없음 | **파트장**(⑩ 영역) | 🔴 **apply 해도 ALB·WAF·CloudFront 가 생기지 않음.** `plan` 으로 절대 못 잡음(없는 코드는 차이가 아님) |
-| **20** | 🆕 **팀원 공인 IP 미수집** — `eks_public_access_cidrs` | 전원 → 인프라 | 🔴 **PR #35 의 precondition 으로 `plan` 자체가 실패** |
+| ~~20~~ | ~~팀원 공인 IP 미수집~~ | — | ✅ **9/27 확인 — 해소** (9/21 4명 공유, 실클러스터 CIDR 4건). 아래 「9/27 해소·정정」 |
 | **21** | 🆕 **예산 한도 500,000원의 범위** — 클라우드/보안 그룹 한도인지 8개 직군 전체 한도인지<br>FE Vercel $20 · 보안 LLM 10,000원이 같은 한도면 여유가 줄어듦 | PM + 그룹장 | 80.4% 라는 수치의 의미가 달라짐 |
 | **22** | 🆕🔴 **산출물3 초본 ↔ 확정 설계 불일치 10건** (Aurora vs CNPG · Karpenter/KEDA · Modal · CloudFront 미도입 · console-first · Multi-AZ · 크레딧 $150 등) | 다정 + 인프라 | **평가가 "실제 동작 여부"를 보므로 문서와 실물이 다르면 신뢰 손실** |
+| **23** | 🆕🔴 **Trivy `KSV-*` 17그룹 147건(전체의 80%)의 담당 과정** — 대상이 전부 `k8s/**`·`platform/**` (Terraform 0건) | 그룹장·파트장 | 보안 회신 불가 · 인프라가 흡수하면 규칙 13 위반 |
+| **24** | 🆕🔴 **prod ECR destroy 10건** — `prod/terraform.tfvars`(및 `.example`)에서 `ecr_enabled` 가 **주석** → 변수 기본값 `false` → `modules/ecr` 의 `for_each` 가 빈 집합 → **저장소 5 + 수명주기 정책 5 삭제 계획.** 현재 이미지 **82개**<br>⚠️ 9/27 에 *"bf6d367 이름 변경 때문"* 으로 공유한 원인은 **틀렸음** | 창원 + 파트장 | 🔴 이미지 유실, 또는 `force_delete=false` 로 **apply 중간 실패** |
+| **25** | 🆕 **staging 유휴 EBS 11개 / 238GB** — 전부 `available`, 과금 중. CSI 생성분이라 **`destroy` 로 안 지워짐** | BE·AI 판단 | 비용 지속 |
+| **26** | 🆕🔴 **AWS-0040 private only 전환 여부·시점** | 파트장 + CN(Helm 4종 확인) | prod 생성값 확정 불가 |
 
 > 위 값이 안 나온 상태에서 **임의값으로 채우지 말 것.** `variable` + `TODO` 주석으로 남기고 진행.
+
+### ✅ 9/27 해소·정정된 것
+
+| 항목 | 결론 |
+|---|---|
+| 🔴 **9/21 "IAM 권한 blocker"** | **철회(오진)** — `iam simulate-principal-policy` 로 `CreateRole`·`PassRole`·`CreatePolicy`·`eks:CreateCluster` **전부 allowed**. 원인은 캐시된 SSO 세션 토큰 만료. 반증: **9/21 14:58 클러스터가 실제로 생성됨** |
+| **막힌 항목 20 — 팀원 공인 IP** | ✅ **해소** — 9/21 01:26~30 팀원 4명 공유 → 실클러스터 `publicAccessCidrs` **4건** |
+| **EKS 엔드포인트 9/21 private 전환** | 🔴 **미이행** — 실클러스터 `endpointPublicAccess = true` (Trivy AWS-0040). 전환 결정 + Helm 4종 설치 여부 확인 필요 (막힌 항목 26) |
+| **`eks_bootstrap_creator_admin`** | 🔄 staging **실물 = `false`**. tfvars 가 `true` 면 plan 이 **클러스터 재생성**을 계획함 → **staging tfvars 는 `false` 로 맞출 것.** prod 는 Access Entry 가 `environments/*/eks_access.tf` 로 코드 관리돼 `false` 권장 (**파트장 결정**) |
+| **막힌 항목 11 — ALB idle timeout** | 🔄 변수는 `modules/alb/variables.tf:77` 에 **존재**. tfvars 는 여전히 *"TODO 기본 60초 유지"* → **값 미확정 그대로** |
+| **GPU `node-lifecycle=spot` 라벨** | 🟡 실 노드그룹 6개 전부 `ON_DEMAND`. 비용 v2.0 도 GPU 온디맨드 기준이라 **라벨 문구만 불일치** |
+| **Trivy AWS-0041 (공개 CIDR 0.0.0.0/0)** | 🟢 **오탐** — 코드 `default = []` + precondition 차단 + 실클러스터 CIDR 4건 + Access Entry 5건. 같은 보고서의 AWS-0039 와 동일 유형 |
 
 ### ✅ 9/17 해소된 것
 
@@ -347,6 +372,7 @@ Taint:  nvidia.com/gpu=true:NoSchedule   (양쪽 동일)
 > EBS 는 **느리고 유료**지만 **재부팅을 견디고 설정이 단순**합니다.
 > 지금 우리에게 부족한 자원은 돈이 아니라 **검증할 시간**이라 EBS 를 골랐습니다.
 > 🔄 **되돌릴 수 있는 결정입니다.** 구축이 안정되면 별도 PR 로 NVMe 전환을 재검토합니다.
+> 🆕 **09-27**: PR #80 이 LT 에 **user-data 를 처음 추가**합니다(sshd 하드닝 전용 · NVMe 설정 아님). 위에서 우려한 *"클러스터 없이 테스트 불가"* 는 그대로라 **노드 기동 후 Ansible 재점검이 완료 조건**입니다.
 
 ---
 
@@ -596,8 +622,12 @@ enableNetworkPolicy = "true"    ← aws-vpc-cni addon configuration
 | **20** | 🆕 **리소스 이름·버킷명·경로를 제안하기 전에 이 문서의 확정값을 먼저 확인** (09-12 State 버킷명 임의 제안 사고) |
 | **21** | 🆕🔴 **"설정"이 아니라 "실물"을 확인한다.** 버킷 설정이 SSE-KMS 라도 객체는 AES256 일 수 있다.<br>보안 항목 검증은 리소스 설정 조회가 아니라 **결과물 조회**로 한다 — 예: `aws s3api head-object ... --query ServerSideEncryption`<br>*(09-16 실제 사례: `backend.tf` 의 `encrypt = true` 가 버킷 기본 암호화를 덮어써서, 콘솔엔 KMS 인데 State 는 SSE-S3 였음)* |
 | **22** | 🆕 **셸 스크립트는 "생성 구간"과 "검증 구간"의 엄격도를 나눈다.** 생성은 `set -e` 로 즉시 중단, 검증은 `set +e` 로 끝까지 출력.<br>*(09-16 실제 사례: 키 교체 상태 조회 실패로 스크립트가 죽어, 가장 중요한 객체 암호화 확인이 실행되지 못함)* |
-| **23** | 🆕🔴 **`terraform.tfvars` 의 기본값을 바꾸면 PR 만으로 끝내지 않는다.** `.gitignore` 대상이라 **PR 로 전파되지 않고**, 팀원 로컬 파일은 옛 값 그대로 남는다.<br>→ **①`terraform.tfvars.example` 갱신 + ②디스코드로 `grep` 확인 요청**까지가 한 세트.<br>*(09-17 실제 사례: `.example` 은 9/17 판인데 `terraform.tfvars` 는 9/15 판이라 `1.33`·`API_AND_CONFIG_MAP` 이 남아 있었음. 그대로 apply 했으면 **되돌릴 수 없는 클러스터 버전**이 구버전으로 생성)* |
+| **23** | 🆕🔴 **`terraform.tfvars` 의 기본값을 바꾸면 PR 만으로 끝내지 않는다.** `.gitignore` 대상이라 **PR 로 전파되지 않고**, 팀원 로컬 파일은 옛 값 그대로 남는다.<br>→ **①`terraform.tfvars.example` 갱신 + ②디스코드로 `grep` 확인 요청**까지가 한 세트.<br>*(09-17 실제 사례: `.example` 은 9/17 판인데 `terraform.tfvars` 는 9/15 판이라 `1.33`·`API_AND_CONFIG_MAP` 이 남아 있었음. 그대로 apply 했으면 **되돌릴 수 없는 클러스터 버전**이 구버전으로 생성)* <br>🔄 **09-27 재발**: 9/18 자 tfvars 로 plan → 클러스터 재생성·CIDR 1건·ECR 삭제를 팀 이슈로 오판할 뻔함 (규칙 28) |
 | **24** | 🆕 **스택 PR(PR 위에 PR)은 본문에 base 와 머지 순서를 명시한다.** 아래부터 순서대로 머지해야 diff 가 섞이지 않는다.<br>같은 파일 끝을 여러 PR 이 건드리면 **나중에 머지되는 쪽이 rebase + `--force-with-lease`** 를 해야 하므로, 부재 예정이면 PR 본문에 그 사실을 적는다 |
+| **25** | 🆕🔴 **`terraform init` 에 `-backend=false` 금지** — State 가 끊깁니다 (09-19 사고) |
+| **26** | 🆕🔴 **권한 오류는 조회로 확인한다.** `aws sts get-caller-identity` → `aws sso login --profile jangin` → `aws iam simulate-principal-policy`.<br>`--policy-source-arn` 은 **IAM 역할 ARN**(`/aws-reserved/sso.amazonaws.com/<region>/AWSReservedSSO_*`) — assumed-role ARN 을 넣으면 `InvalidInput`.<br>*(09-21 실제 사고: `AccessDenied` 1건으로 "IAM blocker" 를 단정해 팀에 오보)* |
+| **27** | 🆕🔴 **`terraform.tfvars` 백업은 저장소 바깥에 둔다.** `terraform.tfvars.bak` 은 `.gitignore` 의 `*.tfvars` 패턴에 **안 걸려 커밋됩니다** (팀원 IP 유출) |
+| **28** | 🆕🔴 **plan 결과로 팀에 이슈를 제기하기 전: ① 내 tfvars 가 `.example`·실물과 맞는가 ② 다른 사람 환경에서도 같은가.** plan 출력은 통째로 공유하지 않는다(`eks_public_access_cidrs` = 팀원 IP) — `grep -E '^Plan:'` 또는 `grep -E '^\s+# '` 결과만 |
 
 > 📌 **규칙 10 보충 (2026-09-13)**: `NodePool` 값은 `system｜app｜db｜ai` 중 하나여야 Cost Explorer 필터가 의미를 갖습니다.
 > VPC·서브넷·IGW·라우팅·SG·Endpoint 는 **요금이 $0** 이고 저 넷 중 어디에도 속하지 않으므로 **부여하지 않습니다.**
@@ -692,6 +722,16 @@ gp3 PV 20Gi × 3 (CNPG)  +  reclaimPolicy: Retain
 | **10/2 17:00** | 결과물 제출 |
 | **10/5~10/6** | 🔄 **노드 올리고 확인 + 발표 시연 준비** |
 | **10/6** | 최종 발표 (30분 + Q&A 20분) |
+
+### 🆕 9/21~9/28 실제 경과
+
+| 시점 | 내용 |
+|---|---|
+| **9/21 14:58** | staging 클러스터 **생성** (9/21 인계문서의 "IAM 차단으로 불가" 와 정반대) |
+| 9/22~23 | 플랫폼 전체 배포 (CNPG·Redis·벡터DB·AI·관찰성) · Ansible 점검 · DAST |
+| 9/23~26 | 노드 0 전환 · ECR 관련 커밋 3건 · PR #79 머지 · `tfvars.example` 갱신(9/26) |
+| **9/27** | 보안 5종 전수 확인 · **IAM 오진 정정** · AWS-0041 오탐 규명 · **PR #80** |
+| **9/28** | 🔴 **prod apply 예정** — PR #80 선행 머지 · prod tfvars 의 `ecr_enabled` 확인 |
 
 **운영 스케줄**: 09:00~18:00 (하루 9시간) · 🔄 **09-17 재산정 기준 실운영 7일** (9/21~23 · 9/28~30 · 10/1)
 
@@ -981,10 +1021,50 @@ moved {
 | **15** | 🆕 **모듈 안에 `provider` 블록이 없는가** (region·default_tags 는 루트에서 상속) |
 | **16** | 🆕🔴 **IAM 정책 `statement` 마다 `resources` 가 있는가** — 신원 기반 정책의 `Allow` 문은 `Resource` 가 필수.<br>⚠️ **`plan` 에서는 안 잡힙니다.** 정책 JSON 은 Terraform 이 로컬에서 조립하는 데이터라 plan 을 통과하고, AWS 검증은 **apply 순간에만** 일어나 `MalformedPolicyDocument` 로 실패합니다.<br>*(09-17 발견: PR #32 의 `kms:Decrypt` statement 2건)* |
 | **17** | 🆕 **`min_size`·`capacity_type` 같은 "제약"은 주석이 아니라 `precondition` 으로 박았는가** (규칙 12 의 오버엔지니어링과 혼동 주의 — **틀리면 조용히 망가지는 값**에만 적용) |
+| **18** | 🆕🔴 **`terraform.tfvars` 가 `.example` 최신본·실물과 일치하는가** — 특히 prod `ecr_enabled`, `eks_bootstrap_creator_admin`, `eks_public_access_cidrs` (규칙 23·28) |
+| **19** | 🆕🔴 **plan 에 `aws_eks_cluster` 의 `access_config`·`name`·`role_arn`·`encryption_config` 변경이 있는가** — 전부 **클러스터 재생성.** `bootstrap_cluster_creator_admin_permissions` 는 생성 시점 전용 값 |
+| **20** | 🆕🔴 **LT `user_data` 가 MIME multipart 인가** — `ami_id` 미지정 관리형 노드그룹은 EKS 가 NodeConfig 파트를 덧붙임. 일반 셸 스크립트면 **노드가 클러스터에 합류 못 함** (PR #80) |
+| **21** | 🆕🔴 **CSI 가 만든 EBS 는 `terraform destroy` 로 안 지워진다** — 환경 종료 시 `aws ec2 describe-volumes --filters Name=status,Values=available` 로 별도 정리 |
 
 💡 **plan 출력**: `Plan: N to add, 0 to change, 0 to destroy`
 **`to destroy`가 0이 아니면 절대 apply하지 마세요.**
 💡 **모듈 이관 PR 의 기대 출력**: `Plan: 0 to add, 0 to change, 0 to destroy.` + 이동 목록만
+
+---
+
+### 🆕 sshd 드롭인 설정 (P2-1 · PR #80)
+
+```
+/etc/ssh/sshd_config.d/00-jangin-hardening.conf
+  PermitRootLogin no  /  MaxAuthTries 4  /  X11Forwarding no
+```
+파일: `terraform/modules/eks_nodes/templates/node_user_data.mime` → `aws_launch_template.node` 의 `user_data`
+
+| 함정 | 내용 |
+|---|---|
+| **MIME multipart** | 🔴 EKS 가 NodeConfig 파트를 덧붙이므로 경계선(`--//`, `--//--`)이 **1열**에서 시작해야 함 |
+| 파일명 **`00-`** | 🔴 sshd 는 **먼저 읽은 값이 이김**(first-obtained-value-wins). nginx·systemd 와 **정반대** — `60-` 같은 번호는 무효 |
+| **`restart`** (≠ `reload`) | 🔴 `reload` 는 `ActiveEnterTimestamp` 를 갱신하지 않아 **Ansible SSH-009(현재 PASS)가 FAIL 로 뒤집힘** |
+| `sshd -t` 실패 시 | 노드 부팅을 실패시키지 않고 드롭인만 되돌린 뒤 `/var/log/jangin-hardening.failed` 기록 |
+| `Include` 위치 | ⚠️ `/etc/ssh/sshd_config` 의 `Include` 가 **앞쪽**이어야 `00-` 전략 성립 — 노드 기동 후 `grep -n '^Include'` 로 확인 |
+
+### 🆕 macOS(BSD) vs 리눅스(GNU) — 자주 틀리는 명령
+
+| 목적 | GNU(리눅스) | **BSD(macOS)** |
+|---|---|---|
+| 줄 끝 `$` 표시 | `cat -A` | **`cat -et`** |
+| in-place 편집 | `sed -i` | **`sed -i ''`** |
+| 매칭 **횟수** | — | `grep -c` 는 **줄 수**. 횟수는 **`grep -o ... \| wc -l`** |
+
+```bash
+grep -A<n>                          # ❌ 블록 길이를 알아야만 맞음
+sed -n '/^variable "이름"/,/^}/p'    # ✅ 시작~끝 패턴으로 잡음
+tail -3                             # ❌ plan 의 Plan: 줄은 끝에서 10줄쯤 위
+grep -E '^Plan:'                    # ✅
+# 이름·ARN 은 추측하지 말고 조회해서 넘긴다
+for ng in $(aws eks list-nodegroups --cluster-name "$C" --query 'nodegroups[]' --output text); do ...; done
+```
+⚠️ `grep -rn` 은 **`--exclude-dir=.terraform` 필수** — 프로바이더 바이너리를 스캔해 멈춥니다.
 
 ---
 
@@ -996,7 +1076,7 @@ moved {
 
 ---
 
-## 🔴 배포 리소스 현황 (2026-09-17 기준 — 변동 없음)
+## 🔴 배포 리소스 현황 (🔄 2026-09-27 갱신 — 아래 「staging 실측」이 우선)
 
 > 계정은 이 문서에 적지 않습니다 (작업 규칙 2). SSO 프로필 `jangin` · Permission Set `Infra-Admin` · 리전 `ap-northeast-2`
 
@@ -1007,6 +1087,40 @@ moved {
 | ②③④ **VPC · SG · Endpoint** | 🔴 **없음** — 9/15 destroy. 코드는 PR #18 로 `main` 에 머지됨. **apply 는 9/18** |
 | ⑤~⑧ | ⬜ 미생성 — **코드는 PR #19·#22·#35·#36·#37 로 준비 완료.** `Plan: 66 to add` |
 | ⑨⑩ | ⬜ 미생성 — 🔴 **⑩ 은 모듈만 있고 환경에서 호출되지 않음** (막힌 항목 19) |
+
+### 🆕 staging 실측 (2026-09-27) — 위 09-17 표보다 우선
+
+| 항목 | 값 |
+|---|---|
+| EKS | `jangin-staging-eks-cluster` · **1.35** · `ACTIVE` · 생성 **2026-09-21 14:58 KST** |
+| 인증 | **`API`** · `bootstrap_cluster_creator_admin_permissions = false` (state 값) |
+| 엔드포인트 | public `true` · private `true` · 허용 CIDR **4건** |
+| Access Entry | **5건** — Backend-Dev / Infra-Admin / Security-Audit (SSO, `eks_access.tf` 코드 관리) + EKS 서비스역할 / 노드역할(자동)<br>prod 는 `backend_dev → _view`, staging 은 `_edit` (환경별 차등) |
+| 노드그룹 | **6개** 전부 `desired=0 / min=0` (max 3/3/1/1/2/2) · 전부 `ON_DEMAND` |
+| Launch Template | `KeyName: null` · user-data **없음** → PR #80 에서 추가 |
+| PVC EBS | **11개 / 238GB · 전부 `available`** (9/22~23 생성)<br>postgres-1·2·3 / data-redis-0 / data-ai-vector-db-0 / ai 모델 3종 / prometheus·alertmanager·grafana |
+| ECR 이미지 | jangin-app 28 · chatbot-api 15 · chatbot-llm 19 · model-fetch 3 · page-generation 17 = **82** |
+| prod | 🔴 클러스터 **미생성** |
+
+> 🔑 **9/22~23 에 플랫폼 전체가 실제로 배포되어 동작했습니다** — PVC 11개가 증거. 평가 기준 *"실제 환경에 적용되어 동작하는지"* 의 실물 근거 (완성도 30).
+
+### 🆕 보안 점검 현황 (2026-09-27)
+
+| 자료 | 결과 |
+|---|---|
+| Trivy IaC `trivy-jangingmall-infra-20260921-001` (기준 커밋 `30b17d0`) | **184건 / 28그룹** — AWS 11그룹(37건) · **KSV 17그룹(147건, 전부 k8s 대상)** |
+| Ansible `ansible-jangin-staging-20260923-002` | 119건 / PASS 91 · **FAIL 28** (SSH-001/004/005 21 + SSH-010 7) |
+| Prowler 지역 / 글로벌 | FAIL 241 / FAIL 8 |
+| Trivy 시크릿 스캔 | **402파일 / 후보 0건** ✅ 규칙 2·3 이 도구로 검증됨 |
+
+| 체크 | 판정 |
+|---|---|
+| AWS-0041 공개 CIDR | 🟢 **오탐** (막힌 항목 해소표 참조) |
+| AWS-0040 공개 엔드포인트 | 🔴 **사실** — 전환 결정 대기 (막힌 항목 26) |
+| AWS-0039 Secrets 암호화 | 🟢 보고서가 오탐 확인 (EKS 1.28+ 기본 봉투 암호화) |
+| AWS-0104 SG egress | 윤주님(P1-1) — ⚠️ **노드 기동 전에** 조일 것 (기동 후면 ECR pull 차단) |
+| AWS-0010 / 0011 CloudFront 로그·WAF | 🟢 Trivy + Prowler **두 도구가 동시 지적** → 우선순위 1·2 제안. WAF 는 **us-east-1 CLOUDFRONT scope Web ACL 별도** 필요 |
+| Ansible FAIL 28 | 🔄 **PR #80 으로 전부 해소 예정** |
 
 ### 🆕 ① State 백엔드 상세 (09-16 갱신)
 
@@ -1093,6 +1207,16 @@ aws s3api head-object --bucket jangin-infra-s3-tfstate \
 ---
 
 ## 변경 이력
+
+**09-27 (보안 점검 전수 확인 · 오진 정정 · staging 실측 · PR #80)**
+- 🔴🔴 **"IAM 권한 blocker"(9/21 인계문서) 전면 철회** — 오진. 시뮬레이터로 전 권한 `allowed`. 원인 SSO 세션 만료 → **규칙 26 신설**
+- ✅ **staging 실측 반영** — 클러스터·Access Entry 5건·노드그룹 6개(`desired=0`)·PVC 11개(238GB)·ECR 이미지 82개
+- ✅ **보안 점검 5종 전수 확인** — Trivy 28그룹 분리(AWS 11 / **KSV 17 = k8s 대상 147건**), **AWS-0041 오탐**, AWS-0040 사실
+- 🔴 **prod ECR destroy 10건 원인 규명** — `ecr_enabled` 주석 → 기본값 `false`. *"이름 변경(bf6d367) 때문"* 이라던 9/27 1차 공유는 **틀렸음** (막힌 항목 24)
+- 🔴 **규칙 23 재발** — 9/18 자 tfvars 로 plan → 오판 3건 직전 정정 → **규칙 27·28 신설**
+- 🆕 규칙 **25~28** · 검수 체크리스트 **18~21** · 막힌 항목 **23~26** · sshd 드롭인 / macOS-리눅스 명령 절
+- ✅ **PR #80** — P2-1 노드 SSH 하드닝 (LT user-data, MIME multipart, `00-` 드롭인, `restart`)
+
 
 **09-17 (EKS 3대 결정 확정 · 노드 사양 변경 · 비용 재산정 v2.0 · ⑦⑧ 코드)**
 - 🔴 **신준한 결석** — 회의록·디스코드·비용표로 복기 후 개인 작업으로 수행
