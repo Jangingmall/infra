@@ -1,5 +1,5 @@
 # ============================================================
-# security_group.tf — Security Group 4종 + 규칙 15개
+# security_group.tf — Security Group 4종 + 규칙 17개
 # ------------------------------------------------------------
 # IaC 착수 순서 ③ — 전부 무료 리소스
 #
@@ -96,8 +96,8 @@ data "aws_ec2_managed_prefix_list" "s3" {
 #    그런데 terraform의 aws_security_group 은 egress 블록이 없으면
 #    그 기본 규칙을 "제거"한다.
 #    → 즉 이 껍데기들은 진짜로 규칙 0개다.
-#    → 그래서 표의 "Out All 0.0.0.0/0" 도 우리가 명시적으로 만들어야 한다.
-#      (자동으로 생기지 않는다)
+#    → 그래서 egress 는 아래 [2단계] 에서 필요한 것만 명시적으로 만든다.
+#      (기본 Out All 은 자동으로 생기지 않고, 우리도 만들지 않는다)
 #
 # ⚠️ name 을 고정값으로 둔 이유:
 #    네이밍 규칙(jangin-<env>-<resource>)을 지켜야 IAM 정책에서
@@ -151,29 +151,18 @@ resource "aws_security_group" "eks_gpu" {
 
 
 # ============================================================
-# [2단계] 규칙 15개
+# [2단계] 규칙 17개
 # ============================================================
 #
-# 🔵 "Out All 0.0.0.0/0" 과 "Out 443 → S3 Prefix List" 의 중복에 대하여
-#    (sg-eks-node · sg-db · sg-eks-gpu 세 곳 모두 해당)
+# 🔵 egress 는 "허용 목록" 방식이다 (Trivy AWS-0104 대응 · 09-27)
+#    sg-eks-node · sg-db · sg-eks-gpu 에 있던 Out All(-1, 0.0.0.0/0) 3개를 걷어내고
+#    필요한 포트만 연다 — 외부 443 / SMTP 465·587(node 만) / S3 prefix list 443.
 #
-#    솔직히 말하면 — 지금 이 둘은 효과가 100% 겹친다.
-#    "All"은 모든 프로토콜·포트·목적지를 포함하므로 S3의 443도 이미 포함한다.
-#    SG는 규칙들의 합집합(OR)으로 평가되므로 충돌도 없고, 그냥 중복이다.
-#
-#    그런데도 확정 표대로 둘 다 남기는 이유:
-#
-#    (1) 하드닝 안전망 — 보안팀이 앞으로 요구할 가능성이 가장 높은 조치가
-#        "Out All 을 걷어내고 필요한 것만 열어라" 다. 그때 Out All 한 줄만
-#        지우면 S3 경로는 그대로 살아남는다.
-#        이 규칙이 없으면 그 순간 CNPG WAL 백업 · Loki 청크 업로드 ·
-#        AI 모델 가중치 다운로드가 "동시에 조용히" 죽는다.
-#        게다가 증상이 S3 권한 오류처럼 보여서 SG가 원인인 줄 모른다.
-#
-#    (2) 의도의 문서화 — 규칙 목록만 봐도 "이 계층은 S3를 정당하게 쓴다"가
-#        드러난다. Out All 만 있으면 왜 열려 있는지 아무도 모른다.
-#
-#    (3) sg-db 는 지금도 이 규칙만 실제로 동작한다 — 아래 sg-db 섹션 참고.
+#    - DNS(53)·NTP(123) 규칙은 일부러 없다. Amazon DNS(VPC+2)·Time Sync·IMDS 는
+#      SG 가 필터링하지 않는 트래픽이라 규칙 없이도 통한다.
+#    - S3 prefix list 443 은 이제 중복이 아니다. 이 규칙이 빠지면 CNPG WAL 백업 ·
+#      Loki 청크 업로드 · AI 모델 가중치 다운로드가 "동시에 조용히" 죽고,
+#      증상이 S3 권한 오류처럼 보여서 SG 가 원인인 줄 모른다.\
 #
 #    대가: prefix list 규칙은 목록 엔트리 수만큼 SG 규칙 한도(기본 60)를
 #          소모한다. 서울 리전 S3는 한 자릿수라 문제없지만 공짜는 아니다.
@@ -191,7 +180,7 @@ resource "aws_security_group" "eks_gpu" {
 #    "SG Reference를 쓰라"는 규칙은 양쪽 다 우리 리소스인 내부 통신에 대한
 #    것이다. 인터넷 사용자는 SG를 가질 수 없으므로 SG 참조가 물리적으로
 #    불가능하고, 0.0.0.0/0 이 유일한 표현이다.
-#    이 파일에서 cidr_ipv4 가 나오는 곳은 여기 2개 + Out All 3개, 총 5개뿐이다.
+#    이 파일에서 cidr_ipv4 가 나오는 곳은 여기 2개 + egress 허용 목록 5개, 총 7개뿐이다.
 
 resource "aws_vpc_security_group_ingress_rule" "alb_in_https" {
   security_group_id = aws_security_group.alb.id
@@ -238,7 +227,7 @@ resource "aws_vpc_security_group_egress_rule" "alb_out_node_8080" {
 
 
 # ------------------------------------------------------------
-# sg-eks-node — 6개
+# sg-eks-node — 8개
 # ------------------------------------------------------------
 
 # target-type 이 ip 라서 ALB가 Pod IP로 직접 보낸다.
@@ -302,23 +291,39 @@ resource "aws_vpc_security_group_egress_rule" "node_out_gpu_8000" {
   tags = { Name = "${local.name}-sgr-node-out-8000" }
 }
 
-# 외부 연동 전부가 이 한 줄을 탄다 (⑤ NAT Gateway 경유):
-#   토스페이먼츠 · 카카오/구글 OAuth · 스마트택배 · Google SMTP(587/465)
-#   · ECR · STS · EC2 API
-#
-# ip_protocol = "-1" 은 "모든 프로토콜"이다.
-# ⚠️ "-1" 일 때는 from_port/to_port 를 아예 쓰지 않는다. 쓰면 에러가 난다.
-resource "aws_vpc_security_group_egress_rule" "node_out_all" {
+# 외부 연동(SMTP 제외)이 전부 이 한 줄을 탄다 (⑤ NAT Gateway 경유):
+#   토스페이먼츠 · 카카오/구글/네이버 OAuth · 스마트택배 · ECR · STS · EC2 API
+#   + kubelet → EKS API 엔드포인트
+# 🔴 "외부 API 용" 으로 보고 지우면 노드가 NotReady 가 된다.
+resource "aws_vpc_security_group_egress_rule" "node_out_https" {
   security_group_id = aws_security_group.eks_node.id
-  description       = "Outbound via NAT GW: ECR, STS, PG, OAuth, SMTP"
+  description       = "HTTPS via NAT GW: ECR, STS, EC2 API, EKS API, PG, OAuth, courier API"
 
   cidr_ipv4   = "0.0.0.0/0"
-  ip_protocol = "-1"
+  ip_protocol = "tcp"
+  from_port   = 443
+  to_port     = 443
 
-  tags = { Name = "${local.name}-sgr-node-out-all" }
+  tags = { Name = "${local.name}-sgr-node-out-443" }
 }
 
-# ⬆ 위 Out All 과 지금은 중복이다. 남기는 이유는 이 섹션 머리말 참고.
+# Google SMTP - Backend Pod 만 쓰므로 sg-eks-node 에만 연다 (db, gpu 에는 없음)
+# 안 쓰는 쪽을 map 에서 한 줄 지우기
+resource "aws_vpc_security_group_egress_rule" "node_out_smtp" {
+  for_each = { smtps = 465, submission = 587 }
+
+  security_group_id = aws_security_group.eks_node.id
+  description       = "Google SMTP (${each.key}) via NAT GW"
+
+  cidr_ipv4   = "0.0.0.0/0"
+  ip_protocol = "tcp"
+  from_port   = each.value
+  to_port     = each.value
+
+  tags = { Name = "${local.name}-sgr-node-out-${each.value}" }
+}
+
+# Loki 청크 업로드 · 이미지 presigned 처리 등 S3 경로. 빠지면 조용히 실패한다 (섹션 머리말 참고).
 resource "aws_vpc_security_group_egress_rule" "node_out_s3_443" {
   security_group_id = aws_security_group.eks_node.id
   description       = "S3 via Gateway Endpoint (kept for future hardening)"
@@ -336,9 +341,6 @@ resource "aws_vpc_security_group_egress_rule" "node_out_s3_443" {
 # sg-db — 3개
 # ------------------------------------------------------------
 
-# 🔴 DB로 들어올 수 있는 것은 이것 하나뿐이다.
-#    Bastion도, 내 노트북도, 모니터링도 직접 못 들어온다.
-#    (관리는 SSM Session Manager 경유 — SSH 22는 어디에도 없다)
 resource "aws_vpc_security_group_ingress_rule" "db_in_node_5432" {
   security_group_id = aws_security_group.db.id
   description       = "PostgreSQL from EKS app nodes only"
@@ -351,45 +353,20 @@ resource "aws_vpc_security_group_ingress_rule" "db_in_node_5432" {
   tags = { Name = "${local.name}-sgr-db-in-5432" }
 }
 
-# ⚠️ 이 규칙은 확정 표대로 만들지만, 현재 구조에서는 실제로 통하지 않는다.
-#
-#    SG가 허용해도  →  라우트가 없으면  →  패킷은 나가지 못한다.
-#    (SG = 통과 허가증 / 라우팅 테이블 = 실제로 난 길)
-#
-#    vpc.tf 의 rt-data 에는 0.0.0.0/0 이 없다 (작업 규칙 7 — 의도된 설계).
-#    따라서 DB 노드그룹을 data 서브넷에 배치하면 ECR 이미지 pull 과
-#    STS 호출이 실패한다. S3 Gateway Endpoint는 ECR "레이어"(S3에 저장)만
-#    덮고, ECR API 인증(ecr.api / ecr.dkr)은 못 덮기 때문이다.
-#
-#    선택지: (a) DB 노드그룹을 app 서브넷에 배치 (격리는 Taint/SG/NetworkPolicy)
-#            (b) rt-data 에 NAT 경로 추가 → 보안팀 NAT 조건 #2 위반
-#            (c) ECR Interface Endpoint → 비용 결정($10.28 vs NAT $2.95) 번복
-#
-#    💡 (a)가 이미 확정된 것으로 보이는 근거 — 통합프로젝트 컨텍스트 A-3:
-#         "Data 계층 = 논리적 격리 — DB 전용 노드그룹 + Taint + SG + NetworkPolicy"
-#
-#       "논리적" 격리라는 표현은 서브넷으로 물리 분리하는 게 아니라,
-#       app 서브넷에 두고 Taint·SG·NetworkPolicy로 가른다는 뜻일 가능성이 높다.
-#       나열된 수단 4가지에 "전용 서브넷"이 빠져 있는 것도 같은 방향이다.
-#       이 해석이 맞으면 위 모순은 애초에 존재하지 않는다.
-#
-#    🔴 다만 단정하지 않는다. 서브넷 배치는 내 단독 결정 사항이 아니므로
-#       여기서는 확정 표대로 두고, ⑦ 노드그룹 착수 전 파트장(강윤주) 확인을
-#       PR 본문으로 요청한다. (SG 규칙 자체는 어느 안이든 동일하다)
-resource "aws_vpc_security_group_egress_rule" "db_out_all" {
+# CNPG 이미지 pull(ECR), IRSA(STS), Kubernetes API 호출 전부 443\
+resource "aws_vpc_security_group_egress_rule" "db_out_https" {
   security_group_id = aws_security_group.db.id
-  description       = "Image pull / STS. See comment: rt-data has no 0.0.0.0/0"
+  description       = "HTTPS via NAT GW: ECR image pull, STS, EKS API"
 
   cidr_ipv4   = "0.0.0.0/0"
-  ip_protocol = "-1"
+  ip_protocol = "tcp"
+  from_port   = 443
+  to_port     = 443
 
-  tags = { Name = "${local.name}-sgr-db-out-all" }
+  tags = { Name = "${local.name}-sgr-db-out-443" }
 }
 
-# 🔵 sg-db 에서는 이 규칙이 "중복이 아니다".
-#    rt-data 에는 인터넷 경로가 없고 S3 Gateway Endpoint만 붙는다.
-#    즉 위의 Out All 은 갈 길이 없어서 사실상 무효고,
-#    CNPG의 WAL 백업이 실제로 타는 경로를 허용하는 건 이 한 줄이다.
+# CNPG 의 WAL·베이스 백업이 실제로 타는 경로 (S3 Gateway Endpoint).
 resource "aws_vpc_security_group_egress_rule" "db_out_s3_443" {
   security_group_id = aws_security_group.db.id
   description       = "CNPG WAL/backup to S3 via Gateway Endpoint"
@@ -423,18 +400,20 @@ resource "aws_vpc_security_group_ingress_rule" "gpu_in_node_8000" {
 }
 
 # GPU 이미지(SGLang·Ollama)는 수 GB 단위라 pull 트래픽이 크다.
-# NAT 처리료가 여기서 발생한다 — 막힌 항목 #5(AI 이미지 배포 경로)와 연결된다.
-resource "aws_vpc_security_group_egress_rule" "gpu_out_all" {
+# NAT 처리료가 여기서 발생한다 — 막힌 항목 #4(AI 이미지 배포 경로)와 연결된다.
+resource "aws_vpc_security_group_egress_rule" "gpu_out_https" {
   security_group_id = aws_security_group.eks_gpu.id
-  description       = "Image pull / STS via NAT GW"
+  description       = "HTTPS via NAT GW: ECR image pull, STS, EKS API"
 
   cidr_ipv4   = "0.0.0.0/0"
-  ip_protocol = "-1"
+  ip_protocol = "tcp"
+  from_port   = 443
+  to_port     = 443
 
-  tags = { Name = "${local.name}-sgr-gpu-out-all" }
+  tags = { Name = "${local.name}-sgr-gpu-out-443" }
 }
 
-# ⬆ 위 Out All 과 지금은 중복이다. 남기는 이유는 섹션 머리말 참고.
+# s3-models 가중치 다운로드 경로. NAT 를 안 타므로 처리료가 없다.
 resource "aws_vpc_security_group_egress_rule" "gpu_out_s3_443" {
   security_group_id = aws_security_group.eks_gpu.id
   description       = "Model weights from s3-models via Gateway Endpoint"
