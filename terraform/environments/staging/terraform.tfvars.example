@@ -50,7 +50,7 @@ nat_gateway_az = "a"
 # TODO(staging 값 확정): 파트장 — NAT 알림 SNS ARN 주입; 빈 목록은 미연결.
 nat_alarm_sns_topic_arns = []
 
-# TODO(staging 값 확정): Q-PL-02 — 공용 ECR 소유 state 확정 전 false 유지.
+# 공용 ECR 은 prod State 가 소유합니다 → staging 은 false 고정 (두 환경 동시 true 금지 — 같은 저장소를 두 State 가 만들려다 충돌).
 ecr_enabled              = false
 ecr_repositories         = ["jangin-app", "jangin-ai/page-generation", "jangin-ai/chatbot-api", "jangin-ai/chatbot-llm", "jangin-ai/model-fetch"]
 ecr_keep_last_images     = 10
