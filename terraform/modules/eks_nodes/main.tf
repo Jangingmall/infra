@@ -109,6 +109,13 @@ resource "aws_launch_template" "node" {
     instance_metadata_tags      = "enabled"
   }
 
+  # 🔒 노드 SSH 하드닝 (P2-1 / Ansible SSH-001·004·005)
+  #    이 LT 는 ami_id 를 지정하지 않는 관리형 노드그룹용이므로,
+  #    EKS 가 이 MIME 문서 뒤에 자신의 NodeConfig 파트를 덧붙입니다.
+  #    → 반드시 MIME multipart 형식이어야 하며, 평범한 셸 스크립트를 넣으면
+  #      EKS 가 NodeConfig 를 붙이지 못해 노드가 클러스터에 합류하지 못합니다.
+  user_data = base64encode(file("${path.module}/templates/node_user_data.mime"))
+
   # AL2023 EKS AMI의 루트 장치. 용량은 기존 그룹별 설정을 보존한다.
   block_device_mappings {
     device_name = "/dev/xvda"
