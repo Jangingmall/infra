@@ -169,28 +169,38 @@ variable "eks_bootstrap_creator_admin" {
   default     = true
 }
 
-# ✅ 2026-09-17 팀 확정: B안 — 구축기(9/18~20)는 public(팀원 IP 제한)+private,
-#    9/21 검수 시작 시 private only 로 전환. 전환은 클러스터 재생성 없이 몇 분
+# 2026-09-17 B안(public+팀원 IP 제한) 도입 → 9/27 "명시 필수"로 변경. 환경별 값은 아래 description.
 variable "eks_endpoint_public_access" {
   description = <<-EOT
-    ✅ 2026-09-17 파트장 확정 — 단계 운영(B안).
+    🔴 명시 필수 — tfvars 에 값이 없으면 plan 이 에러로 멈춥니다. (2026-09-27 변경)
 
-      9/18 ~ 9/20 구축  : true  + public_access_cidrs 를 팀원 IP 로 제한
-      9/21 ~ 검수·운영  : false 로 전환 (private only)
+    왜 기본값을 없앴나
+      기본값이 있으면 이 줄을 빠뜨려도 "조용히" 적용됩니다.
+        true 기본값  → 빠뜨리면 조용히 인터넷에 공개
+        false 기본값 → 빠뜨리면 조용히 닫힘 → 외부 kubectl 불가, prod 는 Helm 부트스트랩 불가
+      어느 쪽이든 plan 을 꼼꼼히 보지 않으면 모릅니다 (9/27 prod ECR 사례: 주석 한 줄로 기본값이 적용돼
+      저장소 삭제가 계획됨). 그래서 "빠뜨리면 멈춤"으로 바꿨습니다. eks_public_access_cidrs 가
+      빈 목록이면 precondition 이 멈추는 것과 같은 방식입니다.
 
-    전환은 클러스터 재생성 없이 몇 분이면 됩니다. 버전·인증모드와 달리 가역입니다.
+    환경별 값 (9/27 기준 · 변경은 파트장 결정 사항)
+      staging : true 유지 — 삭제 예정 환경이고, false 로 닫으면 외부 kubectl 경로가 없습니다
+                (Bastion·Client VPN 0, 노드 0대면 SSM 도 불가 · 9/27 박다정 확인)
+      prod    : 생성 ~ Helm 부트스트랩 동안 true → 부트스트랩 완료 후 false 전환 (계획)
+                ArgoCD·CloudNativePG·Argo Rollouts·Secrets Store CSI 설치 경로가 public 뿐입니다.
 
-    왜 구축 기간에는 열어두나
-      ArgoCD·CloudNativePG·Argo Rollouts·Secrets Store CSI 를 Helm 으로 설치해야 하는데,
-      private only 면 SSM 을 거쳐야 합니다. 노드에 kubectl 을 두는 우회는
-      🔴 노드 IAM 역할에 클러스터 관리자 권한이 필요해, 그 노드의 모든 Pod 가
-      클러스터를 조작할 수 있게 됩니다 — 보안을 위한 선택이 더 큰 구멍을 만듭니다.
+    true → false 전환은 클러스터 재생성 없이 몇 분이면 됩니다 (가역).
 
-    ⚠️ "공개"라도 인증 명부에 없으면 401 입니다. Public = 무방비가 아닙니다.
-       건물 주소가 지도에 나오는 것과 현관문이 열려 있는 것은 다릅니다.
+    ⚠️ "공개"라도 인증 명부(Access Entry)에 없으면 401 입니다. Public = 무방비가 아닙니다.
+       공개 동안은 eks_public_access_cidrs(팀원 IP)로 출발지를 한 번 더 제한합니다.
   EOT
   type        = bool
-  default     = true
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = var.eks_endpoint_public_access != null
+    error_message = "eks_endpoint_public_access 값이 없습니다. terraform.tfvars 에 true 또는 false 를 직접 적어주세요 (staging = true, prod = 부트스트랩 전 true). 모르겠으면 apply 하지 말고 인프라 채널에 물어봐주세요."
+  }
 }
 
 variable "eks_endpoint_private_access" {

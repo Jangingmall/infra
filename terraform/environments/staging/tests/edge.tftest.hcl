@@ -70,8 +70,9 @@ override_module { target = module.acm_cloudfront_images }
 override_module { target = module.cloudfront_images }
 
 variables {
-  alb_zone_id     = "ZTESTONLY123"
-  route53_zone_id = "ZTESTONLY123"
+  alb_zone_id                = "ZTESTONLY123"
+  route53_zone_id            = "ZTESTONLY123"
+  eks_endpoint_public_access = true # 명시 필수 변수 (기본값 없음 · 9/27)
 }
 
 run "count_and_native_handoff" {
