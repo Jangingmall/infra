@@ -66,13 +66,13 @@ eks_cluster_version = "1.35" # ✅ 9/17 팀 확정. 🔴 apply 전 STANDARD_SUPP
 eks_authentication_mode = "API"                  # ✅ 9/16 파트장 확정
 
 # 🔴 생성자 자동 관리자 권한 — 클러스터 "생성 시점에만" 쓰이는 값입니다.
-#    생성 후에 바꾸면 plan 이 클러스터 재생성(must be replaced)을 계획합니다. 생성 전에 확정하세요.
-#    prod 값은 파트장 결정 사항 (Access Entry 가 eks_access.tf 로 코드 관리되므로 false 도 가능).
-eks_bootstrap_creator_admin = true
+#    생성 후에 바꾸면 plan 이 클러스터 재생성(must be replaced)을 계획합니다.
+#    ✅ 9/28 파트장 tfvars 기준 false — apply 는 Infra-Admin 역할로 하고, 권한은 eks_access.tf 의 Access Entry 로 줌.
+eks_bootstrap_creator_admin = false
 
 # 🔴 명시 필수 — 이 줄을 지우거나 주석으로 두면 plan 이 에러로 멈춥니다 (9/27 변경).
-#    prod = 생성 ~ Helm 부트스트랩 동안 true (설치 경로가 public 뿐) → 부트스트랩 후 false 전환 계획.
-#    전환 시점은 파트장 결정 사항입니다. 전환은 재생성 없이 몇 분.
+#    prod = 생성 ~ Helm 부트스트랩 동안 true (설치 경로가 public 뿐) + 팀원 IP 제한.
+#    ✅ 9/28 파트장: 설치 확인 + SSM 접속 경로 준비 후 false 로 전환. 전환은 재생성 없이 몇 분.
 #    "공개"라도 인증 명부(Access Entry)에 없으면 401 입니다. Public = 무방비가 아닙니다.
 eks_endpoint_public_access  = true
 eks_endpoint_private_access = true

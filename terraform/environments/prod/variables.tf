@@ -216,7 +216,8 @@ variable "eks_endpoint_public_access" {
     환경별 값 (9/27 기준 · 변경은 파트장 결정 사항)
       staging : true 유지 — 삭제 예정 환경이고, false 로 닫으면 외부 kubectl 경로가 없습니다
                 (Bastion·Client VPN 0, 노드 0대면 SSM 도 불가 · 9/27 박다정 확인)
-      prod    : 생성 ~ Helm 부트스트랩 동안 true → 부트스트랩 완료 후 false 전환 (계획)
+      prod    : 생성 ~ Helm 부트스트랩 동안 true + 팀원 IP 제한
+                → 설치 확인 + SSM 접속 경로 준비 후 false 전환 (9/28 파트장)
                 ArgoCD·CloudNativePG·Argo Rollouts·Secrets Store CSI 설치 경로가 public 뿐입니다.
 
     true → false 전환은 클러스터 재생성 없이 몇 분이면 됩니다 (가역).
