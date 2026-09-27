@@ -1,5 +1,5 @@
 # ============================================================
-# security_group.tf — Security Group 4종 + 규칙 15개
+# security_group.tf — Security Group 4종 + 규칙 20개
 # ------------------------------------------------------------
 # IaC 착수 순서 ③ — 전부 무료 리소스
 #
@@ -151,7 +151,7 @@ resource "aws_security_group" "eks_gpu" {
 
 
 # ============================================================
-# [2단계] 규칙 15개
+# [2단계] 규칙 20개
 # ============================================================
 #
 # 🔵 "Out All 0.0.0.0/0" 과 "Out 443 → S3 Prefix List" 의 중복에 대하여
@@ -191,7 +191,8 @@ resource "aws_security_group" "eks_gpu" {
 #    "SG Reference를 쓰라"는 규칙은 양쪽 다 우리 리소스인 내부 통신에 대한
 #    것이다. 인터넷 사용자는 SG를 가질 수 없으므로 SG 참조가 물리적으로
 #    불가능하고, 0.0.0.0/0 이 유일한 표현이다.
-#    이 파일에서 cidr_ipv4 가 나오는 곳은 여기 2개 + Out All 3개, 총 5개뿐이다.
+#    이 파일에서 cidr_ipv4 가 나오는 곳은 여기 2개 + Out All 3개 + 허용 목록 5개, 총 10개뿐이다.
+#    (Out All 3개는 허용 목록 2단계에서 제거 예정 → 7개)
 
 resource "aws_vpc_security_group_ingress_rule" "alb_in_https" {
   security_group_id = aws_security_group.alb.id
@@ -238,7 +239,7 @@ resource "aws_vpc_security_group_egress_rule" "alb_out_node_8080" {
 
 
 # ------------------------------------------------------------
-# sg-eks-node — 6개
+# sg-eks-node — 9개
 # ------------------------------------------------------------
 
 # target-type 이 ip 라서 ALB가 Pod IP로 직접 보낸다.
@@ -318,6 +319,34 @@ resource "aws_vpc_security_group_egress_rule" "node_out_all" {
   tags = { Name = "${local.name}-sgr-node-out-all" }
 }
 
+resource "aws_vpc_security_group_egress_rule" "node_out_https" {
+  security_group_id = aws_security_group.eks_node.id
+  description       = "HTTPS via NAT GW: ECR, STS, EC2 API, EKS API, PG, OAuth, courier API"
+
+  cidr_ipv4   = "0.0.0.0/0"
+  ip_protocol = "tcp"
+  from_port   = 443
+  to_port     = 443
+
+  tags = { Name = "${local.name}-sgr-node-out-443" }
+}
+
+# Google SMTP - Backend Pod 만 쓰므로 sg-eks-node 에만 연다 (db, gpu 에는 없음)
+# 안 쓰는 쪽을 map 에서 한 줄 지우기
+resource "aws_vpc_security_group_egress_rule" "node_out_smtp" {
+  for_each = { smtps = 465, submission = 587 }
+
+  security_group_id = aws_security_group.eks_node.id
+  description       = "Google SMTP (${each.key}) via NAT GW"
+
+  cidr_ipv4   = "0.0.0.0/0"
+  ip_protocol = "tcp"
+  from_port   = each.value
+  to_port     = each.value
+
+  tags = { Name = "${local.name}-sgr-node-out-${each.value}" }
+}
+
 # ⬆ 위 Out All 과 지금은 중복이다. 남기는 이유는 이 섹션 머리말 참고.
 resource "aws_vpc_security_group_egress_rule" "node_out_s3_443" {
   security_group_id = aws_security_group.eks_node.id
@@ -333,12 +362,9 @@ resource "aws_vpc_security_group_egress_rule" "node_out_s3_443" {
 
 
 # ------------------------------------------------------------
-# sg-db — 3개
+# sg-db — 4개
 # ------------------------------------------------------------
 
-# 🔴 DB로 들어올 수 있는 것은 이것 하나뿐이다.
-#    Bastion도, 내 노트북도, 모니터링도 직접 못 들어온다.
-#    (관리는 SSM Session Manager 경유 — SSH 22는 어디에도 없다)
 resource "aws_vpc_security_group_ingress_rule" "db_in_node_5432" {
   security_group_id = aws_security_group.db.id
   description       = "PostgreSQL from EKS app nodes only"
@@ -386,6 +412,19 @@ resource "aws_vpc_security_group_egress_rule" "db_out_all" {
   tags = { Name = "${local.name}-sgr-db-out-all" }
 }
 
+# CNPG 이미지 pull(ECR), IRSA(STS), Kubernetes API 호출 전부 443
+resource "aws_vpc_security_group_egress_rule" "db_out_https" {
+  security_group_id = aws_security_group.db.id
+  description       = "HTTPS via NAT GW: ECR image pull, STS, EKS API"
+
+  cidr_ipv4   = "0.0.0.0/0"
+  ip_protocol = "tcp"
+  from_port   = 443
+  to_port     = 443
+
+  tags = { Name = "${local.name}-sgr-db-out-443" }
+}
+
 # 🔵 sg-db 에서는 이 규칙이 "중복이 아니다".
 #    rt-data 에는 인터넷 경로가 없고 S3 Gateway Endpoint만 붙는다.
 #    즉 위의 Out All 은 갈 길이 없어서 사실상 무효고,
@@ -404,7 +443,7 @@ resource "aws_vpc_security_group_egress_rule" "db_out_s3_443" {
 
 
 # ------------------------------------------------------------
-# sg-eks-gpu — 3개
+# sg-eks-gpu — 4개
 # ------------------------------------------------------------
 #
 # 🔴 여기에 sg-db 로 가는 5432 규칙을 만들지 않는다.
@@ -432,6 +471,18 @@ resource "aws_vpc_security_group_egress_rule" "gpu_out_all" {
   ip_protocol = "-1"
 
   tags = { Name = "${local.name}-sgr-gpu-out-all" }
+}
+
+resource "aws_vpc_security_group_egress_rule" "gpu_out_https" {
+  security_group_id = aws_security_group.eks_gpu.id
+  description       = "HTTPS via NAT GW: ECR image pull, STS, EKS API"
+
+  cidr_ipv4   = "0.0.0.0/0"
+  ip_protocol = "tcp"
+  from_port   = 443
+  to_port     = 443
+
+  tags = { Name = "${local.name}-sgr-gpu-out-443" }
 }
 
 # ⬆ 위 Out All 과 지금은 중복이다. 남기는 이유는 섹션 머리말 참고.
