@@ -4,19 +4,19 @@ crds:
 nodeSelector:
   workload-type: system
 resources:
-  requests: {cpu: 50m, memory: 64Mi}
+  requests: {cpu: 25m, memory: 64Mi}
   limits: {memory: 192Mi}
 webhook:
   nodeSelector:
     workload-type: system
   resources:
-    requests: {cpu: 50m, memory: 64Mi}
+    requests: {cpu: 25m, memory: 64Mi}
     limits: {memory: 128Mi}
 cainjector:
   nodeSelector:
     workload-type: system
   resources:
-    requests: {cpu: 50m, memory: 64Mi}
+    requests: {cpu: 25m, memory: 64Mi}
     limits: {memory: 192Mi}
 startupapicheck:
   nodeSelector:

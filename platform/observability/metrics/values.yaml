@@ -25,7 +25,7 @@ prometheusOperator:
     workload-type: system
   resources:
     requests:
-      cpu: 100m
+      cpu: 50m
       memory: 128Mi
     limits:
       memory: 256Mi
@@ -63,7 +63,7 @@ prometheus:
     evaluationInterval: 30s
     resources:
       requests:
-        cpu: 500m
+        cpu: 400m
         memory: 1536Mi
       limits:
         memory: 2Gi
@@ -143,7 +143,7 @@ kube-state-metrics:
     workload-type: system
   resources:
     requests:
-      cpu: 50m
+      cpu: 25m
       memory: 128Mi
     limits:
       memory: 256Mi

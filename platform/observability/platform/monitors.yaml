@@ -24,9 +24,11 @@ spec:
     scrapeTimeout: 10s
     honorLabels: false
     relabelings:
-    - targetLabel: job
+    - action: replace
+      targetLabel: job
       replacement: cnpg
-    - sourceLabels:
+    - action: replace
+      sourceLabels:
       - __meta_kubernetes_pod_label_cnpg_io_cluster
       targetLabel: cnpg_cluster
 ---
@@ -53,7 +55,8 @@ spec:
     scrapeTimeout: 10s
     honorLabels: false
     relabelings:
-    - targetLabel: job
+    - action: replace
+      targetLabel: job
       replacement: cnpg-operator
 ---
 apiVersion: monitoring.coreos.com/v1
@@ -80,14 +83,17 @@ spec:
     scrapeTimeout: 10s
     honorLabels: false
     relabelings:
-    - targetLabel: job
+    - action: replace
+      targetLabel: job
       replacement: argocd-controller
     metricRelabelings:
-    - sourceLabels:
+    - action: replace
+      sourceLabels:
       - namespace
       regex: "(.+)"
       targetLabel: resource_namespace
-    - sourceLabels:
+    - action: replace
+      sourceLabels:
       - exported_namespace
       regex: "(.+)"
       targetLabel: resource_namespace
@@ -116,14 +122,17 @@ spec:
     scrapeTimeout: 10s
     honorLabels: false
     relabelings:
-    - targetLabel: job
+    - action: replace
+      targetLabel: job
       replacement: argocd-server
     metricRelabelings:
-    - sourceLabels:
+    - action: replace
+      sourceLabels:
       - namespace
       regex: "(.+)"
       targetLabel: resource_namespace
-    - sourceLabels:
+    - action: replace
+      sourceLabels:
       - exported_namespace
       regex: "(.+)"
       targetLabel: resource_namespace
@@ -152,14 +161,17 @@ spec:
     scrapeTimeout: 10s
     honorLabels: false
     relabelings:
-    - targetLabel: job
+    - action: replace
+      targetLabel: job
       replacement: argocd-repo-server
     metricRelabelings:
-    - sourceLabels:
+    - action: replace
+      sourceLabels:
       - namespace
       regex: "(.+)"
       targetLabel: resource_namespace
-    - sourceLabels:
+    - action: replace
+      sourceLabels:
       - exported_namespace
       regex: "(.+)"
       targetLabel: resource_namespace
@@ -188,14 +200,17 @@ spec:
     scrapeTimeout: 10s
     honorLabels: false
     relabelings:
-    - targetLabel: job
+    - action: replace
+      targetLabel: job
       replacement: argocd-applicationset
     metricRelabelings:
-    - sourceLabels:
+    - action: replace
+      sourceLabels:
       - namespace
       regex: "(.+)"
       targetLabel: resource_namespace
-    - sourceLabels:
+    - action: replace
+      sourceLabels:
       - exported_namespace
       regex: "(.+)"
       targetLabel: resource_namespace
@@ -224,14 +239,17 @@ spec:
     scrapeTimeout: 10s
     honorLabels: false
     relabelings:
-    - targetLabel: job
+    - action: replace
+      targetLabel: job
       replacement: argo-rollouts
     metricRelabelings:
-    - sourceLabels:
+    - action: replace
+      sourceLabels:
       - namespace
       regex: "(.+)"
       targetLabel: resource_namespace
-    - sourceLabels:
+    - action: replace
+      sourceLabels:
       - exported_namespace
       regex: "(.+)"
       targetLabel: resource_namespace

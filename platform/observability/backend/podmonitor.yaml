@@ -19,8 +19,10 @@ spec:
       interval: 30s
       scrapeTimeout: 10s
       relabelings:
-        - targetLabel: job
+        - action: replace
+          targetLabel: job
           replacement: backend
         # hash는 revision 구분용이다. active/preview 역할을 고정 라벨로 추측하지 않는다.
-        - sourceLabels: [__meta_kubernetes_pod_label_rollouts_pod_template_hash]
+        - action: replace
+          sourceLabels: [__meta_kubernetes_pod_label_rollouts_pod_template_hash]
           targetLabel: revision

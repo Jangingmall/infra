@@ -19,10 +19,10 @@ controller:
   # System NodeGroup이 2대이므로 Controller도 2 replica를 유지한다.
   replicas: 2
   # 기존 용량 문서의 Controller 예산을 실제 requests로 명시한다.
-  # 2 replica 합계 200m/256Mi이며 배포 시 reconcile 부하를 실측한다.
+  # 2 replica 합계 100m/256Mi이며 배포 시 reconcile 부하를 실측한다.
   resources:
     requests:
-      cpu: 100m
+      cpu: 50m
       memory: 128Mi
     limits:
       memory: 256Mi

@@ -1,2 +1,6 @@
 environment: staging
 prefix: cnpg/staging
+bucket: jangin-staging-s3-backup
+# ObjectStore를 먼저 수동 Sync한다. 정기 백업은 백업·복원 검증 후 활성화한다.
+enabled: true
+suspend: true

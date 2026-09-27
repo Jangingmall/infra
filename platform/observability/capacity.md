@@ -1,5 +1,22 @@
 # System 노드 관측성 용량 검토
 
+## 2026-09-27 CPU requests 조정
+
+이 절은 아래 과거 CPU 예산보다 우선한다. 실제 클러스터 반영 전 코드 변경이다.
+Prometheus 500→400m, Argo CD controller 250→150m, server 100→50m,
+Rollouts 각 100→50m(2개), Prometheus Operator 100→50m,
+kube-state-metrics 50→25m, cert-manager 상시 3개 각 50→25m로 총 500m를 줄였다.
+메모리 requests/limits와 CPU limits는 유지한다. 최근 6시간 조회 구간에 존재하는
+5분 평균 CPU 최대값은 Prometheus 95m, Argo CD controller 55m, repo-server 35m,
+Grafana 40m였다. 순간 피크·최대 부하를 검증한 값이 아니며 수집 대상 추가 후 재측정한다.
+
+당시 System allocatable 3860m, 현재 예약 3140m, 미배포 관측성 추가 1200m 기준으로
+변경 후 전체 예약은 3840m, 여유는 20m뿐이다. 합계상 수용과 안정적 배포는 다르며
+업데이트 surge, Medium Pod 한도 17개, PVC AZ 및 노드별 메모리 배치를 추가 검증해야 한다.
+App에는 Alloy가 노드당 110m/178Mi 추가된다. Backend HPA 상한 3은 아직 미반영이며
+실제 상한 4와 Blue/Green 최대 8개를 현재 App 3대로 보장하지 않는다.
+Argo CD controller 메모리 관측 최대 558Mi는 request 512Mi보다 높으므로 축소 대상이 아니다.
+
 2026-09-17. 코드/차트 렌더링에 의한 사전 검토이며 실측 또는 배포 승인이 아니다.
 
 ## 현재 확정 구성과 적용 (2026-09-17 갱신)
