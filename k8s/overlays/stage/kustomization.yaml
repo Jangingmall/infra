@@ -4,8 +4,8 @@ kind: Kustomization
 # Backend source: d48f6a0e9f850159ca2a4e1e7f4d0c1ec92376fa
 # 이미지 발행: https://github.com/Jangingmall/backend/actions/runs/36371607714
 # 검증한 이미지를 digest로 고정한다. 다음 배포는 이 값을 변경하는 PR로 진행한다.
-# GenAI source: d4b4281a6902a3f3f572e93b789a189f6a875d5a
-# 이미지 발행: https://github.com/Jangingmall/GenAI/actions/runs/35875564032
+# GenAI source: 9654ed63bdb4538f279467b6be096470b0466efe
+# 이미지 발행: https://github.com/Jangingmall/GenAI/actions/runs/36372901532
 images:
   - name: jangin-app
     newName: 750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-app
@@ -15,10 +15,10 @@ images:
     digest: sha256:a90b2ba76170bb75fba4dae358942bad69ea0591b565ba03a9bfc6d2d1163063
   - name: jangin-ai/chatbot-api
     newName: 750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-ai/chatbot-api
-    digest: sha256:40f311a7311dc3582315491eea0f73501ca0012cf2344bb008cac7e67df7fa68
+    digest: sha256:0035044bc07809f6d038d8431bdb247d305d99207b780dfe95a726fa389b27de
   - name: jangin-ai/chatbot-llm
     newName: 750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-ai/chatbot-llm
-    digest: sha256:e1a92e3811b93d3c0c064f831ebadd1a6fb02ade8b0f3d1d23f4ca29e9040f19
+    digest: sha256:8e84a7b52423dacfe09c9824f36da4bd79d1ca12e16b9bddbac94d3a75a60a19
   - name: ai-model-fetch
     newName: 750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-ai/model-fetch
     digest: sha256:cd2b1ed9b2181b2b8341f6584ec019b117cc13d3ec142a244d8908e1bb8ea487
@@ -44,11 +44,6 @@ configMapGenerator:
     literals:
       - s3-uri=s3://jangin-prod-s3-models/chatbot/embedding/20260923-v2/
       - manifest-sha256=d440eafd3342b8042500871d5929d79c36f0a3412ca2b4cdde890baf682f5ed1
-  - name: ai-chatbot-llm-model-source
-    namespace: ai
-    literals:
-      - s3-uri=s3://jangin-prod-s3-models/chatbot/llm/20260923-v2/
-      - manifest-sha256=1b713aa6e90a3209fd4ea05f3349bad39eedd811470edd4d2205dd56ad6a6470
 
 # Argo CD selfHeal이 적용되므로 kubectl scale 대신 이 replicas 블록을 Git에서 변경한다.
 replicas:

@@ -41,7 +41,7 @@ Dir.mktmpdir('ai-runtime-') do |tmp|
     path = "#{overlay}/kustomization.yaml"
     config = YAML.load_file(path)
     config['components'] << '../../components/ai-model-storage' unless config['components'].include?('../../components/ai-model-storage')
-    config['configMapGenerator'] = %w[sglang chatbot chatbot-llm].map do |service|
+    config['configMapGenerator'] = %w[sglang chatbot].map do |service|
       {'name'=>"ai-#{service}-model-source", 'namespace'=>'ai', 'literals'=>['s3-uri=s3://test-models/bundle', "manifest-sha256=#{'a'*64}"]}
     end
     config['images'] = [{'name'=>'ai-model-fetch', 'newName'=>'123456789012.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-ai/model-fetch', 'digest'=>"sha256:#{'b'*64}"}]
@@ -66,17 +66,14 @@ llm = pod['containers'].find { |c| c['name']=='chatbot-llm' }
 check(llm && llm.dig('resources','limits','nvidia.com/gpu')==1, 'LLM must reserve one GPU')
 check(pod['containers'].sum { |c| c.dig('resources','limits','nvidia.com/gpu').to_i }==1, 'chatbot Pod GPU allocation must total one')
 api_env = api['env'].to_h { |e| [e['name'], e['value']] }
-llm_env = llm['env'].to_h { |e| [e['name'], e['value']] }
-check(api_env['LLM_BACKEND']=='sglang' && api_env['SGLANG_HOST']=='http://127.0.0.1:30000', 'API must reach local SGLang')
-check(api_env['LLM_MODEL']==llm_env['SERVED_MODEL_NAME'], 'model names must agree')
-check(llm['command']==%w[python3 -m sglang.launch_server] && !llm['args'].include?('--revision'), 'local model must bypass shell and Hub revision')
-check(llm['env'].map { |e| e['name'] }.index('MODEL_BUNDLE_SHA256') < llm['env'].map { |e| e['name'] }.index('MODEL_PATH'), 'LLM model hash must precede path expansion')
-check(llm_env['MODEL_PATH']=='/models/$(MODEL_BUNDLE_SHA256)/llm' && llm_env['HF_HUB_OFFLINE']=='1', 'LLM must use offline local bundle')
-check(llm['volumeMounts'].any? { |v| v['name']=='chatbot-llm-models' && v['readOnly'] }, 'LLM models must mount read-only')
-check(llm['volumeMounts'].any? { |v| v['mountPath']=='/dev/shm' }, 'LLM shared memory must remain mounted')
-llm_init = pod['initContainers'].find { |c| c['name']=='llm-model-preparation' }
-check(llm_init && llm_init['env'].any? { |e| e['name']=='MODEL_KIND' && e['value']=='chatbot-llm' }, 'LLM init download contract missing')
-check(llm_init['image'].end_with?("@sha256:#{'b'*64}"), 'LLM fetch image digest must be pinned')
+llm_env = llm.fetch('env', []).to_h { |e| [e['name'], e['value']] }
+check(api_env['LLM_BACKEND']=='ollama' && api_env['OLLAMA_HOST']=='http://127.0.0.1:11434', 'API must reach local Ollama')
+check(api_env['LLM_MODEL']=='gemma4:12b', 'API model must match Ollama image')
+check(!llm.key?('command') && !llm.key?('args'), 'Ollama image entrypoint must run')
+check(llm.dig('startupProbe','httpGet')=={'path'=>'/api/tags','port'=>'ollama'}, 'Ollama startup probe mismatch')
+check(llm.dig('readinessProbe','httpGet')=={'path'=>'/api/tags','port'=>'ollama'}, 'Ollama readiness probe mismatch')
+check(!llm_env.key?('MODEL_PATH') && !pod['initContainers'].any? { |c| c['name']=='llm-model-preparation' }, 'obsolete LLM bundle download remains')
+check(!llm.fetch('volumeMounts', []).any? { |v| v['name']=='chatbot-llm-models' }, 'Ollama must use the baked model')
     puts "#{environment}: default gate and enabled model-storage rendering PASS"
   end
 
