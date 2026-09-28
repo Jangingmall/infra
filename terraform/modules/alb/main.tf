@@ -13,6 +13,9 @@ resource "aws_lb" "this" {
   subnets            = var.public_subnet_ids
 
   idle_timeout = var.idle_timeout
+
+  # RFC 7230 형식이 아닌 헤더 이름을 백엔드 전달 전 제거 (보안 요청 Trivy AWS-0052)
+  drop_invalid_header_fields = true
 }
 
 resource "aws_lb_target_group" "app" {
