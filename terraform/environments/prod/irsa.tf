@@ -141,6 +141,34 @@ data "aws_iam_policy_document" "cnpg" {
     ]
   }
 
+  # 보존기간이 지난 백업·WAL 정리용. 명수님 요청(9/28) — Barman 의
+  # retentionPolicy 가 만료분을 지우려면 DeleteObject 가 필요하다.
+  #
+  # 🔴 s3:DeleteObjectVersion 은 일부러 주지 않는다.
+  #    버킷이 versioning_enabled = true 이고 라이프사이클에
+  #    noncurrent_version_expiration_days = 30 이 걸려 있으므로,
+  #    DeleteObject 는 삭제 표식만 남기고 실제 데이터는 30일 뒤에 사라진다.
+  #    즉 "CNPG 는 정리할 수 있지만 백업 이력을 영구 파괴할 수는 없는" 구조다.
+  #    DeleteObjectVersion 을 주면 그 방어선이 없어진다.
+  #
+  # AbortMultipartUpload: base backup 은 멀티파트로 올라가고 실패 시
+  #    boto3 가 abort 를 호출한다. 권한이 없으면 미완성 파트가 버킷에
+  #    남아 계속 과금된다.
+  #
+  # 경로를 cnpg/${var.env}/* 로 좁힌 근거: platform/cnpg-backup 템플릿이
+  #    prefix != "cnpg/<env>" 인 경우 helm 렌더 단계에서 fail 시킨다.
+  statement {
+    sid    = "S3BackupPrune"
+    effect = "Allow"
+    actions = [
+      "s3:DeleteObject",
+      "s3:AbortMultipartUpload",
+    ]
+    resources = [
+      "arn:aws:s3:::jangin-${var.env}-s3-backup/cnpg/${var.env}/*",
+    ]
+  }
+
   statement {
     sid       = "KMSForBackup"
     effect    = "Allow"
