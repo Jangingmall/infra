@@ -24,14 +24,17 @@ eks_cluster_name = "jangin-staging-eks-cluster"
 eks_cluster_version = "1.35" # ✅ 9/17 팀 확정. 🔴 apply 전 STANDARD_SUPPORT·애드온 호환 확인
 # ✅ 인증 모드는 9/16 확정(API). 🟡 남은 것: 생성자 관리자 권한·apply 주체 (박다정)
 eks_authentication_mode     = "API"                  # ✅ 9/16 파트장 확정
-eks_bootstrap_creator_admin = true
-# ✅ 9/17 팀 확정 — B안(public+IP 제한) → 9/21 private only.
-#    🟡 남은 것: staging 은 9/21~23 DAST 스캐너 IP 추가 (보안팀)
-eks_endpoint_public_access        = true                 # B안: 9/18~20 열고, 9/21 false 로 전환
+# 🔴 staging 실물 클러스터는 false 로 만들어졌습니다 (9/27 확인). 생성 시점에만 쓰이는 값이라
+#    true 로 두면 plan 이 "클러스터 재생성(must be replaced)"을 계획합니다 → 반드시 false.
+eks_bootstrap_creator_admin = false
+# 🔴 명시 필수 — 이 줄을 지우거나 주석으로 두면 plan 이 에러로 멈춥니다 (9/27 변경).
+#    staging = true 유지: 삭제 예정 환경이고, false 로 닫으면 외부 kubectl 경로가 없습니다.
+#    값 변경은 파트장 결정 사항입니다.
+eks_endpoint_public_access        = true
 eks_endpoint_private_access       = true
 # 🔴 팀원 IP 를 반드시 채우세요. 빈 목록이면 apply 가 막힙니다(의도).
 #    각자 확인: curl ifconfig.me
-#    9/21 private only 전환 시 public_access = false + 빈 목록으로 되돌립니다.
+#    IP 가 바뀌면 여기를 고치고 apply 해야 kubectl 이 다시 됩니다 (클러스터 in-place 변경, 수 분).
 eks_public_access_cidrs = [
   # "1.2.3.4/32",  # 강윤주
   # "1.2.3.4/32",  # 신준한

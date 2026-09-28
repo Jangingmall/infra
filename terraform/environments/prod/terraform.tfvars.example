@@ -65,17 +65,20 @@ eks_cluster_version = "1.35" # ✅ 9/17 팀 확정. 🔴 apply 전 STANDARD_SUPP
 #    구 방식(CONFIG_MAP)은 aws-auth 오타 하나로 전원이 잠기는 사고가 잦습니다.
 eks_authentication_mode = "API"                  # ✅ 9/16 파트장 확정
 
-# 🔴 생성자 자동 관리자 권한.
-#    ⚠️ 9/15~17 한시적 admin 회수와 충돌 주의 — 회수 후에도 남는 역할로 apply 할 것
-eks_bootstrap_creator_admin = true
+# 🔴 생성자 자동 관리자 권한 — 클러스터 "생성 시점에만" 쓰이는 값입니다.
+#    생성 후에 바꾸면 plan 이 클러스터 재생성(must be replaced)을 계획합니다.
+#    ✅ 9/28 파트장 tfvars 기준 false — apply 는 Infra-Admin 역할로 하고, 권한은 eks_access.tf 의 Access Entry 로 줌.
+eks_bootstrap_creator_admin = false
 
-# ✅ 9/17 파트장 확정 — 단계 운영(B안). 전환은 재생성 없이 몇 분.
-#    "공개"라도 인증 명부에 없으면 401 입니다. Public = 무방비가 아닙니다.
-eks_endpoint_public_access  = true                 # B안: 9/18~20 열고, 9/21 false 로 전환
+# 🔴 명시 필수 — 이 줄을 지우거나 주석으로 두면 plan 이 에러로 멈춥니다 (9/27 변경).
+#    prod = 생성 ~ Helm 부트스트랩 동안 true (설치 경로가 public 뿐) + 팀원 IP 제한.
+#    ✅ 9/28 파트장: 설치 확인 + SSM 접속 경로 준비 후 false 로 전환. 전환은 재생성 없이 몇 분.
+#    "공개"라도 인증 명부(Access Entry)에 없으면 401 입니다. Public = 무방비가 아닙니다.
+eks_endpoint_public_access  = true
 eks_endpoint_private_access = true
 # 🔴 팀원 IP 를 반드시 채우세요. 빈 목록이면 apply 가 막힙니다(의도).
-#    각자 확인: curl ifconfig.me
-#    9/21 private only 전환 시 public_access = false + 빈 목록으로 되돌립니다.
+#    각자 확인: curl ifconfig.me  · apply 직전에 한 번 더 확인 (IP 가 바뀌면 그 사람만 kubectl 불가)
+#    false 로 전환하면 이 목록은 쓰이지 않습니다.
 eks_public_access_cidrs = [
   # "1.2.3.4/32",  # 강윤주
   # "1.2.3.4/32",  # 신준한
