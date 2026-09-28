@@ -51,7 +51,7 @@ monitors.each do |monitor|
       check(ports.length==1, "#{name}: Service port name mismatch")
       target_port = ports.fetch(0)['targetPort']
       target_selector = service.dig('spec','selector')
-      check(ep.fetch('metricRelabelings').last == {'sourceLabels'=>['exported_namespace'],'regex'=>'(.+)','targetLabel'=>'resource_namespace'}, "#{name}: observed resource namespace lost")
+      check(ep.fetch('metricRelabelings').last == {'action'=>'replace','sourceLabels'=>['exported_namespace'],'regex'=>'(.+)','targetLabel'=>'resource_namespace'}, "#{name}: observed resource namespace lost")
     end
     pods = workloads.select { |r| r.dig('metadata','namespace')==ns && matches?(target_selector,r.dig('spec','template','metadata','labels')) }
     check(pods.length==1, "#{name}: target Pod selector mismatch")
