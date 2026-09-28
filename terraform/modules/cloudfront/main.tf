@@ -22,6 +22,9 @@ resource "aws_cloudfront_distribution" "this" {
   aliases         = [var.domain_name]
   comment         = "${var.bucket_name} - products/* 공개 캐시 (OAC)"
 
+  # 속성 이름은 _id 지만 WAFv2 는 ARN 을 넣어야 한다 (id 는 WAF Classic 용)
+  web_acl_id = var.web_acl_arn
+
   origin {
     domain_name              = var.bucket_regional_domain_name
     origin_id                = "s3-${var.bucket_name}"

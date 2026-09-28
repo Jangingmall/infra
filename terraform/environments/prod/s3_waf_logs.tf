@@ -3,6 +3,13 @@
 
 locals {
   waf_logs_bucket_name = "aws-waf-logs-${var.env}-${var.project}"
+
+  # 로그 전송 출처 = WebACL 이 있는 리전. ALB WAF 는 var.region, CloudFront WAF 는 us-east-1
+  # us-east-1 을 빼면 CloudFront WAF 로그가 버킷 정책에서 거부된다
+  waf_logs_source_arns = [
+    for r in distinct([var.region, "us-east-1"]) :
+    "arn:aws:logs:${r}:${data.aws_caller_identity.current.account_id}:*"
+  ]
 }
 
 # WAF 로깅도 IRSA가 아니라 delivery.logs.amazonaws.com이 직접 PutObject 한다
@@ -28,7 +35,7 @@ data "aws_iam_policy_document" "waf_logs_delivery" {
     condition {
       test     = "ArnLike"
       variable = "aws:SourceArn"
-      values   = ["arn:aws:logs:${var.region}:${data.aws_caller_identity.current.account_id}:*"]
+      values   = local.waf_logs_source_arns
     }
   }
 
@@ -54,7 +61,7 @@ data "aws_iam_policy_document" "waf_logs_delivery" {
     condition {
       test     = "ArnLike"
       variable = "aws:SourceArn"
-      values   = ["arn:aws:logs:${var.region}:${data.aws_caller_identity.current.account_id}:*"]
+      values   = local.waf_logs_source_arns
     }
 
     condition {
