@@ -88,8 +88,12 @@ spec:
               memory: 24Gi
               nvidia.com/gpu: 1
           volumeMounts:
+            - name: sglang-home-cache
+              mountPath: /home/appuser/.cache
             - name: tmp
               mountPath: /tmp
       volumes:
+        - name: sglang-home-cache
+          emptyDir: {}
         - name: tmp
           emptyDir: {}

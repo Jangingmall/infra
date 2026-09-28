@@ -40,6 +40,9 @@ Dir.mktmpdir('ai-runtime-') do |tmp|
     check(chatbot.dig('securityContext','runAsUser')==10001 && chatbot.dig('securityContext','runAsGroup')==10001, 'chatbot image user must be numeric for runAsNonRoot')
     page = original.find { |r| r['kind']=='Deployment' && r.dig('metadata','name')=='ai-sglang' }
     check(page.dig('spec','template','spec','securityContext','runAsUser')==10001, 'detail page image user must be numeric for runAsNonRoot')
+    page_pod = page.dig('spec','template','spec')
+    check(page_pod['volumes'].any? { |v| v['name']=='sglang-home-cache' && v.key?('emptyDir') }, 'SGLang JIT cache needs a writable volume')
+    check(page_pod['containers'].find { |c| c['name']=='ai-sglang' }['volumeMounts'].any? { |v| v['name']=='sglang-home-cache' && v['mountPath']=='/home/appuser/.cache' }, 'SGLang JIT cache mount missing')
     check(chatbot.dig('readinessProbe','httpGet','path')=='/ai/ready', 'chatbot must gate DB/embedding/LLM readiness')
     check(!chatbot.dig('resources','limits','nvidia.com/gpu'), 'CPU chatbot image must not reserve a GPU')
     model_claims = original.select { |r| r['kind']=='PersistentVolumeClaim' && %w[ai-sglang-data ai-chatbot-models ai-chatbot-llm-models].include?(r.dig('metadata','name')) }
