@@ -67,7 +67,7 @@ metadata:
   name: stage-cnpg-backup
   namespace: argocd
 spec:
-  project: stage-workloads
+  project: stage-backup
   source:
     repoURL: https://github.com/Jangingmall/infra.git
     targetRevision: main
