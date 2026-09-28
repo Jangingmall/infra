@@ -101,7 +101,6 @@ singleBinary:
     whenScaled: Retain
 serviceAccount:
   name: loki-sa
-  # TODO(인프라 인계 후): eks.amazonaws.com/role-arn을 환경별 실제 ARN으로 채운다.
   # 권한: 해당 환경 버킷의 loki/*만 Get/Put/Delete, ListBucket도 loki/ prefix로 제한.
   annotations: {}
 read:
