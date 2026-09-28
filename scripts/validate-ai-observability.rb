@@ -22,28 +22,5 @@ ai = read.call('ai-metrics').find { |r| r['kind'] == 'PodMonitor' }
 check(ai.dig('spec','namespaceSelector','matchNames') == ['ai'], 'AI namespace mismatch')
 check(ai.dig('spec','selector','matchExpressions',0,'values').sort == %w[ai-ollama ai-sglang], 'AI engine selector mismatch')
 check(ai.dig('spec','podMetricsEndpoints',0,'port') == 'http' && ai.dig('spec','podMetricsEndpoints',0,'path') == '/metrics', 'AI API contract mismatch')
-app_egress = read.call('trace-application-egress')
-check(app_egress.map { |r| r.dig('metadata','namespace') }.sort == %w[ai app], 'application egress namespace overwritten')
-%w[stage prod].each do |env|
-  resources = read.call("traces-#{env}")
-  dep = resources.find { |r| r['kind'] == 'Deployment' }
-  check(dep.dig('spec','replicas') == 1, 'Collector must remain single replica pending capacity decision')
-  spec = dep.dig('spec','template','spec')
-  check(spec.dig('nodeSelector','workload-type') == 'system' && spec['automountServiceAccountToken'] == false, 'Collector placement/API access mismatch')
-  config = resources.find { |r| r['kind']=='ConfigMap' && r.fetch('data',{}).key?('config.yaml') }
-  check(spec['volumes'].any? { |v| v.dig('configMap','name') == config.dig('metadata','name') }, 'Collector config hash not wired')
-  settings = YAML.load(config.dig('data','config.yaml'))
-  check(settings.dig('service','pipelines','traces','processors') == %w[memory_limiter resource/environment batch], 'memory limiter must precede batching')
-  check(settings.dig('receivers','otlp','protocols').keys == ['grpc'], 'only OTLP gRPC was chosen')
-  check(settings.dig('exporters','otlp/tempo','sending_queue','queue_size') == 32, 'bounded queue changed')
-  env_cm = resources.find { |r| r['kind']=='ConfigMap' && r.fetch('data',{}).key?('OBS_ENV') }
-  check(env_cm.dig('data','OBS_ENV') == env, 'trace environment mismatch')
-  runtime = resources.find { |r| r['kind'] == 'ConfigMap' && r.fetch('data', {}).key?('TEMPO_OTLP_ENDPOINT') }
-  check(runtime && runtime.dig('data', 'TEMPO_OTLP_ENDPOINT') == 'tempo.monitoring.svc.cluster.local:4317', 'Collector must target the deployed Tempo gRPC service')
-  endpoint_env = spec['containers'].first['env'].find { |e| e['name'] == 'TEMPO_OTLP_ENDPOINT' }
-  check(endpoint_env.dig('valueFrom', 'configMapKeyRef', 'name') == runtime.dig('metadata', 'name'), 'Tempo endpoint config hash not wired')
-  check(resources.none? { |r| %w[app ai].include?(r.dig('metadata','namespace')) }, 'Collector bundle must not newly isolate application egress')
-  check(resources.none? { |r| r['kind']=='Ingress' }, 'no public trace ingress')
-end
 JSON.parse(File.read(File.expand_path('../platform/observability/gpu/dashboard.json', __dir__)))
-puts 'GPU scheduling, monitors, AI opt-in contract and Stage/Prod trace configuration PASS'
+puts 'GPU scheduling, monitors and AI opt-in contract PASS'

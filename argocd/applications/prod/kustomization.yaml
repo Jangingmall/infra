@@ -6,7 +6,6 @@ resources:
 - backup.yaml
 - backup-project.yaml
 - networking.yaml
-- tempo.yaml
 - projects.yaml
 - platform.yaml
 - workloads.yaml
