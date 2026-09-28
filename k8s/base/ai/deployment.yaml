@@ -22,6 +22,10 @@ spec:
         app.kubernetes.io/part-of: jangingmall
     spec:
       serviceAccountName: ai-worker-sa
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       nodeSelector:
         workload-type: gpu
         gpu-model: l40s
@@ -36,6 +40,11 @@ spec:
           # 실제 ECR image/digest는 환경 Overlay에서 교체한다.
           image: jangin-ai/page-generation
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
           ports:
             - name: http
               containerPort: 8000
@@ -68,6 +77,17 @@ spec:
             failureThreshold: 3
 
           resources:
-            limits:
+            requests:
+              cpu: "2"
+              memory: 12Gi
               nvidia.com/gpu: 1
-          # TODO(AI): 모델 실측 후 CPU/Memory requests·limits를 추가한다.
+            limits:
+              cpu: "3"
+              memory: 24Gi
+              nvidia.com/gpu: 1
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

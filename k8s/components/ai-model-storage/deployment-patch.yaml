@@ -14,9 +14,13 @@ spec:
           image: ai-model-fetch
           command: [/bin/sh, /etc/model-preparation/prepare-models.sh]
           securityContext:
+            runAsNonRoot: true
             runAsUser: 10001
             runAsGroup: 10001
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
           env:
             - name: HOME
               value: /tmp
@@ -46,6 +50,8 @@ spec:
               cpu: 500m
               memory: 512Mi
           volumeMounts:
+            - name: tmp
+              mountPath: /tmp
             - name: model-preparation
               mountPath: /etc/model-preparation
               readOnly: true
@@ -96,9 +102,13 @@ spec:
           image: ai-model-fetch
           command: [/bin/sh, /etc/model-preparation/prepare-models.sh]
           securityContext:
+            runAsNonRoot: true
             runAsUser: 10001
             runAsGroup: 10001
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
           env:
             - name: HOME
               value: /tmp
@@ -128,6 +138,8 @@ spec:
               cpu: 500m
               memory: 512Mi
           volumeMounts:
+            - name: tmp
+              mountPath: /tmp
             - name: model-preparation
               mountPath: /etc/model-preparation
               readOnly: true
