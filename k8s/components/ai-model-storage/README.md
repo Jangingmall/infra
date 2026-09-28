@@ -3,15 +3,15 @@
 ## 적용 범위와 현재 상태
 
 이 구성은 infra 저장소에서 관리하는 이미지 복사, 모델 준비, Kubernetes 볼륨 연결이다.
-Backend·GenAI 소스는 수정하지 않는다. 모델 버킷은 Terraform Prod에서 관리하고 Stage는 참조한다. Stage overlay에는 이미지 digest, 모델 번들 경로·해시, 모델 저장소 component와 IRSA Role ARN을 연결했다. Stage의 AI 2종과 벡터DB는 각각 replicas 1로 설정했다. GPU 노드가 없으면 AI Pod는 Pending으로 대기하며, 실제 GPU 기동은 아직 검증하지 않았다.
+Backend·GenAI 소스는 수정하지 않는다. 모델 버킷은 Terraform Prod에서 관리하고 Stage는 참조한다. Stage overlay에는 이미지 digest, 상세페이지·임베딩 모델 번들 경로와 IRSA Role ARN을 연결했다. 챗봇 LLM 모델은 Ollama 이미지에 포함된다. Stage의 AI 2종과 벡터DB는 각각 replicas 1로 설정했다. GPU 추론은 Stage에서 별도로 검증한다.
 
 | 대상 | 이번 코드의 동작 | 활성화 상태 |
 | --- | --- | --- |
 | 상세페이지 API | Backend 기본 주소로 callback 전달. AI 코드가 `/internal/generations/{generation_id}/completion`을 붙임 | Base/Stage/Prod 반영 |
 | 챗봇 API | `/ai/ready`로 DB·임베딩·LLM 준비 확인, `/ai/health`로 생존 확인. CPU 이미지의 GPU 예약 제거 | Base/Stage/Prod 반영 |
-| 모델 저장소 | 상세페이지 100Gi, BGE-M3 10Gi, LLM 30Gi 및 번들별 S3 initContainer | Stage 연결 완료·replicas 1, Prod 미활성 |
+| 모델 저장소 | 상세페이지 100Gi와 BGE-M3 10Gi는 S3 initContainer 사용, 챗봇 LLM은 이미지에 포함 | Stage 연결 완료·replicas 1, Prod 미활성 |
 | 공개 이미지 복사 | 수동 Actions 실행 시 지정한 digest를 ECR로 복사 | model-fetch ECR 복사 완료, Stage digest 연결 |
-| 챗봇 LLM | 동일 Pod의 SGLang 컨테이너·GPU 1개·API loopback 연결 구현 | Stage 이미지·모델 연결 완료, replicas 1·T4 검증 전 |
+| 챗봇 LLM | 동일 Pod의 Ollama 컨테이너·GPU 1개·API loopback 연결 구현 | Stage 이미지 digest 반영, T4 추론 검증 전 |
 
 상세페이지 통합 이미지는 API·텍스트 추론·이미지 추론을 함께 실행한다. 별도 상세페이지 LLM 이미지를 추가하지 않는다.
 챗봇의 `jangin-ai/chatbot-api`는 CPU용 API/BGE-M3 이미지다. 이 이미지 자체에 Ollama/SGLang 서버가 들어 있지는 않다.
@@ -40,17 +40,14 @@ Kubernetes Pod 생성
 ## 챗봇 API·LLM 구성
 
 `ai-ollama` Pod는 기존 Service/NetworkPolicy 라벨을 유지하고 두 컨테이너를 실행한다.
-`ai-ollama`는 챗봇의 기존 Kubernetes 리소스 이름이며 실제 LLM 엔진은 SGLang이다. 이번 작업에서는 `ai-sglang` 상세페이지 리소스 이름도 유지한다. ECR 이미지 이름과 Kubernetes 리소스 이름은 같을 필요가 없다.
+`ai-ollama`는 챗봇의 기존 Kubernetes 리소스 이름이며 실제 LLM 엔진도 Ollama다. `ai-sglang`은 별도의 상세페이지 리소스다.
 
-- `ai-ollama`: `jangin-ai/chatbot-api`, CPU BGE-M3/API, `LLM_BACKEND=sglang`, `SGLANG_HOST=http://127.0.0.1:30000`, `LLM_MODEL=gemma4-12b-awq`.
-- `chatbot-llm`: GenAI의 `chat_bot/deploy/sglang/Dockerfile`로 빌드한 `jangin-ai/chatbot-llm`, GPU 1개, AWQ·outlines 옵션, served name `gemma4-12b-awq`.
-- LLM은 `127.0.0.1:30000`에만 bind한다. Service에는 포트를 추가하지 않으며 probe는 컨테이너 내부에서 `/v1/models`를 조회한다. API readiness는 DB·임베딩 파일·LLM 모델 이름까지 검사한다.
-- LLM은 Python 서버를 PID 1로 직접 실행해 종료 신호를 받는다. 이미지의 Hub `MODEL_REVISION`은 로컬 번들 실행 인자에 사용하지 않고 manifest hash로 모델 버전을 고정한다.
-- SGLang 시작 probe는 최대 20분, API 시작 probe는 기존 10분을 초기값으로 둔다. API warmup 실패는 현재 앱에서 처리하고 readiness로 트래픽을 보류한다. 실제 T4 로딩·API 예열 시간에 맞춰 조정한다.
-- LLM 프로세스 종료는 Kubernetes가 재시작한다. 별도 liveness 추론을 주기 실행하지 않으며 `/v1/models` readiness로 실패한 Pod의 트래픽을 차단한다.
-- `/dev/shm`은 메모리 기반 emptyDir, 상한 1Gi다. 사용분은 노드 RAM에 포함된다. CPU/RAM requests·limits와 KV cache·동시성은 실측 후 확정한다.
+- `ai-ollama`: `jangin-ai/chatbot-api`, CPU BGE-M3/API, `LLM_BACKEND=ollama`, `OLLAMA_HOST=http://127.0.0.1:11434`, `LLM_MODEL=gemma4:12b`.
+- `chatbot-llm`: GenAI의 `chat_bot/deploy/ollama/Dockerfile`로 빌드한 `jangin-ai/chatbot-llm`, GPU 1개. 모델은 이미지에 포함돼 있어 S3 LLM 다운로드와 PVC 마운트가 필요 없다.
+- LLM은 Pod의 11434 포트에서 응답한다. Kubernetes probe는 `/api/tags`를 조회하고 API readiness는 DB·임베딩 파일·모델 이름까지 검사한다. 실제 GPU 추론은 별도로 요청해 검증한다.
+- Ollama 이미지의 `ollama serve` 진입점을 그대로 사용한다. 시작 probe는 최대 20분, API 시작 probe는 기존 10분이다. CPU/RAM과 GPU 메모리는 Stage에서 실측한다.
 
-기존 BGE PVC 10Gi는 유지하고 **LLM 전용 PVC 30Gi**를 추가한다. 각각 별도 S3 prefix·manifest hash·initContainer를 사용하므로 임베딩과 LLM 버전을 독립적으로 교체한다. 30Gi는 시작 용량이며 실제 전체 snapshot과 이전 번들 보존량을 확인한 뒤 활성화한다.
+기존 BGE PVC 10Gi는 유지한다. 이전 SGLang용 LLM PVC 30Gi는 이 구성에서 마운트하지 않는다. Ollama 모델은 새 이미지 digest로 교체한다.
 
 ## 모델 번들 계약
 
@@ -133,7 +130,7 @@ Actions Summary에 나온 `ECR주소@sha256:...`를 배포 설정에서 사용�
 - Prod 삭제는 공용 버킷에도 영향을 준다. Stage 사용 여부와 모델 보존을 확인한 뒤 처리한다.
 - 모델 업로드 담당자의 쓰기 권한은 별도이며, Pod에는 다운로드용 읽기 권한만 제공한다.
 - 상세페이지는 `page-generation/<번들>/` 아래 `text/`, `image/`, `u2net/`을, 임베딩은 `chatbot/embedding/<번들>/` 아래 `bge-m3/`를 둔다. 각 번들 루트에 `SHA256SUMS`가 필요하다.
-- 챗봇 LLM은 `chatbot/llm/<번들>/` 아래 `llm/` 전체 snapshot과 `SHA256SUMS`를 둔다. `ai-chatbot-llm-model-source` ConfigMap으로 해당 prefix와 manifest hash를 전달한다.
+- 챗봇 LLM `gemma4:12b`는 GenAI가 발행한 Ollama 이미지에 포함되므로 S3 번들 준비 대상에서 제외한다.
 - 모델 후보는 Hugging Face `main`에서 준비할 수 있다. S3 번들은 환경 간 재현을 위해 덮어쓰지 않는 경로를 사용하고 다운로드 시점의 revision을 기록한다.
 - 두 클러스터는 S3 원본만 공유하며 PVC와 모델 복사본은 각각 유지한다. 실제 번들·해시·이미지 digest가 준비되기 전에는 컴포넌트를 활성화하지 않는다.
 
@@ -156,11 +153,6 @@ configMapGenerator:
     literals:
       - s3-uri=s3://jangin-prod-s3-models/chatbot/embedding/<번들>
       - manifest-sha256=<BGE SHA256SUMS의 64자리 hash>
-  - name: ai-chatbot-llm-model-source
-    namespace: ai
-    literals:
-      - s3-uri=s3://jangin-prod-s3-models/chatbot/llm/<번들>
-      - manifest-sha256=<LLM SHA256SUMS의 64자리 hash>
 
 images:
   - name: jangin-ai/chatbot-llm
