@@ -243,13 +243,20 @@ variable "eks_additional_security_group_ids" {
 variable "eks_enabled_log_types" {
   description = <<-EOT
     컨트롤플레인 로그 종류. 보안팀 상쇄 조치 #1(감사 로그 활성화)에 해당합니다.
-      api           API 서버 요청
-      audit         누가 무엇을 했는지 — 🔑 보안 검수의 핵심
-      authenticator 인증 시도·실패
-    💰 CloudWatch Logs 요금 발생 (비용 산정서 미반영 — 파트장 확인 필요)
+    보안팀 체크 eks_control_plane_logging_all_types_enabled 는 5종 전체를 요구합니다.
+      api               API 서버 요청
+      audit             누가 무엇을 했는지 — 🔑 보안 검수의 핵심
+      authenticator     인증 시도·실패
+      controllerManager 조정 루프의 리소스 상태 변경
+      scheduler         Pod 배치 결정
+    💰 실측 단가 (2026-09-28, staging):
+       3종 기준 하루 1.21 GB · $0.73. EKS 로그는 Vended Log 요금이라 약 $0.50/GB.
+       controllerManager·scheduler 는 앞의 3종보다 양이 많아 2~3배로 봅니다.
+       CloudWatch Logs 는 월 5 GB 가 무료이므로 월초에는 상당 부분이 무료 구간입니다.
+       보관 기간은 eks_log_retention_days(30일)가 제한하며, 저장은 약 10:1 로 압축됩니다.
   EOT
   type        = list(string)
-  default     = ["api", "audit", "authenticator"]
+  default     = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
 }
 
 variable "eks_log_retention_days" {
