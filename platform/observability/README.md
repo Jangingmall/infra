@@ -22,7 +22,7 @@ Stage·Prod는 서로 다른 EKS와 Argo CD를 사용한다. 한 클러스터에
 
 Backend 외부 접속은 별도 [backend-networking Application](../networking/README.md)을 준비한다. targets의 Backend 메트릭 정책만 적용하면 8080 수신이 격리되므로 ALB 예외를 함께 점검한다.
 
-## 환경당 Application 10개
+## 환경당 등록 Application 8개
 
 이름 앞에는 `stage-observability-` 또는 `prod-observability-`가 붙는다.
 
@@ -35,14 +35,12 @@ Backend 외부 접속은 별도 [backend-networking Application](../networking/R
 | alloy-pods | 노드별 Pod 로그 수집기와 설정 | Loki 준비, containerd 로그 경로 및 읽기 권한 확인 |
 | alloy-events | Kubernetes Events 수집기 1개와 설정 | Loki 및 Kubernetes API 접근 준비 |
 | gpu | DCGM Exporter와 수집 정책 | metrics CRD, NVIDIA 드라이버·runtime 준비 |
-| tempo | 단일 Tempo·WAL PVC·IRSA SA·Monitor·NetworkPolicy | metrics CRD, EBS, 실제 S3/IRSA 및 S3·STS egress 인계 후 수동 Sync |
 | ai-metrics | AI API PodMonitor와 TCP 8000 수집 정책 | AI팀의 양쪽 API `/metrics` 제공 확인 후 선택 Sync |
-| traces | OTel Collector·설정·수집기 정책·Monitor | Tempo Ready 확인 후 수동 Sync; 주소 ConfigMap은 Git에서 생성 |
 
 GPU 노드 수가 0이면 DCGM DaemonSet의 실행 Pod도 0이다. 이것을 GPU 장치 수집 성공으로 판단하지 않는다.
 AI API 메트릭과 GPU 장치 메트릭은 별개다. DCGM만으로 AI 요청 성공률·응답 지연을 알 수 없다.
-`traces`는 Tempo를 설치하지 않는다. 앱의 Span 전송 코드도 추가하지 않는다.
-앱 egress 전체 정책 적용 시 `traces/application-egress` 허용 묶음을 해당 앱 정책과 함께 검토한다. Collector만 켰다고 앱에 새 egress 격리를 적용하지 않도록 이 묶음은 traces Application에 넣지 않았다.
+Tempo와 trace collector는 운영 범위에서 제외한다. 기존 템플릿은 남아 있지만 Argo CD Application에 등록하지 않으며 Grafana에도 Tempo 데이터소스를 만들지 않는다.
+AI API의 `/metrics`가 제공되기 전까지 `ai-metrics`는 등록만 하고 Sync하지 않는다.
 
 ## 파일을 직접 공급하는 방법
 
@@ -84,8 +82,6 @@ Application 간 중복 소유는 `FailOnSharedResource=true`로 차단하며, �
 | Grafana 로그인 정보 | monitoring/grafana-admin Secret의 admin-user, admin-password | 안전한 별도 공급 절차로 준비. Git에 값 저장 금지 |
 | Discord IRSA Role ARN | 같은 runtime 파일의 alertmanager.serviceAccount.annotations.eks.amazonaws.com/role-arn | Discord 선택 활성화 전에 준비 |
 | Discord webhook | SSM SecureString, 제안 경로 /staging 또는 /prod/monitoring/discord-webhook-url | Git·CI·values에 실제 URL 저장 금지 |
-| Tempo S3·IRSA·egress | tempo/runtime/stage.yaml 또는 prod.yaml | [Tempo 배포 기반](tempo/README.md)의 준비 항목을 모두 충족한 뒤 Sync |
-| Tempo 주소 | Kustomize가 생성하는 traces-runtime-<hash>의 TEMPO_OTLP_ENDPOINT | tempo.monitoring.svc.cluster.local:4317, Stage·Prod 각각의 내부 Service |
 
 Prod runtime 파일은 아직 기본 `{}`다. Stage에는 실제 Loki 버킷·IRSA·SSE-KMS 키가 입력되어 있다. 가짜 버킷·ARN·Webhook은 넣지 않았다.
 Loki 버킷을 입력하면 assets chart가 `logs-runtime` ConfigMap을 만든다. ARN은 외부 chart가 만드는 `loki-sa` annotation에 반영한다.
@@ -147,7 +143,7 @@ workloads 전체가 아직 배포 불가능하면 담당자와 Namespace만 선�
 6. 실제 버킷·IRSA를 넣고 `stage-observability-loki`를 Sync한다. gateway Ready와 S3 접근을 확인한다.
 7. `stage-observability-alloy-pods`, `stage-observability-alloy-events`를 Sync한다. 로그와 Events가 조회되는지 확인한다.
 8. NVIDIA 환경 준비 후 `stage-observability-gpu`를 Sync한다. L40S·T4 메트릭을 확인한다.
-9. 실제 S3·IRSA·네트워크를 확인한 뒤 `tempo`를 Sync한다. PVC Bound와 Tempo Ready/저장·조회 검증을 마친다. `ai-metrics`는 AI API 준비 후, `traces`는 Tempo Ready 확인 후 각각 Sync한다. 준비 전에는 OutOfSync/Missing 상태로 남아 있어도 배포하지 않는다.
+9. `ai-metrics`는 AI API가 `/metrics`를 제공한 뒤 Sync한다. 준비 전에는 OutOfSync/Missing 상태로 남아 있어도 배포하지 않는다.
 10. Discord는 앞의 선택 component로 켠 뒤 시험 경보 발생·복구와 잘못된 환경 경보 차단을 확인한다.
 11. Stage에서 통과한 설정을 Prod의 실제 ARN·버킷·Secret과 대조하여 같은 순서로 진행한다.
 

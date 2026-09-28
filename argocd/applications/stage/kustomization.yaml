@@ -4,8 +4,8 @@ kind: Kustomization
 resources:
 - cluster-addons.yaml
 - backup.yaml
+- backup-project.yaml
 - networking.yaml
-- tempo.yaml
 - projects.yaml
 - platform.yaml
 - workloads.yaml

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 if [[ $# -eq 1 && $1 == --help ]]; then
-  printf '%s\n' 'Usage: bash scripts/validate-ai-observability.sh' 'Render GPU, opt-in AI metrics and Stage/Prod trace receivers. No EKS access.'
+  printf '%s\n' 'Usage: bash scripts/validate-ai-observability.sh' 'Render GPU and opt-in AI metrics. No EKS access.'
   exit 0
 fi
 if [[ $# -ne 0 ]]; then
@@ -21,8 +21,4 @@ helm template dcgm-exporter "$validation_dir/dcgm-exporter" --namespace monitori
   -f "$repo_root/platform/observability/gpu/values.yaml" > "$validation_dir/gpu.yaml"
 kubectl kustomize "$repo_root/platform/observability/gpu/policies" > "$validation_dir/gpu-policies.yaml"
 kubectl kustomize "$repo_root/platform/observability/ai-metrics" > "$validation_dir/ai-metrics.yaml"
-kubectl kustomize "$repo_root/platform/observability/traces/application-egress" > "$validation_dir/trace-application-egress.yaml"
-for environment in stage prod; do
-  kubectl kustomize "$repo_root/platform/observability/traces/$environment" > "$validation_dir/traces-$environment.yaml"
-done
 ruby "$repo_root/scripts/validate-ai-observability.rb" "$validation_dir"

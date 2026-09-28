@@ -67,7 +67,7 @@ metadata:
   name: prod-cnpg-backup
   namespace: argocd
 spec:
-  project: prod-workloads
+  project: prod-backup
   source:
     repoURL: https://github.com/Jangingmall/infra.git
     targetRevision: main
