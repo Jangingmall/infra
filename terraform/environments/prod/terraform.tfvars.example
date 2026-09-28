@@ -111,11 +111,11 @@ nat_gateway_az = "a"
 nat_alarm_sns_topic_arns = []
 
 # ---------- ecr 모듈 (ecr_ 접두사) ----------
-# 🔗 이창원님 담당 (PR #12). 현재 값은 ecr.tfvars.json.example 에 있습니다.
-#    B안 전환에 따라 이 파일로 합쳐질 예정이며,
-#    파트장님이 9/16 에 직접 정리하신다고 하셨으므로 인프라가 임의로 옮기지 않습니다.
-#
-# ecr_enabled              = false   # 🔴 공용 ECR State 위치 확정 후 한쪽만 true
+# 🔗 이창원님 담당. 공용 ECR(저장소 5개)은 prod State 가 소유합니다. staging 은 false.
+# 🔴 아래 줄을 주석으로 두거나 지우면 기본값 false 가 적용되어
+#    prod plan 에 ECR 저장소 5 + 수명주기 정책 5 가 destroy 로 잡힙니다 (이미지 전부 소실 위험).
+#    apply 전 plan 의 destroy 가 0 인지 확인하세요.
+ecr_enabled              = true
 ecr_repositories = ["jangin-app", "jangin-ai/page-generation", "jangin-ai/chatbot-api", "jangin-ai/chatbot-llm", "jangin-ai/model-fetch"]
 # ecr_keep_last_images     = 10
 # ecr_untagged_expire_days = 7
