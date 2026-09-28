@@ -1,0 +1,26 @@
+{{- if .Values.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cnpg-backup-objectstore
+  namespace: database
+rules:
+  - apiGroups: [barmancloud.cnpg.io]
+    resources: [objectstores]
+    resourceNames: [cnpg-backup]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cnpg-backup-objectstore
+  namespace: database
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: cnpg-backup-objectstore
+subjects:
+  - kind: ServiceAccount
+    name: cnpg-backup-sa
+    namespace: database
+{{- end }}

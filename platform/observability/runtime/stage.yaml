@@ -2,5 +2,13 @@
 # 이 파일은 외부 Helm chart와 observability-assets chart의 마지막 override로 사용된다.
 # Loki: serviceAccount.annotations.eks.amazonaws.com/role-arn + lokiBucket.
 # Discord 활성화 시: alertmanager.serviceAccount.annotations.eks.amazonaws.com/role-arn.
-# 빈 상태에서는 자동 동기화를 켜지 않는다. Grafana admin Secret은 별도 안전한 절차로 공급한다.
-{}
+lokiBucket: jangin-staging-s3-logs
+serviceAccount:
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::750240012008:role/jangin-staging-irsa-loki
+loki:
+  storage:
+    s3:
+      sse:
+        type: SSE-KMS
+        kms_key_id: arn:aws:kms:ap-northeast-2:750240012008:key/48fa2655-2c4e-43c4-828c-ca511da66c26

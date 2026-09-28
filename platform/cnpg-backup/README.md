@@ -32,21 +32,21 @@
 
 ## 활성화 순서
 
-### Stage 준비 점검 (2026-09-27)
+### Stage 상태 (2026-09-28)
 
 - 버킷: `jangin-staging-s3-backup`, 경로: `cnpg/staging`.
 - IRSA: `arn:aws:iam::750240012008:role/jangin-staging-irsa-cnpg`; trust subject는 `system:serviceaccount:database:cnpg-backup-sa`와 일치한다.
 - 버킷 KMS: `arn:aws:kms:ap-northeast-2:750240012008:key/48fa2655-2c4e-43c4-828c-ca511da66c26`.
-- IAM simulator에서 해당 prefix의 GetObject/PutObject는 allowed, DeleteObject는 implicitDeny다. IAM 담당자에게 `arn:aws:s3:::jangin-staging-s3-backup/cnpg/staging/*` 범위 DeleteObject 추가를 요청한다. 이는 보존기간 정리에 필요하며, 현재 읽기·쓰기 자체가 거부된다는 의미는 아니다. 실제 Pod의 STS/KMS/S3 접근은 아직 미검증이다.
-- `stage-barman-cloud`를 등록·수동 Sync했다. 처음에는 System CPU/Pod 한도로 Pending이었으나, EBS CSI Controller 한 개가 App으로 재배치된 뒤 System Medium에서 1/1 Ready를 확인했다. 이 수동 배치는 재기동 후 고정 보장이 아니다.
-- Stage 버킷과 ServiceAccount annotation은 로컬 브랜치에 작성했다. main 반영 전에는 실제 ObjectStore/IRSA 연결이 적용되지 않는다. 정기 백업은 `suspend: true`다.
-- Stage overlay에는 `cnpg-backup` 컴포넌트를 연결했다. `stage-workloads`가 자동 Sync이므로 IAM 보완과 ObjectStore 수동 Sync를 확인하기 전에는 이 브랜치를 merge하지 않는다. 백업 실행·복원 시험은 아직 하지 않았다.
+- 해당 prefix의 S3 GetObject/PutObject/DeleteObject와 S3 경유 KMS GenerateDataKey/Decrypt는 IAM simulator에서 allowed다. KMS 조건은 `kms:ViaService=s3.ap-northeast-2.amazonaws.com`이다.
+- `stage-barman-cloud`와 `stage-cnpg-backup`은 수동 Sync되어 있다. ObjectStore와 백업 sidecar가 실행 중이며 CNPG 3/3 Ready, ContinuousArchiving=True다.
+- 첫 수동 백업 `cnpg-manual-f25b6`는 completed이고 S3에 base backup과 WAL이 생성됐다. 별도 복원 시험은 아직 하지 않았다. 정기 백업은 `suspend: true`다.
+- sidecar가 ObjectStore를 읽을 Kubernetes RBAC가 누락되어 Stage에 수동 적용했다. 이 브랜치의 `templates/objectstore-rbac.yaml`을 merge하고 `stage-cnpg-backup`을 다시 Sync하여 GitOps로 관리해야 한다.
 
-배포 순서: System 배치 조정 및 IAM 보완 → `stage-cnpg-backup` 등록·수동 Sync → ObjectStore 확인 → 이 브랜치 merge로 WAL 컴포넌트 연결 → 수동 백업 → 별도 복원 검증 → 정기 백업 활성화.
+남은 순서: RBAC 변경 merge·수동 Sync → 별도 복원 검증 → 정기 백업 활성화.
 
-1. Infra 담당에게 환경별 버킷/리전/KMS, S3·regional STS 통신 경로, IRSA ARN을 받는다. trust subject는 `system:serviceaccount:database:cnpg-backup-sa`다. 버킷 목록 조회는 prefix 조건, 객체 권한은 해당 환경 prefix의 Get/Put/Delete 등 백업 도구에 필요한 범위로 제한한다. KMS 사용 시 키 정책과 Encrypt/Decrypt/GenerateDataKey 권한도 확인한다.
+1. Infra 담당에게 환경별 버킷/리전/KMS, S3·regional STS 통신 경로, IRSA ARN을 받는다. trust subject는 `system:serviceaccount:database:cnpg-backup-sa`다. 버킷 목록 조회는 prefix 조건, 객체 권한은 해당 환경 prefix의 Get/Put/Delete 등 백업 도구에 필요한 범위로 제한한다. SSE-KMS 사용 시 `kms:ViaService=s3.<region>.amazonaws.com` 조건으로 GenerateDataKey/Decrypt 권한을 확인한다.
 2. cert-manager를 Sync하고 webhook/CRD 준비를 확인한다. plugin을 Sync하고 Deployment·인증서·`barman-cloud:9090`을 확인한다. 이 TLS 인증서 Secret은 컨트롤러 인증서이며 앱 비밀번호 복제를 의미하지 않는다.
-3. `platform/cnpg-backup/{stage,prod}.yaml`에 실제 `bucket`, `enabled: true`를 넣는다. `suspend: true`는 유지한다. backup Application을 Sync하여 ObjectStore부터 생성한다.
+3. `platform/cnpg-backup/{stage,prod}.yaml`에 실제 `bucket`, `enabled: true`를 넣는다. `suspend: true`는 유지한다. backup Application을 Sync하여 ObjectStore와 `cnpg-backup-sa`의 해당 ObjectStore 조회 RBAC를 생성한다.
 4. 환경 overlay에서 기존 `cnpg-backup-sa`에 실제 IRSA annotation을 추가한다. Cluster의 기존 `serviceAccountName`과 `serviceAccountTemplate`은 함께 사용할 수 없으므로 Template을 추가하지 않는다.
 5. Stage overlay에 준비된 `../../components/cnpg-backup` 변경을 ObjectStore 확인 후 merge한다. workloads Application이 자동 Sync하면서 DB Pod에 sidecar가 추가되는 rolling update를 확인한다.
 6. 아래 수동 백업을 실행하고 완료 상태, S3 기본 백업/WAL, 오류 로그를 확인한다.

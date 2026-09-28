@@ -87,7 +87,7 @@ Application 간 중복 소유는 `FailOnSharedResource=true`로 차단하며, �
 | Tempo S3·IRSA·egress | tempo/runtime/stage.yaml 또는 prod.yaml | [Tempo 배포 기반](tempo/README.md)의 준비 항목을 모두 충족한 뒤 Sync |
 | Tempo 주소 | Kustomize가 생성하는 traces-runtime-<hash>의 TEMPO_OTLP_ENDPOINT | tempo.monitoring.svc.cluster.local:4317, Stage·Prod 각각의 내부 Service |
 
-runtime 파일은 기본 `{}`다. 가짜 버킷·ARN·Webhook은 넣지 않았다.
+Prod runtime 파일은 아직 기본 `{}`다. Stage에는 실제 Loki 버킷·IRSA·SSE-KMS 키가 입력되어 있다. 가짜 버킷·ARN·Webhook은 넣지 않았다.
 Loki 버킷을 입력하면 assets chart가 `logs-runtime` ConfigMap을 만든다. ARN은 외부 chart가 만드는 `loki-sa` annotation에 반영한다.
 SSM 파라미터 등록, IAM Role/정책/버킷 생성은 인프라 담당이다. Terraform과 Backend·AI 저장소는 수정하지 않았다.
 
