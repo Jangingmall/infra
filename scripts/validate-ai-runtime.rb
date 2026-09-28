@@ -37,6 +37,9 @@ Dir.mktmpdir('ai-runtime-') do |tmp|
     check(vector.dig('spec','template','spec','securityContext','runAsNonRoot')==true, 'vector DB must run as non-root')
     check(vector.dig('spec','template','spec','containers',0,'image').match?(/@sha256:[0-9a-f]{64}\z/), 'vector DB image must be digest-pinned')
     chatbot = original.find { |r| r['kind']=='Deployment' && r.dig('metadata','name')=='ai-ollama' }.dig('spec','template','spec','containers').find { |c| c['name']=='ai-ollama' }
+    check(chatbot.dig('securityContext','runAsUser')==10001 && chatbot.dig('securityContext','runAsGroup')==10001, 'chatbot image user must be numeric for runAsNonRoot')
+    page = original.find { |r| r['kind']=='Deployment' && r.dig('metadata','name')=='ai-sglang' }
+    check(page.dig('spec','template','spec','securityContext','runAsUser')==10001, 'detail page image user must be numeric for runAsNonRoot')
     check(chatbot.dig('readinessProbe','httpGet','path')=='/ai/ready', 'chatbot must gate DB/embedding/LLM readiness')
     check(!chatbot.dig('resources','limits','nvidia.com/gpu'), 'CPU chatbot image must not reserve a GPU')
     model_claims = original.select { |r| r['kind']=='PersistentVolumeClaim' && %w[ai-sglang-data ai-chatbot-models ai-chatbot-llm-models].include?(r.dig('metadata','name')) }
