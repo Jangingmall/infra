@@ -22,7 +22,7 @@
 
 ## 안전한 초기 상태와 소유권
 
-`values.yaml`은 `enabled=false`, `suspend=true`다. 버킷·IRSA가 없는 상태에서 백업 리소스를 활성화하지 않는다. `k8s/components/cnpg-backup`도 기본 overlay에 연결하지 않았다. 구성은 작성되었지만 운영 백업은 아직 시작되지 않은 상태다.
+`values.yaml`은 `enabled=false`, `suspend=true`다. Stage에서는 환경 values로 ObjectStore 생성을 선택하되 정기 백업은 중지한다. Stage overlay의 WAL 컴포넌트 변경은 IAM 권한 적용과 ObjectStore 수동 Sync를 확인한 뒤 merge해야 한다.
 
 - 기존 workloads Application만 CNPG Cluster를 소유한다.
 - cnpg-backup Application은 ObjectStore, ScheduledBackup, Plugin ingress 정책을 소유한다.
@@ -40,15 +40,15 @@
 - IAM simulator에서 해당 prefix의 GetObject/PutObject는 allowed, DeleteObject는 implicitDeny다. IAM 담당자에게 `arn:aws:s3:::jangin-staging-s3-backup/cnpg/staging/*` 범위 DeleteObject 추가를 요청한다. 이는 보존기간 정리에 필요하며, 현재 읽기·쓰기 자체가 거부된다는 의미는 아니다. 실제 Pod의 STS/KMS/S3 접근은 아직 미검증이다.
 - `stage-barman-cloud`를 등록·수동 Sync했다. 처음에는 System CPU/Pod 한도로 Pending이었으나, EBS CSI Controller 한 개가 App으로 재배치된 뒤 System Medium에서 1/1 Ready를 확인했다. 이 수동 배치는 재기동 후 고정 보장이 아니다.
 - Stage 버킷과 ServiceAccount annotation은 로컬 브랜치에 작성했다. main 반영 전에는 실제 ObjectStore/IRSA 연결이 적용되지 않는다. 정기 백업은 `suspend: true`다.
-- `cnpg-backup` component는 아직 연결하지 않았다. 플러그인 Ready, IAM 보완, ObjectStore 수동 Sync를 확인한 다음 별도 변경으로 연결한다. 현재 DB는 3/3 Healthy이며 WAL archiver 변경·백업 실행·복원 시험은 하지 않았다.
+- Stage overlay에는 `cnpg-backup` 컴포넌트를 연결했다. `stage-workloads`가 자동 Sync이므로 IAM 보완과 ObjectStore 수동 Sync를 확인하기 전에는 이 브랜치를 merge하지 않는다. 백업 실행·복원 시험은 아직 하지 않았다.
 
-배포 순서: System 배치 조정 및 IAM 보완 → 이 준비 변경 merge → `stage-cnpg-backup` 등록·수동 Sync → ObjectStore 확인 → WAL component 연결 → 수동 백업 → 별도 복원 검증 → 정기 백업 활성화.
+배포 순서: System 배치 조정 및 IAM 보완 → `stage-cnpg-backup` 등록·수동 Sync → ObjectStore 확인 → 이 브랜치 merge로 WAL 컴포넌트 연결 → 수동 백업 → 별도 복원 검증 → 정기 백업 활성화.
 
 1. Infra 담당에게 환경별 버킷/리전/KMS, S3·regional STS 통신 경로, IRSA ARN을 받는다. trust subject는 `system:serviceaccount:database:cnpg-backup-sa`다. 버킷 목록 조회는 prefix 조건, 객체 권한은 해당 환경 prefix의 Get/Put/Delete 등 백업 도구에 필요한 범위로 제한한다. KMS 사용 시 키 정책과 Encrypt/Decrypt/GenerateDataKey 권한도 확인한다.
 2. cert-manager를 Sync하고 webhook/CRD 준비를 확인한다. plugin을 Sync하고 Deployment·인증서·`barman-cloud:9090`을 확인한다. 이 TLS 인증서 Secret은 컨트롤러 인증서이며 앱 비밀번호 복제를 의미하지 않는다.
 3. `platform/cnpg-backup/{stage,prod}.yaml`에 실제 `bucket`, `enabled: true`를 넣는다. `suspend: true`는 유지한다. backup Application을 Sync하여 ObjectStore부터 생성한다.
 4. 환경 overlay에서 기존 `cnpg-backup-sa`에 실제 IRSA annotation을 추가한다. Cluster의 기존 `serviceAccountName`과 `serviceAccountTemplate`은 함께 사용할 수 없으므로 Template을 추가하지 않는다.
-5. 환경 overlay의 components에 `../../components/cnpg-backup`을 추가한 뒤 workloads를 적용한다. 이 Application은 자동 Sync 대상이므로 ObjectStore 준비 전에 이 변경을 merge하지 않는다. DB Pod에 sidecar가 추가되는 rolling update를 확인한다.
+5. Stage overlay에 준비된 `../../components/cnpg-backup` 변경을 ObjectStore 확인 후 merge한다. workloads Application이 자동 Sync하면서 DB Pod에 sidecar가 추가되는 rolling update를 확인한다.
 6. 아래 수동 백업을 실행하고 완료 상태, S3 기본 백업/WAL, 오류 로그를 확인한다.
 7. 별도 복원 시험이 성공한 후 환경 values의 `suspend: false`를 반영하고 backup Application을 수동 Sync한다. 첫 정기 백업의 성공도 확인한다.
 
