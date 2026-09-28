@@ -2,7 +2,7 @@ MIME-Version: 1.0
 Content-Type: multipart/mixed; boundary="//"
 
 --//
-Content-Type: text/x-shellscript; charset="us-ascii"
+Content-Type: text/x-shellscript; charset="utf-8"
 
 #!/bin/bash
 # =============================================================================
@@ -10,6 +10,17 @@ Content-Type: text/x-shellscript; charset="us-ascii"
 # 대상: Ansible SSH-001 / SSH-004 / SSH-005 (SSH-010은 위 3건 해소 시 자동 해소)
 # 근거: ansible-jangin-staging-20260923-002 (FAIL 28 = 7노드 x 4항목)
 # 통합프로젝트 3팀 · 클라우드 인프라 · 2026-09
+#
+# 🔴 위 Content-Type 의 charset 을 utf-8 에서 되돌리지 마십시오.
+#    이 파일에는 한글 주석과 · (U+00B7) 이 들어 있습니다.
+#    charset="us-ascii" 로 선언하면 cloud-init 이 us-ascii 로 디코딩하면서
+#    0xB7 을 \udcb7 서로게이트로 escape 하고, 파일로 쓸 때 utf-8 재인코딩에서
+#    UnicodeEncodeError 가 나 이 파트를 통째로 버립니다.
+#    -> /var/lib/cloud/instance/scripts/ 가 비고 스크립트가 실행되지 않습니다.
+#    실제로 2026-09-28 LT v2 노드에서 그 일이 일어났습니다:
+#      sshd -T 실측 = maxauthtries 6 / permitrootlogin without-password /
+#                     x11forwarding yes  (3종 전부 미적용)
+#    주석을 ASCII 로 바꾸는 것은 해법이 아닙니다 — 한글 전체가 비ASCII 입니다.
 # =============================================================================
 set -euo pipefail
 
