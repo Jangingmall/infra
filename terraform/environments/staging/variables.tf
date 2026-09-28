@@ -379,8 +379,8 @@ variable "nodes_groups" {
       enabled       = true
       instance_type = "t3.medium"
       ami_type      = "AL2023_x86_64_STANDARD"
-      desired_size  = 1
-      min_size      = 1
+      desired_size  = 2
+      min_size      = 2
       max_size      = 2
       capacity_type = "ON_DEMAND"
       disk_size     = 30
@@ -447,7 +447,7 @@ variable "nodes_groups" {
       enabled       = true
       instance_type = "g6e.xlarge"
       ami_type      = "AL2023_x86_64_NVIDIA"
-      desired_size  = 0
+      desired_size  = 1
       min_size      = 0
       max_size      = 1
       capacity_type = "ON_DEMAND"
@@ -470,7 +470,7 @@ variable "nodes_groups" {
       enabled       = true
       instance_type = "g4dn.xlarge"
       ami_type      = "AL2023_x86_64_NVIDIA"
-      desired_size  = 0
+      desired_size  = 1
       min_size      = 0
       max_size      = 1
       capacity_type = "ON_DEMAND"
