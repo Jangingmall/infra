@@ -26,6 +26,16 @@ Dir.mktmpdir('ai-runtime-') do |tmp|
   FileUtils.cp_r('k8s', tmp)
   %w[stage prod].each do |environment|
     original = YAML.load_stream(run('kubectl', 'kustomize', "k8s/overlays/#{environment}")).compact
+    %w[ai-sglang ai-ollama ai-vector-db].each do |name|
+      workload = original.find { |r| %w[Deployment StatefulSet].include?(r['kind']) && r.dig('metadata','name')==name }
+      pod = workload.dig('spec','template','spec')
+      check(pod.dig('securityContext','seccompProfile','type')=='RuntimeDefault', "#{name} seccomp missing")
+      check(pod['containers'].all? { |c| c.dig('resources','requests','cpu') && c.dig('resources','requests','memory') && c.dig('resources','limits','cpu') && c.dig('resources','limits','memory') }, "#{name} CPU/memory budget missing")
+      check(pod['containers'].all? { |c| c.dig('securityContext','allowPrivilegeEscalation')==false && c.dig('securityContext','readOnlyRootFilesystem')==true && c.dig('securityContext','capabilities','drop')==['ALL'] }, "#{name} container hardening missing")
+    end
+    vector = original.find { |r| r['kind']=='StatefulSet' && r.dig('metadata','name')=='ai-vector-db' }
+    check(vector.dig('spec','template','spec','securityContext','runAsNonRoot')==true, 'vector DB must run as non-root')
+    check(vector.dig('spec','template','spec','containers',0,'image').match?(/@sha256:[0-9a-f]{64}\z/), 'vector DB image must be digest-pinned')
     chatbot = original.find { |r| r['kind']=='Deployment' && r.dig('metadata','name')=='ai-ollama' }.dig('spec','template','spec','containers').find { |c| c['name']=='ai-ollama' }
     check(chatbot.dig('readinessProbe','httpGet','path')=='/ai/ready', 'chatbot must gate DB/embedding/LLM readiness')
     check(!chatbot.dig('resources','limits','nvidia.com/gpu'), 'CPU chatbot image must not reserve a GPU')
