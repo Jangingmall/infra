@@ -23,6 +23,13 @@ spec:
       serviceAccountName: backend-sa
       nodeSelector:
         workload-type: app
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: backend
 
       # Spring Boot graceful shutdown 30s보다 여유 있게 보장한다.
       terminationGracePeriodSeconds: 45

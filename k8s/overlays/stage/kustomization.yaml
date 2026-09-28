@@ -105,7 +105,7 @@ patches:
           eks.amazonaws.com/role-arn: arn:aws:iam::750240012008:role/jangin-staging-irsa-ai-vector-db
 
 components:
-  # ObjectStore의 배포와 IAM 보존기간 정리 권한 확인 후 cnpg-backup component를 연결한다.
+  - ../../components/cnpg-backup
   - ../../components/backend-configtree
   - ../../components/gitops-protection
   - ../../components/ai-vector-db-secrets
