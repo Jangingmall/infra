@@ -254,6 +254,10 @@ output "waf_web_acl_arn" {
   value = module.waf.web_acl_arn
 }
 
+output "waf_cloudfront_web_acl_arn" {
+  value = module.waf_cloudfront.web_acl_arn
+}
+
 output "backend_networking" {
   description = "platform/networking/{stage,prod}.yaml 인계값. Controller/IRSA/CRD 확인 후 enabled=true 및 수동 Sync는 네이티브 담당."
   value = {

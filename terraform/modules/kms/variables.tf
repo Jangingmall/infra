@@ -44,6 +44,12 @@ variable "region" {
   nullable    = false
 }
 
+variable "log_delivery_additional_regions" {
+  description = "region 외에 로그 전송 출처로 허용할 리전. CloudFront scope WAF 로그는 us-east-1 출처로 들어온다"
+  type        = list(string)
+  nullable    = false
+}
+
 variable "tags" {
   description = "태그. providers.tf 의 default_tags 와 자동 merge 되므로 이 키 고유 태그만 넘기면 됨"
   type        = map(string)

@@ -35,6 +35,9 @@ mock_provider "aws" {
 mock_provider "tls" {}
 mock_provider "aws" {
   alias = "us_east_1"
+  mock_resource "aws_wafv2_web_acl" {
+    defaults = { arn = "arn:aws:wafv2:us-east-1:123456789012:global/webacl/test-cf/00000000-0000-0000-0000-000000000000" }
+  }
 }
 
 override_module {
@@ -122,4 +125,27 @@ run "invalid_domain_rejected" {
   command = plan
   variables { alb_domain_name = "https://api.example.com/path" }
   expect_failures = [var.alb_domain_name]
+}
+
+run "cloudfront_waf_count_common_only" {
+  command = plan
+  assert {
+    condition     = module.waf_cloudfront.web_acl_arn != module.waf.web_acl_arn
+    error_message = "CloudFront WAF 는 ALB WAF 와 별개 WebACL 이어야 합니다."
+  }
+  assert {
+    condition     = var.waf_cf_rule_mode == "count" && [for r in var.waf_cf_managed_rule_groups : r.name] == ["AWSManagedRulesCommonRuleSet"]
+    error_message = "CloudFront WAF 기본값은 count + CommonRuleSet 단독이어야 합니다."
+  }
+}
+
+run "cloudfront_waf_block_mode" {
+  command = plan
+  variables { waf_cf_rule_mode = "block" }
+}
+
+run "cloudfront_waf_invalid_mode_rejected" {
+  command = plan
+  variables { waf_cf_rule_mode = "allow" }
+  expect_failures = [var.waf_cf_rule_mode]
 }

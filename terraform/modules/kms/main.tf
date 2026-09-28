@@ -68,7 +68,10 @@ data "aws_iam_policy_document" "this" {
       condition {
         test     = "ArnLike"
         variable = "aws:SourceArn"
-        values   = ["arn:aws:logs:${var.region}:${data.aws_caller_identity.current.account_id}:*"]
+        values = [
+          for r in distinct(concat([var.region], var.log_delivery_additional_regions)) :
+          "arn:aws:logs:${r}:${data.aws_caller_identity.current.account_id}:*"
+        ]
       }
     }
   }

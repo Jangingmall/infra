@@ -24,6 +24,11 @@ variable "certificate_arn" {
   type        = string
 }
 
+variable "web_acl_arn" {
+  description = "CLOUDFRONT scope WAFv2 WebACL ARN (us-east-1에 생성된 것만 연결 가능)"
+  type        = string
+}
+
 variable "zone_id" {
   type = string
 }

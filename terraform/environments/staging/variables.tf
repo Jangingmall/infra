@@ -671,6 +671,43 @@ variable "waf_managed_rule_groups" {
   }
 }
 
+variable "waf_cf_rule_mode" {
+  description = "CloudFront(이미지 CDN) WAF 모드. ALB WAF 와 별도로 전환한다. count 로 연결 → 관찰 → block"
+  type        = string
+  default     = "count"
+  nullable    = false
+
+  validation {
+    condition     = contains(["count", "block"], var.waf_cf_rule_mode)
+    error_message = "waf_cf_rule_mode는 count 또는 block이어야 합니다."
+  }
+}
+
+variable "waf_cf_managed_rule_groups" {
+  description = "CloudFront WAF 룰 그룹. 정적 이미지(GET/HEAD) 전용이라 CommonRuleSet 만 쓴다 — DB 입력 경로가 없어 SQLi 제외"
+  type = list(object({
+    name     = string
+    priority = number
+  }))
+  default = [
+    { name = "AWSManagedRulesCommonRuleSet", priority = 1 },
+  ]
+  nullable = false
+
+  validation {
+    condition = (
+      length(var.waf_cf_managed_rule_groups) > 0 &&
+      length(distinct([for rule in var.waf_cf_managed_rule_groups : rule.name])) == length(var.waf_cf_managed_rule_groups) &&
+      length(distinct([for rule in var.waf_cf_managed_rule_groups : rule.priority])) == length(var.waf_cf_managed_rule_groups) &&
+      alltrue([for rule in var.waf_cf_managed_rule_groups : try(
+        startswith(rule.name, "AWSManagedRules") && rule.priority >= 0 && floor(rule.priority) == rule.priority,
+        false
+      )])
+    )
+    error_message = "AWSManagedRules 규칙을 1개 이상 지정하고, 이름 및 0 이상의 정수 우선순위는 중복 없이 입력하세요."
+  }
+}
+
 # 직접 등록 방식에서는 아래 입력 변수를 사용하지 않는다. ssm.tf와 함께 참고용으로 보관한다.
 # variable "backend_ssm_parameters" {
 #   description = "backend 앱이 읽는 Parameter Store 키-값 쌍. 실제 값은 비공개 terraform.tfvars에 입력한다. /<env>/backend/<키> 경로를 SecretProviderClass와 일치시킨다."
