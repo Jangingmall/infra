@@ -13,7 +13,7 @@
 | 저장 경로 | Stage `s3://<bucket>/cnpg/staging`, Prod `s3://<bucket>/cnpg/prod` |
 | 인증 | 기존 `database/cnpg-backup-sa`의 IRSA, 정적 AWS 키 없음 |
 | 보존 | ObjectStore recovery window 30d |
-| 정기 백업 | UTC 18:00 / KST 03:00 매일; 6필드 cron `0 0 18 * * *` |
+| 정기 백업 | 기본(Prod) UTC 18:00 / KST 03:00, Stage UTC 01:00 / KST 10:00 매일; 6필드 cron |
 | 대상 | prefer-standby, replica에서 우선 수행 |
 | WAL | gzip, maxParallel 2, archive_timeout 5min |
 | 기본 백업 | gzip, jobs 1 |
