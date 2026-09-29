@@ -12,7 +12,7 @@ images:
     digest: sha256:87adcc16e1c12605333e6fde6cbb71d20ab3f1d14da6ab0de3a1c92b3d24f237
   - name: jangin-ai/page-generation
     newName: 750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-ai/page-generation
-    digest: sha256:a90b2ba76170bb75fba4dae358942bad69ea0591b565ba03a9bfc6d2d1163063
+    digest: sha256:7c4d58c39d5688c950b2999555e95a277d9d7546d31dd3f103968b74dd2cfc07
   - name: jangin-ai/chatbot-api
     newName: 750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-ai/chatbot-api
     digest: sha256:d4cae78d2e9003e8fd2348f090789c31a8dfcf97f8493427abb96a635f953225
