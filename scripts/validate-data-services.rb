@@ -59,7 +59,10 @@ end
   check(store['retentionPolicy']=='30d' && store.dig('configuration','s3Credentials')=={'inheritFromIAMRole'=>true}, 'Backup retention or IRSA differs')
   schedule=find(enabled,'ScheduledBackup','cnpg-daily').fetch('spec')
   check(schedule['method']=='plugin' && schedule.dig('pluginConfiguration','name')=='barman-cloud.cloudnative-pg.io', 'Backup must use plugin')
-  check(schedule['schedule']=='0 0 18 * * *' && schedule['suspend']==true, 'Initial schedule must be suspended at 03:00 KST') unless values['suspend']==false
+  # 예약 시각은 환경 values를 따른다(Stage는 노드 가동 시간 안). suspend는 values에서 명시적으로 false일 때만 해제된다.
+  check(schedule['schedule']==values['schedule'] && schedule['schedule'].split.size==6, 'Backup schedule must be the configured 6-field cron')
+  check(schedule['suspend']==(values['suspend']==false ? false : true), 'Schedule suspend must follow environment values')
+  check(schedule['target']=='prefer-standby', 'Scheduled backup must prefer a standby')
   other=env=='stage' ? 'prod' : 'staging'
   _, _, status=Open3.capture3(*args,'--set','enabled=true','--set','bucket=example-backups','--set',"prefix=cnpg/#{other}")
   check(!status.success?, 'Wrong environment prefix must fail')

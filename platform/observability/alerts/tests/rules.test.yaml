@@ -203,3 +203,119 @@ tests:
     exp_samples:
     - labels: "{}"
       value: 0
+- name: Daily backup within 26h is quiet, beyond 26h fires stale
+  interval: 5m
+  input_series:
+  - series: barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres",pod="db-1"}
+    values: 60x340
+  - series: barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres",pod="db-1"}
+    values: 0x340
+  - series: up{job="cnpg",pod="db-1"}
+    values: 1x340
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname=~"CNPGBackupStale|CNPGBackupFailed|CNPGBackupMetricsMissing"})
+      or vector(0)
+    eval_time: 25h
+    exp_samples:
+    - labels: "{}"
+      value: 0
+  - expr: count(ALERTS{alertstate="firing",alertname="CNPGBackupStale"}) or vector(0)
+    eval_time: 27h
+    exp_samples:
+    - labels: "{}"
+      value: 1
+- name: Backup failure after last success fires and next success resolves
+  interval: 1m
+  input_series:
+  - series: barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres",pod="db-1"}
+    values: 60x10 2000x20
+  - series: barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres",pod="db-1"}
+    values: 0x3 1000x27
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="CNPGBackupFailed"}) or vector(0)
+    eval_time: 10m
+    exp_samples:
+    - labels: "{}"
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="CNPGBackupFailed"}) or vector(0)
+    eval_time: 15m
+    exp_samples:
+    - labels: "{}"
+      value: 0
+- name: Missing backup metric fires only while CNPG itself is scraped
+  interval: 1m
+  input_series:
+  - series: up{job="cnpg",pod="db-1"}
+    values: 1x70
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="CNPGBackupMetricsMissing"}) or vector(0)
+    eval_time: 30m
+    exp_samples:
+    - labels: "{}"
+      value: 0
+  - expr: count(ALERTS{alertstate="firing",alertname="CNPGBackupMetricsMissing"}) or vector(0)
+    eval_time: 65m
+    exp_samples:
+    - labels: "{}"
+      value: 1
+- name: Old WAL failures and replica archiver values do not fire
+  interval: 1m
+  input_series:
+  - series: cnpg_pg_replication_in_recovery{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres",pod="db-1"}
+    values: 0x20
+  - series: cnpg_pg_stat_archiver_last_failed_time{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres",pod="db-1"}
+    values: 100x20
+  - series: cnpg_pg_stat_archiver_last_archived_time{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres",pod="db-1"}
+    values: 200x20
+  - series: cnpg_pg_replication_in_recovery{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres",pod="db-2"}
+    values: 1x20
+  - series: cnpg_pg_stat_archiver_last_failed_time{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres",pod="db-2"}
+    values: 300x20
+  - series: cnpg_pg_stat_archiver_last_archived_time{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres",pod="db-2"}
+    values: 0x20
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="CNPGWALArchiveFailing"}) or vector(0)
+    eval_time: 20m
+    exp_samples:
+    - labels: "{}"
+      value: 0
+- name: Primary WAL failure newer than last success fires
+  interval: 1m
+  input_series:
+  - series: cnpg_pg_replication_in_recovery{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres",pod="db-1"}
+    values: 0x20
+  - series: cnpg_pg_stat_archiver_last_failed_time{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres",pod="db-1"}
+    values: 300x20
+  - series: cnpg_pg_stat_archiver_last_archived_time{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres",pod="db-1"}
+    values: 200x20
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="CNPGWALArchiveFailing"}) or vector(0)
+    eval_time: 5m
+    exp_samples:
+    - labels: "{}"
+      value: 0
+  - expr: count(ALERTS{alertstate="firing",alertname="CNPGWALArchiveFailing"}) or vector(0)
+    eval_time: 11m
+    exp_samples:
+    - labels: "{}"
+      value: 1
+- name: WAL ready backlog above 5 fires after 15 minutes
+  interval: 1m
+  input_series:
+  - series: cnpg_collector_pg_wal_archive_status{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres",pod="db-1",value="ready"}
+    values: 6x20
+  - series: cnpg_collector_pg_wal_archive_status{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres",pod="db-2",value="ready"}
+    values: 5x20
+  - series: cnpg_collector_pg_wal_archive_status{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres",pod="db-2",value="done"}
+    values: 90x20
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="CNPGWALArchiveBacklog"}) or vector(0)
+    eval_time: 10m
+    exp_samples:
+    - labels: "{}"
+      value: 0
+  - expr: count(ALERTS{alertstate="firing",alertname="CNPGWALArchiveBacklog"}) or vector(0)
+    eval_time: 17m
+    exp_samples:
+    - labels: "{}"
+      value: 1

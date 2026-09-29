@@ -15,7 +15,7 @@ Alertmanager는 기존 1개를 사용하고 리소스 요청량도 유지한다.
 
 ## 기준과 범위
 
-[노션 3.5 알림·런북 설계](https://app.notion.com/p/1130842d874f82ec8acf813ebbfe5e75)를 기준으로 했다. 문서의 핵심 10종 중 실제 메트릭으로 작성 가능한 **7종**을 구현했다. 앞선 대화에서 요청한 공통/GPU/DB 연결 경보 **7종**을 추가했다. Severity·namespace·수집 job에 따라 YAML 선언은 **총 20개, 경보 종류는 14종**이다. 핵심 10종 전체가 구현됐다는 의미는 아니다.
+[노션 3.5 알림·런북 설계](https://app.notion.com/p/1130842d874f82ec8acf813ebbfe5e75)를 기준으로 했다. 문서의 핵심 10종 중 실제 메트릭으로 작성 가능한 **7종**을 구현했다. 앞선 대화에서 요청한 공통/GPU/DB 연결 경보 **7종**을 추가했다. Severity·namespace·수집 job에 따라 YAML 선언은 **총 25개, 경보 종류는 19종**이다(DB 백업 5종 포함). 핵심 10종 전체가 구현됐다는 의미는 아니다.
 
 기존 chart 기본 경보는 평가와 UI 표시를 유지하지만, `notify=discord`가 없는 경보는 이 Discord 경로에서 전송하지 않는다. 핵심 경보와 기본 경보의 중복 전송을 막고 검토한 범위부터 운영하기 위함이다. 기본 경보를 외부 전송하려면 해당 조건의 기존 규칙과 중복 여부를 검토한다.
 
@@ -53,6 +53,18 @@ Alertmanager는 기존 1개를 사용하고 리소스 요청량도 유지한다.
 이 추가 7종은 노션의 핵심 10종에 대한 변경 합의로 취급하지 않는다. 요청에 따른 초기 확장이다. 특히 GPU 메모리는 모델이 미리 예약해서 항상 높을 수 있고, Pending은 정상 GPU 기동 시간보다 길게 조정해야 한다. Stage 기준선 확인 후 불필요한 경보는 조정한다.
 
 GPU 연산 사용률 100%는 경보 조건이 아니다. GPU 노드가 0개일 때 시계열이 없다는 이유로 GPU 장애를 발생시키지 않는다. XID는 누적 오류 횟수가 아니라 마지막 코드이며, 장애를 해결해도 드라이버 상태가 갱신되기 전까지 남을 수 있다. 코드 변경 횟수로 바꾸어 신규 오류를 놓치는 방식은 사용하지 않았다.
+
+### DB 백업 감시 5종 (`janging.backup`)
+
+| 경보 | 초기 조건 | 심각도 / 담당 |
+| --- | --- | --- |
+| CNPGBackupStale | 마지막 백업 성공 후 26시간 초과, 30분 | Critical / DB·DR |
+| CNPGBackupFailed | 마지막 실패 시각이 마지막 성공보다 뒤, 5분 | Critical / DB·DR |
+| CNPGBackupMetricsMissing | CNPG 수집 중인데 백업 시각 메트릭 없음, 1시간 | Warning / DB·DR |
+| CNPGWALArchiveFailing | Primary WAL 마지막 실패가 마지막 성공보다 뒤, 10분 | Critical / DB·DR |
+| CNPGWALArchiveBacklog | ready WAL 5개 초과, 15분 | Warning / DB·DR |
+
+백업 시각 메트릭 이름은 Barman Cloud plugin 문서 기준이며 Stage 실측 전이다. 확인 절차는 `platform/cnpg-backup/README.md`에 있다. 디스크 위험은 기존 PVCUsageHigh가 담당한다.
 
 ### 아직 구현하지 않은 핵심 3종
 
@@ -153,7 +165,7 @@ alertmanager:
 로컬 검증은 실제 AWS/Discord 접근 없이 수행한다.
 
 - 고정 차트 91.4.1 → Alertmanager 0.34.0 / Prometheus 3.14.0 기준.
-- `promtool check rules`, `promtool test rules`: 20개 선언과 12개 시나리오 검증.
+- `promtool check rules`, `promtool test rules`: 25개 선언과 18개 시나리오 검증.
 - `amtool check-config`: 환경별 실제 Helm 출력, 메시지 template 검사.
 - 내부 전용 Docker 네트워크에서 실제 Alertmanager 두 개와 mock HTTP 수신 서버 실행. 실제 Discord API 형식으로 시험 메시지를 수신하고 Firing/Resolved, 환경 누락·교차 환경 차단, 동일 revision 억제 및 다른 revision 유지 확인.
 - 실제 Discord Webhook, AWS IRSA/CSI, SecureString 복호화, SG/NetworkPolicy, 실제 메트릭 의미·라벨, Grafana 링크, Silence 운영 절차, Production 임계값은 EKS/협업 확인이 남아 있다.

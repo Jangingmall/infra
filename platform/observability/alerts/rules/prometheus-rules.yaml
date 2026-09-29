@@ -347,3 +347,93 @@ spec:
         dashboard: GPU·AI
         runbook_url: https://app.notion.com/p/1130842d874f82ec8acf813ebbfe5e75
         dashboard_url: "/d/janging-gpu-ai"
+  # DB 백업·WAL 감시. 메트릭 이름은 Barman Cloud plugin 0.15 문서 기준이며 Stage 실측 전이다.
+  # 디스크 위험은 위 PVCUsageHigh(database)가 담당하므로 중복 선언하지 않는다.
+  # "마지막 WAL 전송 후 N분" 규칙은 유휴 DB에서 오탐이 나므로 두지 않고 ready 적체로 대신한다.
+  - name: janging.backup
+    interval: 30s
+    rules:
+    - alert: CNPGBackupStale
+      expr: time() - max by (namespace,cnpg_cluster) (barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres"})
+        > 93600
+      for: 30m
+      labels:
+        severity: critical
+        component: database
+        owner: db-dr
+        notify: discord
+      annotations:
+        summary: CNPG 마지막 백업 성공 후 26시간이 지났습니다
+        description: 일 1회 예약 백업 기준 2시간 여유를 넘겼습니다. ScheduledBackup suspend·예약 시각의 노드 가동 여부,
+          최근 Backup 상태와 plugin 로그를 확인합니다. Stage 노드를 오래 중지한 뒤에는 첫 예약 전까지 발생할 수 있습니다.
+          경과 초={{ $value }}
+        dashboard: CloudNativePG 상태
+        runbook_url: https://app.notion.com/p/1130842d874f82ec8acf813ebbfe5e75
+        dashboard_url: "/d/janging-cnpg"
+    - alert: CNPGBackupFailed
+      expr: max by (namespace,cnpg_cluster) (barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres"})
+        > max by (namespace,cnpg_cluster) (barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres"})
+      for: 5m
+      labels:
+        severity: critical
+        component: database
+        owner: db-dr
+        notify: discord
+      annotations:
+        summary: CNPG 최근 백업이 실패했습니다
+        description: 마지막 실패 시각이 마지막 성공 시각보다 뒤입니다. 실패한 Backup의 status.error, IRSA·KMS·S3 경로,
+          plugin sidecar 로그를 확인합니다. 다음 성공 시 해소됩니다. 현재 값={{ $value }}
+        dashboard: CloudNativePG 상태
+        runbook_url: https://app.notion.com/p/1130842d874f82ec8acf813ebbfe5e75
+        dashboard_url: "/d/janging-cnpg"
+    - alert: CNPGBackupMetricsMissing
+      expr: absent(barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres"})
+        and on () (count(up{job="cnpg"} == 1) > 0)
+      for: 1h
+      labels:
+        severity: warning
+        component: database
+        owner: db-dr
+        notify: discord
+      annotations:
+        summary: CNPG는 수집되지만 백업 메트릭이 없습니다
+        description: DB 메트릭은 수집되는데 Barman plugin 백업 시각이 1시간 동안 없습니다. 백업 감시가 불가능한 상태입니다.
+          plugin 연결, 메트릭 이름 변경 여부를 확인합니다. CNPG 수집 자체 누락은 MonitoringTargetMissing이 담당합니다.
+        dashboard: CloudNativePG 상태
+        runbook_url: https://app.notion.com/p/1130842d874f82ec8acf813ebbfe5e75
+        dashboard_url: "/d/janging-cnpg"
+    - alert: CNPGWALArchiveFailing
+      expr: max by (namespace,pod,cnpg_cluster) (cnpg_pg_stat_archiver_last_failed_time{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres"})
+        > max by (namespace,pod,cnpg_cluster) (cnpg_pg_stat_archiver_last_archived_time{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres"})
+        and on (namespace,pod,cnpg_cluster) (max by (namespace,pod,cnpg_cluster) (cnpg_pg_replication_in_recovery{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres"})
+        == 0)
+      for: 10m
+      labels:
+        severity: critical
+        component: database
+        owner: db-dr
+        notify: discord
+      annotations:
+        summary: CNPG Primary의 WAL 전송이 실패 상태입니다
+        description: Primary의 마지막 WAL 실패 시각이 마지막 성공보다 뒤인 상태가 10분 지속. 누적 실패 횟수는 보지 않습니다.
+          IRSA·KMS·S3·STS 경로와 plugin sidecar 로그를 확인합니다. 지속되면 pg_wal이 쌓여 디스크가 고갈될 수
+          있습니다. 현재 값={{ $value }}
+        dashboard: CloudNativePG 상태
+        runbook_url: https://app.notion.com/p/1130842d874f82ec8acf813ebbfe5e75
+        dashboard_url: "/d/janging-cnpg"
+    - alert: CNPGWALArchiveBacklog
+      expr: max by (namespace,pod,cnpg_cluster) (cnpg_collector_pg_wal_archive_status{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres",value="ready"})
+        > 5
+      for: 15m
+      labels:
+        severity: warning
+        component: database
+        owner: db-dr
+        notify: discord
+      annotations:
+        summary: 전송 대기 WAL이 쌓이고 있습니다
+        description: archive 대기(ready) WAL이 5개를 넘는 상태가 15분 지속. 전송 실패 경보, S3 지연, sidecar 자원을
+          확인합니다. WAL 파일을 임의로 삭제하지 않습니다. 현재 값={{ $value }}
+        dashboard: CloudNativePG 상태
+        runbook_url: https://app.notion.com/p/1130842d874f82ec8acf813ebbfe5e75
+        dashboard_url: "/d/janging-cnpg"

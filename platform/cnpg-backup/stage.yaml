@@ -3,4 +3,7 @@ prefix: cnpg/staging
 bucket: jangin-staging-s3-backup
 # ObjectStore를 먼저 수동 Sync한다. 정기 백업은 백업·복원 검증 후 활성화한다.
 enabled: true
+# Stage 노드는 상시 가동이 아니므로 가동 시간 안에서 실행한다. UTC 01:00 = KST 10:00.
+# 예약 시각에 노드가 꺼져 있으면 그날 백업은 건너뛴다(밀린 실행 없음).
+schedule: "0 0 1 * * *"
 suspend: true

@@ -13,7 +13,7 @@
 | 저장 경로 | Stage `s3://<bucket>/cnpg/staging`, Prod `s3://<bucket>/cnpg/prod` |
 | 인증 | 기존 `database/cnpg-backup-sa`의 IRSA, 정적 AWS 키 없음 |
 | 보존 | ObjectStore recovery window 30d |
-| 정기 백업 | UTC 18:00 / KST 03:00 매일; 6필드 cron `0 0 18 * * *` |
+| 정기 백업 | 기본(Prod) UTC 18:00 / KST 03:00, Stage UTC 01:00 / KST 10:00 매일; 6필드 cron |
 | 대상 | prefer-standby, replica에서 우선 수행 |
 | WAL | gzip, maxParallel 2, archive_timeout 5min |
 | 기본 백업 | gzip, jobs 1 |
@@ -62,6 +62,29 @@ kubectl -n database get scheduledbackups.postgresql.cnpg.io
 ```
 
 백업 실패 시 성공으로 처리하거나 운영 데이터를 삭제하지 않는다. IAM/KMS, S3·STS 경로, ObjectStore, plugin/sidecar 로그, pg_wal 디스크 사용량부터 확인한다. 아카이브 실패가 지속되면 WAL이 쌓여 DB 디스크가 고갈될 수 있다.
+
+## 백업 감시 경보
+
+경보 규칙은 이 차트가 아니라 공통 규칙 파일 `platform/observability/alerts/rules/prometheus-rules.yaml`의 `janging.backup` 그룹에 둔다. Prometheus는 `monitoring` namespace의 `release=metrics` 규칙만 읽으므로 이 차트(`database` namespace)에서 PrometheusRule을 만들면 로드되지 않는다.
+
+| 경보 | 조건 | 심각도 |
+| --- | --- | --- |
+| CNPGBackupStale | 마지막 백업 성공 후 26시간 초과, 30분 | Critical |
+| CNPGBackupFailed | 마지막 실패 시각 > 마지막 성공 시각, 5분 | Critical |
+| CNPGBackupMetricsMissing | CNPG는 수집되는데 백업 시각 메트릭 없음, 1시간 | Warning |
+| CNPGWALArchiveFailing | Primary의 WAL 마지막 실패 > 마지막 성공, 10분 | Critical |
+| CNPGWALArchiveBacklog | ready WAL 5개 초과, 15분 | Warning |
+
+- 디스크 위험은 기존 `PVCUsageHigh`(database 80/90%)가 담당한다.
+- 백업 시각 메트릭 이름 `barman_cloud_cloudnative_pg_io_last_{available,failed}_backup_timestamp`는 plugin 문서 기준이며 **Stage 실환경 미확인**이다. 아래 명령으로 이름을 확인하고, 다르면 규칙과 테스트를 함께 고친다.
+
+```sh
+kubectl -n database port-forward pod/<primary-pod> 9187:9187
+curl -s http://localhost:9187/metrics | grep -E "backup_timestamp|pg_stat_archiver_last|wal_archive_status"
+```
+
+- Stage 노드를 장시간 중지한 뒤 첫 예약 전까지 `CNPGBackupStale`이 발생할 수 있다. 백업이 실제로 없다는 의도된 신호다.
+- 과거 누적 WAL 실패 횟수는 판단에 쓰지 않는다. 실패 이후 성공이 있으면 발생하지 않는다.
 
 ## NetworkPolicy
 
