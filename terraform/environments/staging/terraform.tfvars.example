@@ -43,7 +43,7 @@ eks_public_access_cidrs = [
   # "1.2.3.4/32",  # 박다정
 ]
 eks_additional_security_group_ids = []
-eks_enabled_log_types             = ["api", "audit", "authenticator"]
+eks_enabled_log_types             = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
 eks_log_retention_days            = 30
 # TODO(staging 값 확정): 보안팀 — staging CMK ARN 주입; null은 미확정.
 eks_secrets_kms_key_arn = null

@@ -91,7 +91,7 @@ eks_public_access_cidrs = [
 eks_additional_security_group_ids = []
 
 # 감사 로그 (보안팀 상쇄 조치 #1). 💰 CloudWatch Logs 요금 발생
-eks_enabled_log_types  = ["api", "audit", "authenticator"]
+eks_enabled_log_types  = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
 eks_log_retention_days = 30
 
 # ⑧ KMS 단계에서 채웁니다. 🔴 생성 후 해제 불가.
