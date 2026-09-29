@@ -5,4 +5,4 @@ bucket: jangin-staging-s3-backup
 enabled: true
 # UTC 01:00 = KST 10:00
 schedule: "0 0 1 * * *"
-suspend: true
+suspend: false
