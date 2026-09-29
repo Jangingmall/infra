@@ -85,6 +85,7 @@ api_env = api['env'].to_h { |e| [e['name'], e['value']] }
 llm_env = llm.fetch('env', []).to_h { |e| [e['name'], e['value']] }
 check(api_env['LLM_BACKEND']=='ollama' && api_env['OLLAMA_HOST']=='http://127.0.0.1:11434', 'API must reach local Ollama')
 check(api_env['LLM_MODEL']=='gemma4:12b', 'API model must match Ollama image')
+check(api_env['EMBEDDING_MODEL']==api_env['EMBED_MODEL'], 'ingest and search embedding models must match')
 check(!llm.key?('command') && !llm.key?('args'), 'Ollama image entrypoint must run')
 check(llm.dig('startupProbe','httpGet')=={'path'=>'/api/tags','port'=>'ollama'}, 'Ollama startup probe mismatch')
 check(llm.dig('readinessProbe','httpGet')=={'path'=>'/api/tags','port'=>'ollama'}, 'Ollama readiness probe mismatch')
