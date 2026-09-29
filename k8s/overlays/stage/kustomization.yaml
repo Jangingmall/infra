@@ -1,15 +1,15 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# Backend source: 6a2197e1157240ab2440938b6065b29c092e891c
-# 이미지 발행: https://github.com/Jangingmall/backend/actions/runs/36537388448
+# Backend source: a02e721e96b40d1190f6df925744beb6106ccf8e
+# 이미지 발행: https://github.com/Jangingmall/backend/actions/runs/36546112932
 # 검증한 이미지를 digest로 고정한다. 다음 배포는 이 값을 변경하는 PR로 진행한다.
 # GenAI chatbot-api source: 9de47e7ba5ea418a07a3daf9d227fe8b6c3dd9eb
 # 이미지 발행: https://github.com/Jangingmall/GenAI/actions/runs/36408901721
 images:
   - name: jangin-app
     newName: 750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-app
-    digest: sha256:c6bdfdaa116cd2fc36dd79160c1b21b4d9d679852e88840af77ee687d9bf5188
+    digest: sha256:a27d0441da0547fe79fa1ad1eae3cc019983af990ff6a3bf791bbbddcea265ad
   - name: jangin-ai/page-generation
     newName: 750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-ai/page-generation
     digest: sha256:7c4d58c39d5688c950b2999555e95a277d9d7546d31dd3f103968b74dd2cfc07
