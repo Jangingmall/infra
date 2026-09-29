@@ -6,21 +6,15 @@ Content-Type: text/x-shellscript; charset="utf-8"
 
 #!/bin/bash
 # =============================================================================
-# 노드 SSH 하드닝 — 보안 조치 P2-1
-# 대상: Ansible SSH-001 / SSH-004 / SSH-005 (SSH-010은 위 3건 해소 시 자동 해소)
-# 근거: ansible-jangin-staging-20260923-002 (FAIL 28 = 7노드 x 4항목)
-# 통합프로젝트 3팀 · 클라우드 인프라 · 2026-09
+# Node SSH hardening - security measure P2-1
+# Targets: Ansible SSH-001 / SSH-004 / SSH-005
+#          (SSH-010 clears automatically once these three pass)
+# Basis:   ansible-jangin-staging-20260923-002 (FAIL 28 = 7 nodes x 4 items)
 #
-# 🔴 위 Content-Type 의 charset 을 utf-8 에서 되돌리지 마십시오.
-#    이 파일에는 한글 주석과 · (U+00B7) 이 들어 있습니다.
-#    charset="us-ascii" 로 선언하면 cloud-init 이 us-ascii 로 디코딩하면서
-#    0xB7 을 \udcb7 서로게이트로 escape 하고, 파일로 쓸 때 utf-8 재인코딩에서
-#    UnicodeEncodeError 가 나 이 파트를 통째로 버립니다.
-#    -> /var/lib/cloud/instance/scripts/ 가 비고 스크립트가 실행되지 않습니다.
-#    실제로 2026-09-28 LT v2 노드에서 그 일이 일어났습니다:
-#      sshd -T 실측 = maxauthtries 6 / permitrootlogin without-password /
-#                     x11forwarding yes  (3종 전부 미적용)
-#    주석을 ASCII 로 바꾸는 것은 해법이 아닙니다 — 한글 전체가 비ASCII 입니다.
+# ASCII ONLY - do not put non-ASCII characters in this part.
+# cloud-init silently drops the whole part on a Latin-1 byte, so the script
+# never runs. Rationale in Korean sits above user_data in ../../main.tf.
+# Verify before every apply:  python3 scripts/check_node_user_data.py
 # =============================================================================
 set -euo pipefail
 
@@ -30,10 +24,10 @@ MARKER=/var/log/jangin-hardening.failed
 install -d -m 0755 /etc/ssh/sshd_config.d
 
 cat > "$DROPIN" <<'CONF'
-# 파일명 접두사 00- 은 의도입니다.
-# sshd 는 드롭인 병합 시 "먼저 읽은 값이 이깁니다"(first-obtained-value-wins).
-# nginx / systemd 등 대부분의 설정 시스템과 정반대라,
-# 60- 같은 관행적 번호를 붙이면 기존 설정에 눌려 효과가 없습니다.
+# The 00- prefix is deliberate.
+# sshd merges drop-ins first-obtained-value-wins, the opposite of nginx and
+# systemd. A conventional number such as 60- would be overridden by the
+# existing configuration and have no effect.
 PermitRootLogin no
 MaxAuthTries 4
 X11Forwarding no
@@ -41,18 +35,18 @@ CONF
 
 chmod 0600 "$DROPIN"
 
-# 문법 검사를 통과한 경우에만 재기동합니다.
-# reload 가 아니라 restart 인 이유:
-#   Ansible SSH-009 는 "sshd 활성화 시각 이후에 수정된 sshd_config 파일이 없을 것"을 봅니다.
-#   reload 는 ActiveEnterTimestamp 를 갱신하지 않아, 드롭인 파일이 더 최신으로 남아
-#   현재 PASS(7/7) 인 SSH-009 가 FAIL 로 뒤집힙니다. restart 는 갱신합니다.
+# Restart only when the syntax check passes.
+# restart, not reload: Ansible SSH-009 checks that no sshd_config file is
+# newer than the sshd activation time. reload does not refresh
+# ActiveEnterTimestamp, so the drop-in would stay newer and flip SSH-009 from
+# PASS to FAIL. restart refreshes it.
 if /usr/sbin/sshd -t; then
   systemctl restart sshd
   rm -f "$MARKER"
 else
-  # 노드 부팅 자체를 실패시키지 않습니다.
-  # 여기서 exit 1 을 내면 sshd 설정 하나 때문에 노드가 클러스터에 못 들어옵니다.
-  # 설정만 되돌리고 마커를 남겨 Ansible 재점검에서 드러나게 합니다.
+  # Do not fail the node boot.
+  # exit 1 here would keep the node out of the cluster over one sshd setting.
+  # Revert the drop-in and leave a marker so the Ansible re-check surfaces it.
   rm -f "$DROPIN"
   echo "[jangin-hardening] sshd -t FAILED at $(date -Is) - drop-in reverted" > "$MARKER"
 fi
