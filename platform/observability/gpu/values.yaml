@@ -52,16 +52,20 @@ serviceMonitor:
   additionalLabels:
     release: metrics
   relabelings:
-    - targetLabel: job
+    - action: replace
+      targetLabel: job
       replacement: dcgm-exporter
-    - sourceLabels: [__meta_kubernetes_pod_node_name]
+    - action: replace
+      sourceLabels: [__meta_kubernetes_pod_node_name]
       targetLabel: node
   # Prometheus의 namespace/pod는 Exporter 자신이다. GPU 사용 Pod와 혼동하지 않는다.
   metricRelabelings:
-    - sourceLabels: [exported_namespace]
+    - action: replace
+      sourceLabels: [exported_namespace]
       regex: (.+)
       targetLabel: workload_namespace
-    - sourceLabels: [exported_pod]
+    - action: replace
+      sourceLabels: [exported_pod]
       regex: (.+)
       targetLabel: workload_pod
 customMetrics: |
