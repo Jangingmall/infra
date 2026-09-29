@@ -12,6 +12,29 @@ spec:
 
   serviceAccountName: cnpg-backup-sa
 
+  # EKS Split Cost Allocation 의 배분 기준이 requests 다.
+  # requests 가 없으면 db 노드 3대(t3.small)가 배분에서 빠져
+  # 비용 산출물에 DB 몫이 0 으로 집계된다.
+  #
+  # 사이징: db 노드는 t3.small(2 vCPU / 2 GiB)이고
+  #   podAntiAffinityType: required 라 노드당 postgres 1 개다.
+  #   allocatable 약 1.5 GiB 에서 DaemonSet 약 200Mi 를 빼면 여유가 있고,
+  #   백업 활성화 시 barman 사이드카가 128Mi 를 더 쓴다(plugin-values.yaml).
+  #
+  # limits 를 두지 않는 이유:
+  #   1) 목적이 비용 배분이고, 배분은 requests 만 본다.
+  #   2) CNPG Cluster 는 CRD 라서 Trivy KSV-0011/0015/0016/0018 정책 대상이 아니다
+  #      (해당 정책은 Pod/Deployment/StatefulSet 등 내장 kind 만 본다).
+  #      limits 를 넣어도 FAIL 이 줄지 않는다.
+  #   3) Postgres 는 메모리 limit 을 넘으면 OOMKill 로 즉사한다.
+  #      shared_buffers 를 지정하지 않아 기본값으로 도는 상태이고
+  #      max_connections 가 200 이므로, 연결이 몰릴 때 한도를 두는 쪽이 더 위험하다.
+  #   CPU limit 도 DB 에서는 throttling 으로 질의 지연을 만들어 두지 않는다.
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+
   postgresql:
     parameters:
       max_connections: "200"
