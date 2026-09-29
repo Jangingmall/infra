@@ -3,6 +3,6 @@ prefix: cnpg/staging
 bucket: jangin-staging-s3-backup
 # ObjectStore를 먼저 수동 Sync한다. 정기 백업은 백업·복원 검증 후 활성화한다.
 enabled: true
-# UTC 01:00 = KST 10:00
-schedule: "0 0 1 * * *"
+# UTC 02:20 = KST 11:20
+schedule: "0 20 2 * * *"
 suspend: false
