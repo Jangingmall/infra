@@ -114,6 +114,29 @@ resource "aws_launch_template" "node" {
   #    EKS 가 이 MIME 문서 뒤에 자신의 NodeConfig 파트를 덧붙입니다.
   #    → 반드시 MIME multipart 형식이어야 하며, 평범한 셸 스크립트를 넣으면
   #      EKS 가 NodeConfig 를 붙이지 못해 노드가 클러스터에 합류하지 못합니다.
+  #
+  # 🔴 .mime 의 셸 스크립트 파트에 한글을 포함한 비ASCII 를 넣지 마십시오.
+  #    cloud-init 22.2.2 는 user-data 를 이렇게 처리합니다.
+  #      user_data.py:385      email.message_from_string(bytes.decode("utf-8"))
+  #      handlers/__init__.py  part.get_payload(decode=True)
+  #                              .decode(charset, errors="surrogateescape")
+  #      handlers/shell_script.py -> util.write_file -> text.encode("utf-8")
+  #
+  #    두 번째 줄이 문제입니다. Python email 의 get_payload(decode=True) 는
+  #    본문을 ASCII 로 인코딩하려다 실패하면 raw-unicode-escape 로 대체합니다.
+  #      한글 U+B178      -> "\ub178"  ASCII 텍스트로 이스케이프 (내용이 망가짐)
+  #      가운뎃점 U+00B7  -> 0xB7      Latin-1 이라 단일 바이트로 남음
+  #    남은 0xB7 은 유효한 UTF-8 이 아니므로 surrogateescape 로 \udcb7 이 되고,
+  #    파일로 쓸 때 encode("utf-8") 에서 UnicodeEncodeError 가 납니다.
+  #    cloud-init 은 그 파트를 통째로 버리고, 스크립트가 아예 실행되지 않은 채
+  #    /var/lib/cloud/instance/scripts/ 가 빈 상태로 남습니다.
+  #
+  #    Content-Type 의 charset 선언은 이 경로에 관여하지 않습니다.
+  #    2026-09-28 에 us-ascii 를 utf-8 로 고쳤으나(PR #94) 노드 10 대에서 결과가
+  #    같았습니다 — sshd -T 실측 3 종 전부 미적용, SSM CommandId 40528aac.
+  #    유일한 해법은 이 파트를 순수 ASCII 로 유지하는 것입니다.
+  #
+  #    apply 전에 반드시: python3 scripts/check_node_user_data.py
   user_data = base64encode(file("${path.module}/templates/node_user_data.mime"))
 
   # AL2023 EKS AMI의 루트 장치. 용량은 기존 그룹별 설정을 보존한다.
