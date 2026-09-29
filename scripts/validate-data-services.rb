@@ -59,7 +59,9 @@ end
   check(store['retentionPolicy']=='30d' && store.dig('configuration','s3Credentials')=={'inheritFromIAMRole'=>true}, 'Backup retention or IRSA differs')
   schedule=find(enabled,'ScheduledBackup','cnpg-daily').fetch('spec')
   check(schedule['method']=='plugin' && schedule.dig('pluginConfiguration','name')=='barman-cloud.cloudnative-pg.io', 'Backup must use plugin')
-  check(schedule['schedule']=='0 0 18 * * *' && schedule['suspend']==true, 'Initial schedule must be suspended at 03:00 KST') unless values['suspend']==false
+  check(schedule['schedule']==values['schedule'] && schedule['schedule'].split.size==6, 'Backup schedule must be the configured 6-field cron')
+  check(schedule['suspend']==(values['suspend']==false ? false : true), 'Schedule suspend must follow environment values')
+  check(schedule['target']=='prefer-standby', 'Scheduled backup must prefer a standby')
   other=env=='stage' ? 'prod' : 'staging'
   _, _, status=Open3.capture3(*args,'--set','enabled=true','--set','bucket=example-backups','--set',"prefix=cnpg/#{other}")
   check(!status.success?, 'Wrong environment prefix must fail')

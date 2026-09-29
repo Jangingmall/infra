@@ -13,7 +13,7 @@
 | 저장 경로 | Stage `s3://<bucket>/cnpg/staging`, Prod `s3://<bucket>/cnpg/prod` |
 | 인증 | 기존 `database/cnpg-backup-sa`의 IRSA, 정적 AWS 키 없음 |
 | 보존 | ObjectStore recovery window 30d |
-| 정기 백업 | UTC 18:00 / KST 03:00 매일; 6필드 cron `0 0 18 * * *` |
+| 정기 백업 | 기본(Prod) UTC 18:00 / KST 03:00, Stage UTC 02:20 / KST 11:20 매일; 6필드 cron |
 | 대상 | prefer-standby, replica에서 우선 수행 |
 | WAL | gzip, maxParallel 2, archive_timeout 5min |
 | 기본 백업 | gzip, jobs 1 |
@@ -39,10 +39,11 @@
 - 버킷 KMS: `arn:aws:kms:ap-northeast-2:750240012008:key/48fa2655-2c4e-43c4-828c-ca511da66c26`.
 - 해당 prefix의 S3 GetObject/PutObject/DeleteObject와 S3 경유 KMS GenerateDataKey/Decrypt는 IAM simulator에서 allowed다. KMS 조건은 `kms:ViaService=s3.ap-northeast-2.amazonaws.com`이다.
 - `stage-barman-cloud`와 `stage-cnpg-backup`은 수동 Sync되어 있다. ObjectStore와 백업 sidecar가 실행 중이며 CNPG 3/3 Ready, ContinuousArchiving=True다.
-- 첫 수동 백업 `cnpg-manual-f25b6`는 completed이고 S3에 base backup과 WAL이 생성됐다. 별도 복원 시험은 아직 하지 않았다. 정기 백업은 `suspend: true`다.
+- 첫 수동 백업 `cnpg-manual-f25b6`는 completed이고 S3에 base backup과 WAL이 생성됐다. 별도 복원 시험은 아직 하지 않았다.
+- 정기 백업은 Git에서 `suspend: false`로 변경했다(KST 11:20). 백업은 데이터를 바꾸지 않고 수동 백업으로 경로가 검증되어, 복원 시험보다 먼저 켠다. `stage-cnpg-backup` 수동 Sync 전까지는 적용되지 않는다.
 - sidecar가 ObjectStore를 읽을 Kubernetes RBAC가 누락되어 Stage에 수동 적용했다. 이 브랜치의 `templates/objectstore-rbac.yaml`을 merge하고 `stage-cnpg-backup`을 다시 Sync하여 GitOps로 관리해야 한다.
 
-남은 순서: RBAC 변경 merge·수동 Sync → 별도 복원 검증 → 정기 백업 활성화.
+남은 순서: 정기 백업 변경 merge·수동 Sync → 첫 예약 백업 completed·S3 확인 → 별도 복원 검증.
 
 1. Infra 담당에게 환경별 버킷/리전/KMS, S3·regional STS 통신 경로, IRSA ARN을 받는다. trust subject는 `system:serviceaccount:database:cnpg-backup-sa`다. 버킷 목록 조회는 prefix 조건, 객체 권한은 해당 환경 prefix의 Get/Put/Delete 등 백업 도구에 필요한 범위로 제한한다. SSE-KMS 사용 시 `kms:ViaService=s3.<region>.amazonaws.com` 조건으로 GenerateDataKey/Decrypt 권한을 확인한다.
 2. cert-manager를 Sync하고 webhook/CRD 준비를 확인한다. plugin을 Sync하고 Deployment·인증서·`barman-cloud:9090`을 확인한다. 이 TLS 인증서 Secret은 컨트롤러 인증서이며 앱 비밀번호 복제를 의미하지 않는다.
