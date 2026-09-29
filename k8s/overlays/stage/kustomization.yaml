@@ -1,15 +1,15 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# Backend source: b361b658c58fa1828b6126b5a3fd435daaa4ca4f
-# 이미지 발행: https://github.com/Jangingmall/backend/actions/runs/36517298834
+# Backend source: cc8ba3a15a1f7c8b3688df970c8c8b83f1d8f648
+# 이미지 발행: https://github.com/Jangingmall/backend/actions/runs/36524207640
 # 검증한 이미지를 digest로 고정한다. 다음 배포는 이 값을 변경하는 PR로 진행한다.
 # GenAI chatbot-api source: 9de47e7ba5ea418a07a3daf9d227fe8b6c3dd9eb
 # 이미지 발행: https://github.com/Jangingmall/GenAI/actions/runs/36408901721
 images:
   - name: jangin-app
     newName: 750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-app
-    digest: sha256:9cda1782fd979ed4d5de24b59b14ad944a79b8eb2392016cecb51dc5a1eab3c4
+    digest: sha256:0a4bd376ed8a14184105ad50f9759d822d5786eb2c5071a09cfa92d227e141f0
   - name: jangin-ai/page-generation
     newName: 750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-ai/page-generation
     digest: sha256:a90b2ba76170bb75fba4dae358942bad69ea0591b565ba03a9bfc6d2d1163063
@@ -58,6 +58,28 @@ replicas:
 # 신뢰 정책의 app/backend-sa, app/redis-sa와 이름·namespace가 일치해야 한다.
 # 이 annotation은 권한 연결만 담당하며 SSM 값이나 DB 초기 Secret을 생성하지 않는다.
 patches:
+  - target:
+      group: argoproj.io
+      version: v1alpha1
+      kind: Rollout
+      name: backend
+      namespace: app
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: SPRING_MAIL_PORT
+          value: "587"
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH
+          value: "true"
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE
+          value: "true"
   - patch: |-
       apiVersion: v1
       kind: ServiceAccount
