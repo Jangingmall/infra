@@ -155,6 +155,8 @@ spec:
                   key: manifest-sha256
             - name: EMBED_MODEL
               value: /models/$(MODEL_BUNDLE_SHA256)/bge-m3
+            - name: EMBEDDING_MODEL
+              value: /models/$(MODEL_BUNDLE_SHA256)/bge-m3
             - name: HF_HUB_OFFLINE
               value: "1"
             - name: TRANSFORMERS_OFFLINE
