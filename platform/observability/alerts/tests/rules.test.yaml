@@ -203,3 +203,168 @@ tests:
     exp_samples:
     - labels: "{}"
       value: 0
+
+- name: BackendPodRestartHigh fires on 3+ restarts in 10m
+  interval: 1m
+  input_series:
+  - series: kube_pod_container_status_restarts_total{namespace="app",pod="backend-abc-1",container="backend"}
+    values: 0+1x18
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="BackendPodRestartHigh"}) or vector(0)
+    eval_time: 1m
+    exp_samples:
+    - labels: "{}"
+      value: 0
+  - expr: count(ALERTS{alertstate="firing",alertname="BackendPodRestartHigh"}) or vector(0)
+    eval_time: 15m
+    exp_samples:
+    - labels: "{}"
+      value: 1
+
+- name: CNPGReplicationLagHigh fires at 30s lag
+  interval: 1m
+  input_series:
+  - series: cnpg_pg_replication_lag{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres",pod="jangingmall-postgres-2"}
+    values: 35x20
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="CNPGReplicationLagHigh"}) or vector(0)
+    eval_time: 2m
+    exp_samples:
+    - labels: "{}"
+      value: 0
+  - expr: count(ALERTS{alertstate="firing",alertname="CNPGReplicationLagHigh"}) or vector(0)
+    eval_time: 8m
+    exp_samples:
+    - labels: "{}"
+      value: 1
+
+- name: CNPGConnectionsHigh fires at 85 percent of max_connections
+  interval: 1m
+  input_series:
+  - series: cnpg_backends_total{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres",pod="jangingmall-postgres-1",datname="jangingmall"}
+    values: 170x20
+  - series: cnpg_pg_settings_setting{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres",pod="jangingmall-postgres-1",name="max_connections"}
+    values: 200x20
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="CNPGConnectionsHigh"}) or vector(0)
+    eval_time: 8m
+    exp_samples:
+    - labels: "{}"
+      value: 1
+
+- name: NodeNotReady fires when Ready condition is 0
+  interval: 1m
+  input_series:
+  - series: kube_node_status_condition{node="ip-10-1-0-1",condition="Ready",status="true"}
+    values: 0x20
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="NodeNotReady"}) or vector(0)
+    eval_time: 2m
+    exp_samples:
+    - labels: "{}"
+      value: 0
+  - expr: count(ALERTS{alertstate="firing",alertname="NodeNotReady"}) or vector(0)
+    eval_time: 8m
+    exp_samples:
+    - labels: "{}"
+      value: 1
+
+- name: NodePodCapacityHigh fires at pod limit
+  interval: 1m
+  input_series:
+  - series: kubelet_running_pods{node="ip-10-1-0-2"}
+    values: 17x25
+  - series: kube_node_status_allocatable{node="ip-10-1-0-2",resource="pods"}
+    values: 17x25
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="NodePodCapacityHigh"}) or vector(0)
+    eval_time: 5m
+    exp_samples:
+    - labels: "{}"
+      value: 0
+  - expr: count(ALERTS{alertstate="firing",alertname="NodePodCapacityHigh"}) or vector(0)
+    eval_time: 13m
+    exp_samples:
+    - labels: "{}"
+      value: 1
+
+- name: NodePodCapacityHigh stays quiet at 70 percent
+  interval: 1m
+  input_series:
+  - series: kubelet_running_pods{node="ip-10-1-0-3"}
+    values: 12x25
+  - series: kube_node_status_allocatable{node="ip-10-1-0-3",resource="pods"}
+    values: 17x25
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="NodePodCapacityHigh"}) or vector(0)
+    eval_time: 20m
+    exp_samples:
+    - labels: "{}"
+      value: 0
+
+- name: WorkloadPodPending covers kube-system
+  interval: 1m
+  input_series:
+  - series: kube_pod_status_phase{namespace="kube-system",pod="secrets-store-provider-aws-xyz",phase="Pending"}
+    values: 1x30
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="WorkloadPodPending"}) or vector(0)
+    eval_time: 10m
+    exp_samples:
+    - labels: "{}"
+      value: 0
+  - expr: count(ALERTS{alertstate="firing",alertname="WorkloadPodPending"}) or vector(0)
+    eval_time: 20m
+    exp_samples:
+    - labels: "{}"
+      value: 1
+
+- name: WorkloadPodPending ignores unlisted namespace
+  interval: 1m
+  input_series:
+  - series: kube_pod_status_phase{namespace="argocd",pod="whatever",phase="Pending"}
+    values: 1x30
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="WorkloadPodPending"}) or vector(0)
+    eval_time: 25m
+    exp_samples:
+    - labels: "{}"
+      value: 0
+
+- name: MonitoringTargetDown fires when a scrape target is down
+  interval: 1m
+  input_series:
+  - series: up{job="backend",instance="10.1.22.1:8080"}
+    values: 0x20
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="MonitoringTargetDown"}) or vector(0)
+    eval_time: 8m
+    exp_samples:
+    - labels: "{}"
+      value: 1
+
+- name: GPUDeviceError fires on XID code
+  interval: 1m
+  input_series:
+  - series: DCGM_FI_DEV_XID_ERRORS{job="dcgm-exporter",node="ip-10-1-0-9",UUID="GPU-aaa"}
+    values: 43x10
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="GPUDeviceError"}) or vector(0)
+    eval_time: 5m
+    exp_samples:
+    - labels: "{}"
+      value: 1
+
+- name: GPUMemoryHigh fires above 95 percent
+  interval: 1m
+  input_series:
+  - series: DCGM_FI_DEV_FB_USED{job="dcgm-exporter",node="ip-10-1-0-9",UUID="GPU-aaa"}
+    values: 45000x25
+  - series: DCGM_FI_DEV_FB_FREE{job="dcgm-exporter",node="ip-10-1-0-9",UUID="GPU-aaa"}
+    values: 2000x25
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="GPUMemoryHigh"}) or vector(0)
+    eval_time: 15m
+    exp_samples:
+    - labels: "{}"
+      value: 1
