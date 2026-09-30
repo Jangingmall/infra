@@ -11,3 +11,5 @@ resources:
 - workloads.yaml
 - observability-project.yaml
 - observability.yaml
+components:
+- ../../components/observability-discord/stage
