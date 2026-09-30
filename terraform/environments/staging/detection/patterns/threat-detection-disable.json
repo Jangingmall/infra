@@ -1,0 +1,19 @@
+{
+  "detail-type": [
+    "AWS API Call via CloudTrail"
+  ],
+  "source": [
+    "aws.guardduty",
+    "aws.securityhub"
+  ],
+  "detail": {
+    "eventName": [
+      "DeleteDetector",
+      "UpdateDetector",
+      "DeleteMembers",
+      "UpdateMemberDetectors",
+      "DisableSecurityHub",
+      "BatchDisableStandards"
+    ]
+  }
+}

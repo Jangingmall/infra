@@ -1,0 +1,29 @@
+{
+  "version": "0",
+  "id": "00000000-0000-0000-0000-000000000000",
+  "detail-type": "AWS API Call via CloudTrail",
+  "source": "aws.eks",
+  "account": "750240012008",
+  "time": "2026-09-30T13:00:00Z",
+  "region": "ap-northeast-2",
+  "resources": [],
+  "detail": {
+    "eventVersion": "1.09",
+    "userIdentity": {
+      "type": "AssumedRole",
+      "principalId": "AROAEXAMPLE:rush7993",
+      "arn": "arn:aws:sts::750240012008:assumed-role/AWSReservedSSO_Infra-Admin_x/rush7993",
+      "accountId": "750240012008"
+    },
+    "eventTime": "2026-09-30T13:00:00Z",
+    "eventSource": "eks.amazonaws.com",
+    "eventName": "DeleteNodegroup",
+    "awsRegion": "ap-northeast-2",
+    "sourceIPAddress": "203.0.113.10",
+    "userAgent": "aws-cli/2.34.35",
+    "requestParameters": {},
+    "responseElements": null,
+    "eventID": "11111111-1111-1111-1111-111111111111",
+    "eventType": "AwsApiCall"
+  }
+}

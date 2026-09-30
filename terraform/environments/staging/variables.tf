@@ -739,3 +739,17 @@ variable "waf_cf_managed_rule_groups" {
 #     error_message = "ai_ssm_parameters 에 CHANGEME 값이 남아 있습니다. terraform.tfvars 에서 실제 값으로 교체하세요."
 #   }
 # }
+
+variable "detection_alert_emails" {
+  description = <<-EOT
+    보안 이벤트(root 사용·IAM 사용자 생성·CloudTrail 변조·GuardDuty 비활성화)를
+    받을 이메일 주소 목록.
+
+    🔴 apply 만으로 끝나지 않는다. AWS 가 각 주소로 확인 메일을 보내고
+       수신자가 링크를 눌러야 전달이 시작된다. 누르지 않으면 48시간 뒤 소멸한다.
+
+    비워 두면 규칙과 토픽만 만들고 구독은 만들지 않는다.
+  EOT
+  type        = list(string)
+  default     = []
+}
