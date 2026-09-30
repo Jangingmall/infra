@@ -1,0 +1,129 @@
+{{- if .Values.enabled }}
+{{- if ne .Values.environment "staging" }}
+{{- fail "restore is staging-only" }}
+{{- end }}
+{{- if or (eq .Values.clusterName .Values.sourceServer) (not (hasPrefix "jangingmall-restore-" .Values.clusterName)) }}
+{{- fail "a separate restore cluster name is required" }}
+{{- end }}
+{{- if ne .Values.prefix "cnpg/staging" }}
+{{- fail "only cnpg/staging is allowed" }}
+{{- end }}
+{{- range $key, $ok := .Values.preflight }}
+{{- if not $ok }}
+{{- fail (printf "preflight.%s must be verified before enabling" $key) }}
+{{- end }}
+{{- end }}
+{{- $pv := required "storage.existingPV is required; dynamic provisioning is forbidden" .Values.storage.existingPV }}
+{{- $role := required "read-only roleArn is required" .Values.roleArn }}
+{{- if or (empty .Values.network.ingress) (empty .Values.network.egress) }}
+{{- fail "reviewed operator/API/DNS/S3/STS network rules are required" }}
+{{- end }}
+{{- $name := .Values.clusterName }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Values.namespace }}
+  annotations:
+    eks.amazonaws.com/role-arn: {{ $role | quote }}
+---
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  configuration:
+    destinationPath: {{ printf "s3://%s/%s" .Values.bucket .Values.prefix | quote }}
+    s3Credentials:
+      inheritFromIAMRole: true
+    wal:
+      maxParallel: 2
+    data:
+      jobs: 1
+  instanceSidecarConfiguration:
+    env:
+      - name: AWS_REGION
+        value: {{ .Values.region | quote }}
+      - name: AWS_STS_REGIONAL_ENDPOINTS
+        value: regional
+      - name: AWS_EC2_METADATA_DISABLED
+        value: "true"
+    resources:
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: "1", memory: 512Mi}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Values.namespace }}
+rules:
+  - apiGroups: [barmancloud.cnpg.io]
+    resources: [objectstores]
+    resourceNames: [{{ $name | quote }}]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Values.namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Values.namespace }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      cnpg.io/cluster: {{ $name }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+{{ toYaml .Values.network.ingress | indent 4 }}
+  egress:
+{{ toYaml .Values.network.egress | indent 4 }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  instances: 1
+  imageName: {{ .Values.imageName | quote }}
+  serviceAccountName: {{ $name }}
+  resources:
+    requests: {cpu: 250m, memory: 512Mi}
+  affinity:
+    nodeSelector:
+      eks.amazonaws.com/nodegroup: {{ .Values.nodegroup | quote }}
+  bootstrap:
+    recovery:
+      source: source
+  externalClusters:
+    - name: source
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: {{ $name }}
+          serverName: {{ .Values.sourceServer | quote }}
+  storage:
+    size: {{ .Values.storage.size | quote }}
+    storageClass: {{ .Values.storage.storageClass | quote }}
+    pvcTemplate:
+      volumeName: {{ $pv | quote }}
+      accessModes: [ReadWriteOnce]
+      resources:
+        requests:
+          storage: {{ .Values.storage.size | quote }}
+{{- end }}

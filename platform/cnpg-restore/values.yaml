@@ -1,0 +1,23 @@
+enabled: false
+environment: staging
+namespace: database
+clusterName: jangingmall-restore-audit-20260930
+imageName: ghcr.io/cloudnative-pg/postgresql:18.4-system-trixie
+region: ap-northeast-2
+nodegroup: jangin-staging-ng-system-lg
+bucket: jangin-staging-s3-backup
+prefix: cnpg/staging
+sourceServer: jangingmall-postgres
+roleArn: ""
+storage:
+  existingPV: pvc-509e6de5-0a15-497c-a184-9898e17a0520
+  storageClass: gp3-cnpg
+  size: 20Gi
+preflight:
+  volumeCleared: false
+  pvReserved: false
+  costsApproved: false
+  networkReviewed: false
+network:
+  ingress: []
+  egress: []

@@ -1,0 +1,5 @@
+apiVersion: v2
+name: cnpg-restore
+description: Opt-in staging recovery using an explicitly reserved existing PV
+type: application
+version: 0.1.0
