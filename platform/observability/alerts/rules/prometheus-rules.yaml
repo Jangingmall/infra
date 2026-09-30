@@ -233,8 +233,24 @@ spec:
         dashboard: Kubernetes
         runbook_url: https://app.notion.com/p/1130842d874f82ec8acf813ebbfe5e75
         dashboard_url: "/dashboards"
+    - alert: NodePodCapacityHigh
+      expr: 100 * max by (node) (kubelet_running_pods) / max by (node) (kube_node_status_allocatable{resource="pods"})
+        >= 90
+      for: 10m
+      labels:
+        severity: warning
+        component: kubernetes
+        owner: cloud-native
+        notify: discord
+      annotations:
+        summary: 노드의 Pod 수가 상한에 가깝습니다
+        description: 90% 이상이 10분 지속. 상한에 닿으면 DaemonSet도 배치되지 않아 CSI 드라이버나 로그 수집이 조용히
+          누락됩니다. requests를 줄여도 풀리지 않고 노드 증설로만 해소됩니다. 현재 값={{ $value }}
+        dashboard: Kubernetes
+        runbook_url: https://app.notion.com/p/1130842d874f82ec8acf813ebbfe5e75
+        dashboard_url: "/dashboards"
     - alert: WorkloadPodPending
-      expr: max by (namespace,pod) (kube_pod_status_phase{namespace=~"app|database|ai|monitoring",phase="Pending"})
+      expr: max by (namespace,pod) (kube_pod_status_phase{namespace=~"app|database|ai|monitoring|kube-system",phase="Pending"})
         == 1
       for: 15m
       labels:
