@@ -1,0 +1,37 @@
+{
+  "version": "0",
+  "id": "00000000-0000-0000-0000-000000000000",
+  "detail-type": "AWS API Call via CloudTrail",
+  "source": "aws.ec2",
+  "account": "750240012008",
+  "time": "2026-09-30T14:54:52Z",
+  "region": "ap-northeast-2",
+  "resources": [],
+  "detail": {
+    "eventVersion": "1.09",
+    "userIdentity": {
+      "type": "Root",
+      "principalId": "750240012008",
+      "arn": "arn:aws:iam::750240012008:root",
+      "accountId": "750240012008"
+    },
+    "eventTime": "2026-09-30T14:54:52Z",
+    "eventSource": "ec2.amazonaws.com",
+    "eventName": "TerminateInstances",
+    "awsRegion": "ap-northeast-2",
+    "sourceIPAddress": "203.0.113.10",
+    "userAgent": "aws-cli/2.35.9",
+    "requestParameters": {
+      "instancesSet": {
+        "items": [
+          {
+            "instanceId": "i-0cd95f49edd37e273"
+          }
+        ]
+      }
+    },
+    "responseElements": null,
+    "eventID": "22222222-2222-2222-2222-222222222222",
+    "eventType": "AwsApiCall"
+  }
+}

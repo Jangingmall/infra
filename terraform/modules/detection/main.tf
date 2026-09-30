@@ -8,12 +8,13 @@ data "aws_caller_identity" "current" {}
 # SNS 토픽
 #   EventBridge 타깃은 규칙과 같은 리전에 있어야 한다. 그래서 리전마다
 #   토픽을 하나씩 만든다(전역 서비스 이벤트는 us-east-1 에만 들어온다).
-#   암호화는 SNS 관리 키를 쓴다. 앱 CMK 를 쓰면 키 정책에 events/sns 를
-#   추가해야 하고 이번 일정에 얻는 것이 없다.
+#   🔴 저장 시 암호화는 기본적으로 걸지 않는다. "alias/aws/sns" 를 걸면
+#      EventBridge 가 publish 할 때 KMSAccessDenied 로 조용히 실패한다.
+#      이유는 변수 kms_master_key_id 설명에 적었다.
 # ------------------------------------------------------------
 resource "aws_sns_topic" "alerts" {
   name              = local.name
-  kms_master_key_id = "alias/aws/sns"
+  kms_master_key_id = var.kms_master_key_id
 
   tags = merge(var.tags, {
     Name = local.name

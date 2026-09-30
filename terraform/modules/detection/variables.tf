@@ -31,6 +31,36 @@ variable "alert_emails" {
   default     = []
 }
 
+variable "kms_master_key_id" {
+  description = <<-EOT
+    SNS 토픽 저장 시 암호화에 쓸 KMS 키. 기본은 null — 암호화하지 않는다.
+
+    🔴 "alias/aws/sns"(AWS 관리형 키)를 쓰면 안 된다.
+       EventBridge 는 publish 할 때 events.amazonaws.com 서비스 프린시펄로
+       kms:GenerateDataKey* 를 호출한다. 그런데 관리형 키의 키 정책은
+         Principal { "AWS": "*" }  +  kms:ViaService = sns.<region>.amazonaws.com
+       이고 "AWS": "*" 는 IAM 프린시펄만 뜻한다 — 서비스 프린시펄은 포함되지 않는다.
+       관리형 키는 키 정책을 수정할 수 없으므로 events 를 추가할 방법도 없다.
+       결과: 규칙은 매칭되는데 타깃 호출이 KMSAccessDenied 로 조용히 실패한다.
+       (실측: 계정의 alias/aws/sns 키 정책에 events 관련 statement 0 개,
+        sns.amazonaws.com 에도 kms:Decrypt 만 있고 GenerateDataKey 는 없다)
+
+    🔑 그래서 선택지는 두 개뿐이다 — 암호화를 빼거나(기본), 리전별 CMK 를 쓰거나.
+       CMK 를 넘길 경우 그 키 정책에 다음이 있어야 한다.
+         Principal { Service = "events.amazonaws.com" }
+         Action    = ["kms:GenerateDataKey*", "kms:Decrypt"]
+         Condition  aws:SourceAccount = <계정>
+       키는 리전 단위라 서울·버지니아에 각각 필요하다(월 $1/개).
+
+    staging 은 null 로 둔다. 알리는 내용이 CloudTrail 이벤트 요약이고 원본은
+    이미 CloudTrail(SSE-KMS)에 있으며, 최종 전달이 이메일 평문이라 토픽만
+    암호화해서 얻는 것이 없다. CMK 는 삭제 대기기간이 최소 7일이라
+    10/6 종료 체크리스트도 복잡해진다.
+  EOT
+  type        = string
+  default     = null
+}
+
 variable "rules" {
   description = <<-EOT
     만들 EventBridge 규칙. 키가 규칙 이름 접미사가 된다.

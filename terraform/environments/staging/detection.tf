@@ -5,9 +5,20 @@
 #    AWS API 호출은 CloudTrail 통합으로 기본 이벤트 버스에 자동으로 들어온다.
 #    우리가 만드는 것은 규칙(패턴)과 타깃(SNS)뿐이다.
 #
-# 🔴 리전이 갈린다.
+# 🔴 리전이 갈린다 — 그리고 양방향이다.
 #    IAM·STS·root 콘솔 로그인 같은 전역 서비스 이벤트는 us-east-1 에만 들어온다.
-#    서울에만 규칙을 두면 root 사용과 IAM 변경을 못 잡는다.
+#    서울에만 규칙을 두면 IAM 변경과 root 콘솔 로그인을 못 잡는다.
+#
+#    반대도 참이다. root-activity 패턴은 source 를 지정하지 않고
+#    userIdentity.type = Root 만 본다. 이것은 서비스가 아니라 호출자 속성이라
+#    root 가 서울 리소스를 만지면(EC2 종료·S3 삭제·EKS 삭제) 그 이벤트는
+#    ap-northeast-2 에 들어온다. us-east-1 에만 두면 계정 탈취 시 가장 위험한
+#    "root 로 리전 리소스 파괴"를 통째로 놓친다.
+#    -> root-activity 규칙은 두 리전 모두에 둔다. 리전이 갈리므로 중복 알림은 없다.
+#
+#    iam-user-and-key 는 source = aws.iam 으로 전역 서비스를 고정하므로
+#    us-east-1 에만 둔다. 서울에 둬도 매칭될 이벤트가 없다.
+#
 #    EventBridge 타깃은 규칙과 같은 리전이어야 하므로 SNS 토픽도 리전마다 만든다.
 #
 # 🔴 계정 단위 관심사인데 staging 에 둔 이유
@@ -49,12 +60,19 @@ locals {
       description   = "EKS 클러스터·노드그룹·애드온 삭제 시도"
       event_pattern = file("${path.module}/detection/patterns/eks-cluster-destructive.json")
     }
+
+    # 🔑 버지니아와 같은 패턴 파일을 공유한다. 전역 이벤트는 us-east-1 이 잡고,
+    #    root 가 서울 리소스를 만든/지운 이벤트는 여기가 잡는다.
+    root-activity = {
+      description   = "root 계정이 서울 리전 리소스를 조작 — 평시 0건이어야 한다"
+      event_pattern = file("${path.module}/detection/patterns/root-activity.json")
+    }
   }
 
   # 버지니아 — 전역 서비스 (IAM·STS·root 로그인)
   detection_rules_use1 = {
     root-activity = {
-      description   = "root 계정 사용 — CloudTrail 90일 실측 0건이어야 한다"
+      description   = "root 계정 콘솔 로그인·전역 서비스 사용 — 평시 0건이어야 한다"
       event_pattern = file("${path.module}/detection/patterns/root-activity.json")
     }
 
