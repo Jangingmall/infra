@@ -60,7 +60,7 @@ data "aws_iam_policy_document" "oac" {
     sid       = "AllowCloudFrontOACGetProducts"
     effect    = "Allow"
     actions   = ["s3:GetObject"]
-    resources = ["${var.bucket_arn}/products/*"]
+    resources = ["${var.bucket_arn}/images/products/*"]
 
     principals {
       type        = "Service"
