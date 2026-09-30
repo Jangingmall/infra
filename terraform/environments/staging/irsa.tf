@@ -209,7 +209,27 @@ data "aws_iam_policy_document" "loki" {
   }
 }
 
+data "aws_iam_policy_document" "alertmanager" {
+  statement {
+    sid       = "ReadDiscordWebhook"
+    effect    = "Allow"
+    actions   = ["ssm:GetParameters"]
+    resources = ["arn:aws:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${var.env}/monitoring/discord-webhook-url"]
+  }
 
+  statement {
+    sid       = "KMSDecrypt"
+    effect    = "Allow"
+    actions   = ["kms:Decrypt"]
+    resources = [module.kms_app.key_arn]
+
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["ssm.${var.region}.amazonaws.com"]
+    }
+  }
+}
 
 # ── irsa-alb-controller ────────────────────────────────────────
 # ⚠️ modules/alb 안에서 이미 aws-load-balancer-controller용 IAM을 만들고 있는지 먼저 확인!
@@ -276,6 +296,13 @@ locals {
       policy_json         = null
       create_policy       = false
       managed_policy_arns = [aws_iam_policy.alb_controller.arn]
+    }
+    alertmanager = {
+      namespace           = "monitoring"
+      service_account     = "alertmanager-sa"
+      policy_json         = data.aws_iam_policy_document.alertmanager.json
+      create_policy       = true
+      managed_policy_arns = []
     }
     # secrets-csi ⏸ 보류 (위 data 블록 주석 참고) — 확정되면 여기 항목 추가
     # karpenter는 미사용 확정이라 제외
