@@ -20,6 +20,31 @@ data:
 ---
 {{ .Files.Get (printf "alerts/discord/%s/secret-provider.yaml" .Values.environment) }}
 {{- end }}
+---
+# AI Grafana 를 포트포워딩
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: grafana-portforward
+  namespace: {{ .Release.Namespace }}
+rules:
+  - apiGroups: [""]
+    resources: [pods/portforward]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ai-dev-grafana-portforward
+  namespace: {{ .Release.Namespace }}
+subjects:
+  - kind: Group
+    name: jangin:ai-dev
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: grafana-portforward
+  apiGroup: rbac.authorization.k8s.io
 {{- end }}
 {{- if has .Values.bundle (list "alloy-pods" "alloy-events") }}
 ---
