@@ -10,7 +10,29 @@ module "s3_images" {
   enable_logging        = true
   logging_target_bucket = module.s3_access.bucket_id
 
-  additional_policy_json = module.cloudfront_images.oac_policy_json
+  additional_policy_json = data.aws_iam_policy_document.images_cdn.json
+}
+
+data "aws_iam_policy_document" "images_cdn" {
+  source_policy_documents = [module.cloudfront_images.oac_policy_json]
+
+  statement {
+    sid       = "AllowCloudFrontOACGetAIGenerated"
+    effect    = "Allow"
+    actions   = ["s3:GetObject"]
+    resources = ["${module.s3_images.bucket_arn}/ai-generated/*"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["cloudfront.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "AWS:SourceArn"
+      values   = [module.cloudfront_images.distribution_arn]
+    }
+  }
 }
 
 resource "aws_s3_bucket_policy" "images" {
