@@ -424,7 +424,7 @@ def manifest(c, state):
                "grep -Eq '^Database cluster state: *shut down$'; "
                "test ! -e \"$PGDATA/recovery.signal\"; test ! -e \"$PGDATA/standby.signal\"; "
                "exec \"/usr/lib/postgresql/$PG_MAJOR/bin/postgres\" -D \"$PGDATA\" "
-               "-c listen_addresses= -c archive_mode=off -c ssl=off "
+               "-c listen_addresses= -c archive_mode=off -c ssl=off -c logging_collector=off "
                "-c unix_socket_directories=/tmp")
     container = {"name": "postgres", "image": c["image"], "imagePullPolicy": "IfNotPresent",
                  "command": ["/bin/sh", "-ec", startup],
