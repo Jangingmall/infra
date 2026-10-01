@@ -27,7 +27,7 @@ python scripts/ebs_snapshot_restore_test.py --config cfg --evidence ev --state s
 
 `snapshot`은 시험 ID 태그의 기존 스냅샷을 확인하고 Completed까지 기다린다. `create-volume`은 같은 스냅샷의 시험 EBS를 확인하고 같은 AZ에 암호화된 gp3 20GiB를 만든 뒤 available까지 기다린다. 둘 다 중복 태그·ID 불일치 때 중단한다. **동시에 두 실행자를 돌리지 않는다.** EBS 기본 gp3 성능을 사용하며 FSR, 유료 초기화율, Archive 옵션을 요청하지 않는다. [AWS 설명](https://docs.aws.amazon.com/ebs/latest/userguide/initalize-volume.html)에 따라 available은 전체 블록 초기화 완료가 아니다.
 
-`render` 결과는 Retain PV/PVC, 네트워크 격리 정책, PostgreSQL Pod 각 1개다. 원본 EBS를 포맷하거나 마운트하지 않는다. Pod에는 한 컨테이너만 있고 initContainer/sidecar가 없어 계산한 requests가 Pod 전체 요청량이다. 기동 전 PG_VERSION과 `pg_controldata` 정상 종료를 다시 검사하고, `archive_mode=off`, TCP 수신 비활성, IAM 토큰 미마운트로 기존 백업 경로에 쓰지 않게 한다. Pod가 Ready되지 않으면 데이터를 변경하는 수동 수리 대신 중단·원인 검토가 우선이다.
+`render` 결과는 Retain PV/PVC, 네트워크 격리 정책, PostgreSQL Pod 각 1개다. 원본 EBS를 포맷하거나 마운트하지 않는다. Pod에는 한 컨테이너만 있고 initContainer/sidecar가 없어 계산한 requests가 Pod 전체 요청량이다. 기동 전 PG_VERSION과 `pg_controldata` 정상 종료를 다시 검사하고, `archive_mode=off`, TCP 수신 비활성, IAM 토큰 미마운트로 기존 백업 경로에 쓰지 않게 한다. 원본 CNPG 설정의 `/controller/log/postgres`는 단독 Pod에 없으므로 `logging_collector=off` 실행 옵션으로 해당 로그 경로 의존성을 해제한다. Pod가 Ready되지 않으면 데이터를 변경하는 수동 수리 대신 중단·원인 검토가 우선이다.
 
 `observe`는 **새 EBS CreateVolume 요청 시각**을 공통 시작점으로 available, Pod Ready, SQL 성공, 복원 DB의 전체 테이블 목록·테이블별 count 비교 완료의 UTC 시각만 상태 파일에 기록한다. 복원 테이블 목록이 원본 증거와 다르면 행 수를 검사하지 않고 중단한다. 스냅샷 생성 시작·완료 시각은 별도다. 실제 테이블 내용이나 자격증명은 출력하지 않는다. 행 수 일치는 전체 데이터 동일성 증명이 아니다. 이 결과는 격리 복원 시간이며 서비스 RTO가 아니다. SQL 접속이 소켓 peer 인증과 맞지 않으면 임의로 비밀번호를 출력·주입하지 말고 담당자와 검토한다.
 
