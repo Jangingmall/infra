@@ -1,0 +1,15 @@
+{
+  "detail-type": [
+    "AWS API Call via CloudTrail"
+  ],
+  "source": [
+    "aws.eks"
+  ],
+  "detail": {
+    "eventName": [
+      "DeleteCluster",
+      "DeleteNodegroup",
+      "DeleteAddon"
+    ]
+  }
+}

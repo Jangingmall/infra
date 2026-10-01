@@ -151,3 +151,9 @@ addons_ebs_csi_enabled = true
 # 프로비저닝 담당자가 적용 후 irsa_role_arns의 backend/ai/redis/ai-vector-db를 인계한다.
 # 네이티브는 실제 ARN을 해당 환경의 ServiceAccount annotation에 연결한 뒤 CSI 마운트를 검증한다.
 # SSM 등록만으로 기존 DB 비밀번호가 바뀌지는 않는다. DB 계정 변경과 Pod 재시작을 함께 조율한다.
+
+# ---------- 보안 이벤트 알림 (CloudTrail -> EventBridge -> SNS) ----------
+# 🔴 apply 만으로 끝나지 않는다. AWS 가 각 주소로 확인 메일을 보내고
+#    수신자가 링크를 눌러야 전달이 시작된다. 누르지 않으면 48시간 뒤 소멸한다.
+# 비워 두면 규칙·토픽만 만들고 구독은 만들지 않는다.
+# detection_alert_emails = ["CHANGEME@example.com"]
