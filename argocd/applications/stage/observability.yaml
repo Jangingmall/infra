@@ -233,7 +233,7 @@ spec:
   sources:
   - repoURL: https://github.com/Jangingmall/infra.git
     targetRevision: main
-    path: platform/observability/targets
+    path: platform/observability/targets/stage
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
