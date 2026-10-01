@@ -4,21 +4,21 @@ kind: Kustomization
 # Backend source: c7c65c9ba30ff11f0ed48c51c1826cc57ffedbe3
 # 이미지 발행: https://github.com/Jangingmall/backend/actions/runs/36806273033
 # 검증한 이미지를 digest로 고정한다. 다음 배포는 이 값을 변경하는 PR로 진행한다.
-# GenAI source: 7a06247aabd9afe78d938c8e35c876ba3705efd7
-# 이미지 발행: https://github.com/Jangingmall/GenAI/actions/runs/36805997773
+# GenAI source: dcd12066582ecdf798935335ae5e76783ba8027d
+# 이미지 발행: https://github.com/Jangingmall/GenAI/actions/runs/36811145073
 images:
   - name: jangin-app
     newName: 750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-app
     digest: sha256:1115ebdfef66e3225130eda88964b35db5060f51b08ed1ca690e5c4947c4bb9d
   - name: jangin-ai/page-generation
     newName: 750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-ai/page-generation
-    digest: sha256:701aec9b26a7b05af94aa8925572f60207f39cfc2a88e6bde8629e0ba3438172
+    digest: sha256:5fad4169a3e8f40371356b44111bc881eb83080c56388141fffb3b25e928d067
   - name: jangin-ai/chatbot-api
     newName: 750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-ai/chatbot-api
-    digest: sha256:356b7886c8fa61eacf395cabd71c6bfc92a14eacbe082eb74565372cb6cadf97
+    digest: sha256:e5a060b697f47c0a588a21d8c6142c728e42b17391e231b43cf2e2e9c43b8fe8
   - name: jangin-ai/chatbot-llm
     newName: 750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-ai/chatbot-llm
-    digest: sha256:79f637e05586f3cacf390f3ce73b5f56041d3448902120aa7665ce8bdb348663
+    digest: sha256:75fae7b45a7872b1d798fef6c2e74855601cdc181bd9d2b9ac705d1579ae00b2
   - name: ai-model-fetch
     newName: 750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-ai/model-fetch
     digest: sha256:cd2b1ed9b2181b2b8341f6584ec019b117cc13d3ec142a244d8908e1bb8ea487
