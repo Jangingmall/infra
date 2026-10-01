@@ -52,3 +52,21 @@ resource "aws_eks_access_policy_association" "security_audit_view" {
     type = "cluster"
   }
 }
+
+resource "aws_eks_access_entry" "ai_dev" {
+  cluster_name      = module.eks.cluster_name
+  principal_arn     = "arn:aws:iam::750240012008:role/aws-reserved/sso.amazonaws.com/ap-northeast-2/AWSReservedSSO_AI-Dev_c1ea5a887992c1af"
+  type              = "STANDARD"
+  kubernetes_groups = ["jangin:ai-dev"]
+}
+
+resource "aws_eks_access_policy_association" "ai_dev_view" {
+  cluster_name  = module.eks.cluster_name
+  principal_arn = aws_eks_access_entry.ai_dev.principal_arn
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSViewPolicy"
+
+  access_scope {
+    type       = "namespace"
+    namespaces = ["ai", "monitoring"]
+  }
+}
