@@ -1,0 +1,79 @@
+# Stage-only initial thresholds. No restore or database mutation is triggered.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cnpg-backup-alerts
+  namespace: monitoring
+  labels:
+    release: metrics
+spec:
+  groups:
+    - name: janging.backup
+      interval: 30s
+      rules:
+        - alert: CNPGBackupOverdue
+          expr: |
+            (time() - max by (namespace, cnpg_cluster) (barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres"}) > 93600)
+            and on (namespace, cnpg_cluster)
+            (max by (namespace, cnpg_cluster) (barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres"}) > 0)
+          for: 15m
+          labels:
+            severity: critical
+            component: database
+            owner: db-dr
+            notify: discord
+          annotations:
+            summary: Stage DB 마지막 백업 성공 후 26시간 경과
+            description: ScheduledBackup/Backup 상태와 노드 가동 시간을 확인하세요. 백업 실행이나 데이터 삭제를 자동 수행하지 않습니다.
+        - alert: CNPGBackupFailed
+          expr: |
+            max by (namespace, cnpg_cluster) (barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres"})
+            > on (namespace, cnpg_cluster)
+            max by (namespace, cnpg_cluster) (barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres"})
+          for: 5m
+          labels:
+            severity: critical
+            component: database
+            owner: db-dr
+            notify: discord
+          annotations:
+            summary: Stage DB 백업 실패 후 성공 기록 없음
+            description: 최신 Backup 상태와 Barman 로그, S3/KMS/IRSA 통신을 확인하세요. 과거 실패 후 성공한 경우는 제외합니다.
+        - alert: CNPGBackupTimestampUnavailable
+          expr: |
+            (max by (namespace, cnpg_cluster) (up{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres"}) == 1)
+            unless on (namespace, cnpg_cluster)
+            (max by (namespace, cnpg_cluster) (barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres"}) > 0)
+          for: 15m
+          labels:
+            severity: warning
+            component: database
+            owner: db-dr
+            notify: discord
+          annotations:
+            summary: Stage DB 백업 성공 시각을 검증할 수 없음
+            description: 수집은 되지만 성공 timestamp가 없거나 0입니다. Backup completed 여부와 플러그인 메트릭을 대조하세요. 백업 실패 또는 정상으로 단정하지 않습니다.
+        - alert: CNPGWALArchiveUnhealthy
+          expr: |
+            (
+              (cnpg_pg_stat_archiver_last_failed_time{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres"}
+               > on (namespace,pod,cnpg_cluster)
+               cnpg_pg_stat_archiver_last_archived_time{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres"})
+              or
+              (
+                (cnpg_collector_pg_wal_archive_status{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres",value="ready"} > 0)
+                and on (namespace,pod,cnpg_cluster)
+                (time() - cnpg_pg_stat_archiver_last_archived_time{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres"} > 900)
+              )
+            )
+            and on (namespace,pod,cnpg_cluster)
+            (cnpg_pg_replication_in_recovery{job="cnpg",namespace="database",cnpg_cluster="jangingmall-postgres"} == 0)
+          for: 5m
+          labels:
+            severity: critical
+            component: database
+            owner: db-dr
+            notify: discord
+          annotations:
+            summary: Stage Primary WAL 보관 실패 또는 정체
+            description: 미해결 보관 실패 또는 대기 WAL이 있으면서 마지막 성공 후 15분 이상인 상태가 5분 지속됐습니다. S3/KMS/네트워크와 Barman 로그를 확인하세요. WAL 파일을 삭제하지 마세요.
