@@ -15,7 +15,7 @@ images:
     digest: sha256:6a82f2046648ae02c77b459ee3755b61d47c1e853dd202377bdaa507031e8f37
   - name: jangin-ai/chatbot-api
     newName: 750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-ai/chatbot-api
-    digest: sha256:2583142accfd9787b697eab56ccffd8b109238f97f1793ae1ff89bdfae737c86
+    digest: sha256:ece4e8ce28d785c908cee19082c77996d920160c599446f617d16678e06a58a3
   - name: jangin-ai/chatbot-llm
     newName: 750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-ai/chatbot-llm
     digest: sha256:60020bb79b67d69de48cc2e5a12bd7a716164cc5dd8f5ea0179608680c60cd58
