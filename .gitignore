@@ -130,3 +130,5 @@ kubeconfig
 !platform/cluster-addons.md
 
 tfplan*
+# HA 시험 결과 (scripts/ha_failover_drill.py) — 노드명·Pod 배치 포함, 보고서에는 summary.md 표만 옮긴다
+ha-results/
