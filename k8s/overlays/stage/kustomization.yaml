@@ -4,8 +4,9 @@ kind: Kustomization
 # Backend source: 7a0a2ce641d001f85e3c4a5c30c8d17f07a73327
 # 이미지 발행: https://github.com/Jangingmall/backend/actions/runs/36930518473
 # 검증한 이미지를 digest로 고정한다. 다음 배포는 이 값을 변경하는 PR로 진행한다.
-# GenAI source: c3f9f0e57c7ad93f3e39a9d71cfd74ed79354083
+# GenAI page-generation/chatbot-llm source: c3f9f0e57c7ad93f3e39a9d71cfd74ed79354083
 # 이미지 발행: https://github.com/Jangingmall/GenAI/actions/runs/36842314551
+# GenAI chatbot-api source: 3aeff0fac0681d01de2dde7d1eae253a2f0b6233
 images:
   - name: jangin-app
     newName: 750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-app
