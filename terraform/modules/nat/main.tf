@@ -49,13 +49,11 @@ resource "aws_eip" "nat" {
     Name = "${local.name}-eip-nat"
   }
 
-  lifecycle {
-    # 🔴 실수로 destroy 되는 것을 Terraform 단에서 차단한다.
-    #    이 블록이 있으면 terraform destroy 자체가 실패한다.
-    #    정말 지워야 할 때는 이 줄을 먼저 코드에서 지우고 PR 을 올린다
-    #    — "지우려면 리뷰를 거쳐라" 가 이 장치의 목적이다. (작업 규칙 9)
-    prevent_destroy = true
-  }
+  # 🔓 2026-10-06 프로젝트 종료를 위해 prevent_destroy 를 해제했다.
+  #    이전에는 lifecycle { prevent_destroy = true } 로 실수 destroy 를 막았다
+  #    (작업 규칙 9 — "지우려면 리뷰를 거쳐라"). 종료 시점에는 막을 대상이 곧 지울 대상이라,
+  #    주석의 안내대로 이 줄을 지우는 PR 로 해제한다.
+  #    ⚠️ 이 모듈을 다시 운영에 쓴다면 lifecycle { prevent_destroy = true } 를 되돌린 뒤 apply 할 것.
 }
 
 
