@@ -2,8 +2,20 @@
 
 > kt cloud TECH UP 2기 3팀 "삼성가고싶어요" 통합프로젝트 · 서비스 **장인몰**
 > Claude Code가 매 세션 자동으로 읽습니다. **결정사항 위주로 짧게 유지하세요.**
-> 기준: **통합프로젝트 Context 2026-09-27** + **팀 컨텍스트 v1.1** + **네트워크·계정 설계서 최종본(9/14)** + **모듈화 전략 B안(9/15 19:21 파트장 최종)** + **비용 재산정 v2.0(9/17 창원)** + **엣지·S3 버킷 설계서(9/16 파트장)** + **인터페이스 명세서 v0.6(9/17)** + 🆕 **보안 점검 5종(9/21~23) · staging 실측(9/27)** + 🆕 **다정님 프로비저닝 점검(9/27 18:00) · PR #83~#85(9/27~28)**
-> 최종 갱신 **2026-09-28** (이전판 09-27)
+> 기준: **통합프로젝트 Context 2026-09-27** + **팀 컨텍스트 v1.1** + **네트워크·계정 설계서 최종본(9/14)** + **모듈화 전략 B안(9/15 19:21 파트장 최종)** + **비용 재산정 v2.0(9/17 창원)** + **엣지·S3 버킷 설계서(9/16 파트장)** + **인터페이스 명세서 v0.6(9/17)** + 🆕 **보안 점검 5종(9/21~23) · staging 실측(9/27)** + 🆕 **다정님 프로비저닝 점검(9/27 18:00) · PR #83~#85(9/27~28)** + 🆕 **PR #86~#150(9/28~10/6) · Phase 4 산출물 · 종료 체크리스트(10/6)**
+> 최종 갱신 **2026-10-06** (이전판 09-28)
+>
+> 🆕 **10-06 현재 상태 — 이 블록이 아래 서술보다 우선합니다**
+> - 📅 **10/2 17:00 산출물 제출 완료 · 10/6 12:00(KST) 발표 → 발표 후 destroy** (실행·판단 전권 윤주님). 종료 절차는 노션 「10/6 종료(destroy) 체크리스트 — 공유본」
+> - 🔴 **destroy 전까지 `terraform apply` 금지** — 노드그룹 `desired_size` 에 `ignore_changes` 가 없어 apply 하면 노드·GPU 가 코드 기본값으로 다시 켜짐 (규칙 33 · 10/1 09:19 실제 사례)
+> - 🔓 **NAT EIP `prevent_destroy` 해제 PR #150** (열림 · destroy 직전 머지) — 규칙 9 · 검수 10 은 **종료 시점 한정으로 해제**
+> - 🔴 **prod GuardDuty·Security Hub** — tfvars 변수 없음(`enable = true` 하드코딩) + `prevent_destroy` → **10/28 무료 종료 전** CLI 비활성화 + `state rm` 또는 PR + `-target` (막힌 30)
+> - ✅ **staging**: 클러스터 가동 · 앱/AI/관측성/탐지 배포 완료 → **10/2 17:27 KST 노드 전부 0** · 10/3~10/5 중지 · 10/6 시연은 AI 목업 페이지 사용
+> - ✅ **prod**: EKS 클러스터 **미생성** — ECR 5 · 계정 보안 5종 · CodeBuild 러너만 state 에 있음
+> - 💰 **예산** — AWS Budgets **연간 $330** · 10/2 기준 누적 약 **$266** · 서버 0대여도 고정비 **하루 약 $7** (EKS $2.4 · NAT $1.4 · EBS $0.8 · ALB·WAF·S3·IPv4)
+> - ✅ **P2-1 SSH 하드닝 10/10 노드 PASS** (9/30 SSM) — 단 PR #80 의 비 ASCII 주석이 user-data 를 깨뜨려 **#94·#110 으로 수정**됨 (규칙 32)
+>
+> ⬇️ 아래 09-28 블록은 **이력**입니다.
 >
 > 🆕 **09-28 현재 상태 — 이 블록이 아래 서술보다 우선합니다**
 > - 📅 **마감 10/2(금) 산출물 · 10/6 발표** → 실질 구축일 **9/28~30**. 9/28 prod 인프라 → 9/29 앱 배포·검증 → 9/30 예비·보안 회신 (다정님 9/27 재조정)
@@ -79,14 +91,37 @@
 | **21** | 🆕 **예산 한도 500,000원의 범위** — 클라우드/보안 그룹 한도인지 8개 직군 전체 한도인지<br>FE Vercel $20 · 보안 LLM 10,000원이 같은 한도면 여유가 줄어듦 | PM + 그룹장 | 80.4% 라는 수치의 의미가 달라짐 |
 | **22** | 🆕🔴 **산출물3 초본 ↔ 확정 설계 불일치 10건** (Aurora vs CNPG · Karpenter/KEDA · Modal · CloudFront 미도입 · console-first · Multi-AZ · 크레딧 $150 등) | 다정 + 인프라 | **평가가 "실제 동작 여부"를 보므로 문서와 실물이 다르면 신뢰 손실** |
 | **23** | 🆕🔴 **Trivy `KSV-*` 17그룹 147건(전체의 80%)의 담당 과정** — 대상이 전부 `k8s/**`·`platform/**` (Terraform 0건) | 그룹장·파트장 | 보안 회신 불가 · 인프라가 흡수하면 규칙 13 위반 |
-| **24** | 🆕🔴 **prod ECR destroy 10건** — `prod/terraform.tfvars`(및 `.example`)에서 `ecr_enabled` 가 **주석** → 변수 기본값 `false` → `modules/ecr` 의 `for_each` 가 빈 집합 → **저장소 5 + 수명주기 정책 5 삭제 계획.** 현재 이미지 **82개**<br>⚠️ 9/27 에 *"bf6d367 이름 변경 때문"* 으로 공유한 원인은 **틀렸음**<br>🔄 **09-28**: 윤주님 tfvars 는 이미 `true`(다정님 확인) → 실제 위험은 **`.example` 을 복사하는 사람.** **PR #84** 로 `.example` 수정 (머지 대기). ❓ `prod/variables.tf` 의 default 를 `true` 로 할지는 창원님 판단 | 창원 + 파트장 | 🔴 이미지 유실, 또는 `force_delete=false` 로 **apply 중간 실패** |
+| ~~24~~ | ✅ **9/28 PR #84 머지로 해소** (`.example` `ecr_enabled = true`) — 아래는 기록 · 🆕🔴 **prod ECR destroy 10건** — `prod/terraform.tfvars`(및 `.example`)에서 `ecr_enabled` 가 **주석** → 변수 기본값 `false` → `modules/ecr` 의 `for_each` 가 빈 집합 → **저장소 5 + 수명주기 정책 5 삭제 계획.** 현재 이미지 **82개**<br>⚠️ 9/27 에 *"bf6d367 이름 변경 때문"* 으로 공유한 원인은 **틀렸음**<br>🔄 **09-28**: 윤주님 tfvars 는 이미 `true`(다정님 확인) → 실제 위험은 **`.example` 을 복사하는 사람.** **PR #84** 로 `.example` 수정 (머지 대기). ❓ `prod/variables.tf` 의 default 를 `true` 로 할지는 창원님 판단 | 창원 + 파트장 | 🔴 이미지 유실, 또는 `force_delete=false` 로 **apply 중간 실패** |
 | **25** | 🆕 **staging 유휴 EBS 11개 / 238GB** — 전부 `available`, 과금 중. CSI 생성분이라 **`destroy` 로 안 지워짐** | BE·AI 판단 | 비용 지속 |
-| **26** | 🆕🔴 **AWS-0040 private only 전환 여부·시점 (= 결정 ⑦)**<br>🔄 **09-28**: staging Helm 4종 **설치 완료**(다정님 9/27) · staging 전환은 **불가**(Bastion·VPN 0, 노드 0이면 SSM 도 0 → kubectl 단절) · prod 는 **생성 시 public 필수 → 부트스트랩 후 전환** ((a) 권고)<br>코드: **PR #85** — 변수 기본값 제거 + `validation` (명시 필수) | 파트장 | prod 전환 시점 확정 · 보안 회신 본문 |
+| 26 | 🔄 **10/6: 전환 없이 public + 팀원 IP 제한 상태로 종료** (보안 회신은 "기한부 예외") — 아래는 기록 · 🆕🔴 **AWS-0040 private only 전환 여부·시점 (= 결정 ⑦)**<br>🔄 **09-28**: staging Helm 4종 **설치 완료**(다정님 9/27) · staging 전환은 **불가**(Bastion·VPN 0, 노드 0이면 SSM 도 0 → kubectl 단절) · prod 는 **생성 시 public 필수 → 부트스트랩 후 전환** ((a) 권고)<br>코드: **PR #85** — 변수 기본값 제거 + `validation` (명시 필수) | 파트장 | prod 전환 시점 확정 · 보안 회신 본문 |
 | **27** | 🆕🔴 **AWS-0104 실효 범위** — PR #83 으로 우리 SG 3종의 Out All 제거·포트 축소(443/465/587). 그러나 모든 노드에 **EKS 클러스터 SG(Terraform 밖, egress `-1 / 0.0.0.0/0`)** 가 붙어 **실효 egress 는 전체 허용 그대로** (9/27 실물 확인). Trivy 재스캔 시 3→5건 가능 | 파트장 (회신 문구) | 보안 회신을 "해소"로 쓰면 사실과 다름 → **"축소 + 예외"** |
-| **28** | 🆕 **결정 ⑤ EKS Secret KMS** — prod **생성 시점에만** 정해지고 해제 불가. 보안팀 근거(1.28+ 기본 봉투 암호화 → 예외 대상)로 **(b) 미적용 + 예외 기록** 권고 (다정님) | 파트장 | prod apply 전 확정 필요 |
-| **29** | 🆕 **H7 Terraform CI 산출물 범위** — 남은 기간에 파이프라인 구축 어려움 → **「설계·범위 정의까지」 조정 제안** (신준한 10/1 까지 범위 정의) | 파트장 | 산출물 제목과 실물 불일치 |
+| ~~28~~ | ✅ **종결 — prod 클러스터를 만들지 않아 결정 불요** · 🆕 **결정 ⑤ EKS Secret KMS** — prod **생성 시점에만** 정해지고 해제 불가. 보안팀 근거(1.28+ 기본 봉투 암호화 → 예외 대상)로 **(b) 미적용 + 예외 기록** 권고 (다정님) | 파트장 | prod apply 전 확정 필요 |
+| 29 | 🔄 **10/6: 범위 정의 문서 미작성 · 종료로 종결 후보 (파트장 확인)** · 🆕 **H7 Terraform CI 산출물 범위** — 남은 기간에 파이프라인 구축 어려움 → **「설계·범위 정의까지」 조정 제안** (신준한 10/1 까지 범위 정의) | 파트장 | 산출물 제목과 실물 불일치 |
+
+| **30** | 🆕🔴 **GuardDuty·Security Hub 비활성화 방법 (10/28 무료 종료 전)** — `prod/threat_detection.tf` 2행 `enable = true` 하드코딩(tfvars 변수 없음) · 5·29행 `prevent_destroy`. 런북 §10-3 의 "tfvars 수정"·"`plan -destroy -target`" 은 **둘 다 실패.** (A) CLI 비활성화 + `state rm` / (B) `prevent_destroy` 제거 PR + `-target` destroy | 파트장 | 10/28 이후 과금 |
+| **31** | 🆕 **백업 경보 정리 방향** — `79d6aef`(#135)로 `alerts/backup-stage` 가 main 에 들어가고 Argo 앱 `stage-observability-targets` 는 자동 sync. plugin 방식이라 `CNPGBackupTimestampUnavailable` 상시 발화 ↔ 런북 §5-3 "적용 금지" | 다정·창원 | 문서와 코드 불일치 |
+| **32** | 🆕 **HA 인스턴스 종료 시험** — 도구는 PR #146(`scripts/ha_failover_drill.py`) 머지. **실클러스터 미실행.** HA 보고서는 "미판정"으로 제출. 팀 계획(DB primary **노드** 종료)과 대상이 달라 시험 시 db 노드 모드 추가 필요 | 파트장 | 예산상 종료 전 실시 불가 |
+| **33** | 🆕 **GPU `desired_size` 기본값** — `staging/variables.tf` 457·480행 `= 1` (450행 주석은 "0 으로 시작") · `modules/eks_nodes/main.tf:201` 에 `ignore_changes` 없음 → apply 마다 GPU 기동. 다시 운영한다면 기본값 0 또는 `ignore_changes` PR | 파트장 | 규칙 33 으로 운영 대응 중 |
 
 > 위 값이 안 나온 상태에서 **임의값으로 채우지 말 것.** `variable` + `TODO` 주석으로 남기고 진행.
+
+### ✅ 10/6 해소·정정된 것 (9/28~10/6)
+
+| 항목 | 결론 |
+|---|---|
+| **PR #84·#85·#86** | ✅ 9/28 오전 머지 (윤주·다정) |
+| **staging 밀린 apply (H15)** | ✅ 적용 — LT 신버전 · **P2-1 10/10 노드 PASS** (9/30 SSM CommandId) |
+| 🔴 **PR #80 user-data 가 하드닝을 조용히 못 걸던 문제** | ✅ **#94(charset)·#110(순수 ASCII)** 다정님 수정 — cloud-init 이 비 ASCII 셸 파트를 깨뜨림. 검사 스크립트 `scripts/check_node_user_data.py` (규칙 32) |
+| **보안 P1 코드 조치** | ✅ #88 security baseline · #93 ALB 헤더(AWS-0052) · #97 CloudFront WAF(AWS-0011) · #103 EKS 컨트롤플레인 로그 5종(AWS-0038) — 재스캔 결과는 미확인 |
+| **탐지 규칙** | ✅ **#132** CloudTrail → EventBridge → SNS · 서울 4 + 버지니아 2 규칙 (10/1 apply) |
+| **DB 백업·복원** | ✅ #106 ScheduledBackup(KST 11:20) · #122 S3/WAL 격리 복원(3분 5초, 재시작 기준) · **#139 EBS 스냅샷 복원** |
+| **알림** | ✅ #123·#124 Discord + IRSA · #125 사각지대 룰 · #127 룰 단위테스트 |
+| **CloudFront OAC 경로** | ✅ `images/product/*` · `images/content/*`(#142) · `ai-generated/*`(**#145**, 콘솔 선반영 → 코드화, 준한 머지) |
+| **AI-Dev 접근** | ✅ #134 access entry (Role/RoleBinding 은 수동 sync) |
+| **HA 시험 도구** | ✅ **#146** 머지(10/2 윤주) — 실클러스터 미실행 |
+| **AWS 예산** | 🔄 Budgets **월간 $350 → 연간 $330** · Budgets 직접 이메일이라 구독 Confirm 불필요 |
+| **구조도 제출본** | 네트워크 **v3** · 클러스터 **윤주님 v2**(멘토 요청으로 글·IP 대역 제거). 클러스터 하단 NetworkPolicy 각주는 **설계 기준** — 실제 staging 은 database·ai **Ingress 차단만**(Egress 정책 미적용) → 구조도 수정 없이 Q&A 답변으로 대응 |
+| 🔴 **정정** | Redis AOF 는 **노드 로컬이 아니라 EBS**(`gp3-redis` 4Gi Retain, `/data`, `appendfsync everysec`) — 노드 장애 = 유실이 아니라 수 분 중단 |
 
 ### ✅ 9/28 해소·정정된 것
 
@@ -636,7 +671,7 @@ enableNetworkPolicy = "true"    ← aws-vpc-cni addon configuration
 | 6 | **`sg-alb` inbound에 9090 금지** |
 | 7 | **`rt-data`에 `0.0.0.0/0` 만들지 않음** |
 | 8 | **`sg-eks-gpu → sg-db` 규칙을 만들지 않음** |
-| 9 | **NAT EIP는 `prevent_destroy`** — 택배사 allowlist용. 재생성 시 배송조회 중단 |
+| 9 | **NAT EIP는 `prevent_destroy`** — 택배사 allowlist용. 재생성 시 배송조회 중단<br>🔓 **10/6 종료 시점 한정 해제 (PR #150).** 이 모듈을 다시 운영에 쓰면 반드시 복원 |
 | 10 | 리소스명은 **`locals`로 조립** · **`NodePool` 태그는 과금 리소스에만** (아래 참고) |
 | 11 | **하나의 Commit/PR = 하나의 작업 단위** (CONVENTION.md) |
 | 12 | **과도한 오버엔지니어링 금지** |
@@ -659,6 +694,9 @@ enableNetworkPolicy = "true"    ← aws-vpc-cni addon configuration
 | **29** | 🆕🔴 **SG 변경의 효과는 노드에 붙은 "모든 SG 의 합집합"으로 판단한다.** 모든 노드그룹에 **EKS 클러스터 SG** 가 자동으로 붙고(`modules/eks_nodes/locals.tf:35-43`), 이 SG 는 Terraform 밖·egress 전체 허용이다.<br>확인: `aws eks describe-cluster --query cluster.resourcesVpcConfig.clusterSecurityGroupId` → `aws ec2 describe-security-groups --group-ids <ID> --query 'SecurityGroups[0].IpPermissionsEgress'`<br>*(09-27 실제 사례: "Out All 을 빼면 ECR pull 이 막힌다"는 경고가 틀렸고, 반대로 "egress 를 조였다"는 보고도 실효가 없었음)* |
 | **30** | 🆕🔴 **빠뜨리면 "조용히" 적용되는 기본값을 위험 변수에 두지 않는다.** 공개 여부·생성 시점 전용 값처럼 틀리면 되돌리기 어려운 변수는 `default = null` + `nullable = true` + `validation { condition = var.x != null }` 으로 **명시 필수**. 모듈 변수 무기본값(검수 14)·CIDR precondition 과 같은 원칙<br>⚠️ 이 패턴을 쓰면 `tests/*.tftest.hcl` 의 `variables {}` 에도 값을 넣어야 테스트가 깨지지 않음 (PR #85) |
 | **31** | 🆕🔴 **apply 전 plan 에 `public_access_cidrs` 변경이 보이면 멈춘다.** 내 tfvars 의 IP 목록이 실물과 다르다는 뜻 → 그대로 apply 하면 **실물에만 있는 팀원 IP 가 빠져 그 사람 kubectl 이 끊김.** IP 는 공유하지 말고 **개수만** 대조 (아래 명령 절) |
+| **32** | 🆕🔴 **노드 user-data(Launch Template) 에 비 ASCII 문자를 넣지 않는다** — 한국어 주석·전각 기호 포함. cloud-init 이 셸 파트를 디코딩하다 깨뜨려 **에러 없이 하드닝이 안 걸린다.** apply 전 `python3 scripts/check_node_user_data.py`<br>*(09-28 실제 사례: PR #80 → #94·#110 으로 수정)* |
+| **33** | 🆕🔴 **노드 수는 CLI 로, 코드는 `-target` 으로.** 노드그룹 `desired_size` 에 `ignore_changes` 가 없어 **`-target` 없는 apply 는 6개 그룹을 tfvars/기본값으로 되돌린다** (GPU 기본값 1 → 하루 약 $70). 노드를 내려 둔 기간·destroy 직전에는 apply 금지<br>*(10/1 09:19 실제 사례: apply 로 GPU 2대 재기동)* |
+| **34** | 🆕 **콘솔에서 먼저 고쳤으면 같은 날 코드 PR 로 맞춘다.** 콘솔 변경은 다음 apply 가 되돌리거나 destroy 전 plan 에 "예상 밖 변경"으로 보인다<br>*(10/1 실제 사례: CloudFront `ai-generated/*` 콘솔 선반영 → PR #145 로 코드화, apply 불필요 확인)* |
 
 > 📌 **규칙 10 보충 (2026-09-13)**: `NodePool` 값은 `system｜app｜db｜ai` 중 하나여야 Cost Explorer 필터가 의미를 갖습니다.
 > VPC·서브넷·IGW·라우팅·SG·Endpoint 는 **요금이 $0** 이고 저 넷 중 어디에도 속하지 않으므로 **부여하지 않습니다.**
@@ -764,6 +802,18 @@ gp3 PV 20Gi × 3 (CNPG)  +  reclaimPolicy: Retain
 | **9/27** | 보안 5종 전수 확인 · **IAM 오진 정정** · AWS-0041 오탐 규명 · **PR #80** |
 | **9/27 (계속)** | PR #80·#81·#82 머지 · 명수님 staging 종단 검증(healthz 200, F21 발견) · 다정님 **일정 재조정(마감 10/2)** · 쿼터 증설 · **PR #83 (SG egress)** 머지·apply · 클러스터 SG egress 전체 허용 확인 |
 | **9/28** | **PR #84·#85 제출** (`.example` 함정 3건) · 🔴 **prod 인프라 apply (윤주님)** → 9/29 앱 배포·검증 → 9/30 예비·보안 회신 · 10/1~2 산출물 |
+
+### 🆕 9/28~10/6 실제 경과
+
+| 시점 (KST) | 내용 |
+|---|---|
+| **9/28** | PR #84·#85·#86 머지 · 보안 baseline(#88)·ALB 헤더(#93)·CloudFront WAF(#97)·user-data charset(#94) |
+| **9/29** | prod **ECR + 계정 보안 5종 `-target` apply** (GuardDuty 켬 → 10/28 무료 종료) · EKS 로그 5종(#103) · ScheduledBackup(#106) · user-data ASCII(#110) · 앱 이미지 다수 |
+| **9/30** | 격리 복원(#122) · Discord 알림(#123·#124) · 사각지대 룰(#125·#127) · 🔴 18:30 gpu-b 축소로 AI 정지(감지 5시간 23분) · 23:48 전체 중지 |
+| **10/1** | 09:13 **탐지 규칙 #132** apply · 09:19 전체 기동(**apply 로 GPU 재기동**) · #134 AI-Dev · #135 백업 경보 · **#139 EBS 스냅샷 복원** · #142 CloudFront content 경로 |
+| **10/2** | 06:29 **#145** 머지(준한) · Phase 4 문서 코드 대조 17건 노션 댓글 · HA 보고서는 팀 문서로 제출(+보강) · 14:13 **#146** 머지 · 14:08 비용 공지(GPU 시간 제한·AI 목업 시연) · **17:00 산출물 제출** · **17:27 노드 전부 0** |
+| 10/3~10/5 | 전면 중지 (고정비만) |
+| **10/6** | 05:30 종료 체크리스트 공유본 · **PR #150**(NAT EIP 해제) · 12:00 발표(CI+CN 합동, 발표자 명수) → **destroy** |
 
 **운영 스케줄**: 09:00~18:00 (하루 9시간) · 🔄 **09-17 재산정 기준 실운영 7일** (9/21~23 · 9/28~30 · 10/1)
 
@@ -1045,7 +1095,7 @@ moved {
 | 7 | **EKS 서브넷 태그 있는가** |
 | 8 | **계정 ID·ARN 하드코딩 없는가** |
 | 9 | **`NodePool` 태그** — 🔄 **과금 리소스(EC2·EBS·NAT·EKS)에만.** VPC·서브넷·SG 에는 붙이지 않음 (규칙 10) |
-| 10 | **NAT EIP에 `prevent_destroy` 있는가** |
+| 10 | **NAT EIP에 `prevent_destroy` 있는가** — 🔓 10/6 종료 시점 한정 해제(PR #150). 재사용 시 복원 확인 |
 | 11 | **이미 배포된 리소스를 모듈로 옮기는가?** — 그렇다면 `moved` 블록 필수 (규칙 15) |
 | 12 | **과금 리소스인가?** — 그렇다면 9/18 전에는 `apply` 하지 않음 (규칙 17) |
 | **13** | 🆕 **리소스 전용 변수에 `<module>_` 접두사가 붙어 있는가** · **값은 `terraform.tfvars` 하나에 모였는가** (B안 컨벤션) |
@@ -1060,6 +1110,9 @@ moved {
 | **22** | 🆕🔴 **plan 에 `public_access_cidrs` 변경이 있는가** — 있으면 멈추고 실물과 개수 대조 (규칙 31) |
 | **23** | 🆕 **SG 규칙을 줄이는 PR 인가** — 클러스터 SG 까지 포함해 실효를 판단했는가 (규칙 29). 보안 회신 문구는 "축소" |
 | **24** | 🆕 **새 필수 변수(`validation`)를 추가했는가** — 양쪽 `.example` 과 `tests/*.tftest.hcl` 의 `variables {}` 에 값이 있는가 (규칙 30) |
+| **25** | 🆕🔴 **apply 범위에 노드그룹이 들어가는가** — `-target` 없이 apply 하면 `desired_size` 가 코드 값으로 돌아감. 노드를 내려 둔 상태면 멈춤 (규칙 33) |
+| **26** | 🆕 **user-data 를 바꿨는가** — `scripts/check_node_user_data.py` 통과 (규칙 32) |
+| **27** | 🆕🔴 **환경을 지우기 전 `prevent_destroy` 목록** — `grep -rn prevent_destroy terraform/` → NAT EIP(모듈) · prod 계정 보안 4개. 버킷 `force_destroy`·ECR `force_delete` 없음 → 먼저 비우기. CSI 가 만든 EBS 는 state 밖 (검수 21) |
 
 💡 **plan 출력**: `Plan: N to add, 0 to change, 0 to destroy`
 **`to destroy`가 0이 아니면 절대 apply하지 마세요.**
@@ -1139,6 +1192,19 @@ echo "실물에만 $(comm -23 /tmp/a /tmp/b | wc -l) / 내 파일에만 $(comm -
 | ⑤~⑧ | ⬜ 미생성 — **코드는 PR #19·#22·#35·#36·#37 로 준비 완료.** `Plan: 66 to add` |
 | ⑨⑩ | ⬜ 미생성 — 🔴 **⑩ 은 모듈만 있고 환경에서 호출되지 않음** (막힌 항목 19) |
 
+### 🆕 10/6 상태 — 아래 9/27 실측보다 우선
+
+| 항목 | 값 |
+|---|---|
+| staging 노드 | **10/2 17:27 KST 이후 6개 그룹 전부 0** (10/6 destroy 예정) |
+| 노드 배치 | 6개 그룹 전부 **단일 서브넷(AZ-a)** (`nodegroups.tf:52`) · 전부 ON_DEMAND |
+| 앱 엔드포인트 | `api.stg.midam.store`(ALB→EKS) · `img.stg.midam.store`(CloudFront→S3) · `stg.midam.store` 는 **Vercel** |
+| 접근 | Access Entry 에 **AI-Dev** 추가(#134) · EKS API 허용 IP 는 9/30~10/1 BE·AI 인원까지 확대 |
+| 탐지 | staging state 에 **SNS 2 · EventBridge 6** (서울 4 · 버지니아 2) — destroy 로 함께 삭제 |
+| 백업 | CNPG ScheduledBackup **KST 11:20** · WAL 상시 아카이빙 · PV 전부 `Retain` |
+| prod state | ECR 5(+정책 5) · 계정 보안 5종(`prevent_destroy` 4) · CodeBuild `jangin-genai-runner` · ⚠️ `prod-s3-models`·OIDC 역할 확인 필요 · **EKS 없음** |
+| 비용 | 9/7~10/1 약 $266 · 9/28~9/30 하루 $42~56(GPU 62~72%) · 서버 0대 고정비 하루 약 $7 |
+
 ### 🆕 staging 실측 (2026-09-27) — 위 09-17 표보다 우선
 
 | 항목 | 값 |
@@ -1171,7 +1237,8 @@ echo "실물에만 $(comm -23 /tmp/a /tmp/b | wc -l) / 내 파일에만 $(comm -
 | AWS-0039 Secrets 암호화 | 🟢 보고서가 오탐 확인 (EKS 1.28+ 기본 봉투 암호화) |
 | AWS-0104 SG egress | 🔄 **PR #83 (윤주님) 허용 목록화 완료** — ⚠️ 클러스터 SG 때문에 실효는 **축소**. 회신은 **"축소 + 예외"** (막힌 27 · 규칙 29) |
 | AWS-0010 / 0011 CloudFront 로그·WAF | Trivy + Prowler 동시 지적. 🔄 **0011(WAF) 은 예외 #4** 방향 (다정님 초안 — 이미지 정적 배포 전용, OAC·BPA 로 보완) · 0010(로그) 미지정 |
-| Ansible FAIL 28 | 🔄 **PR #80 으로 전부 해소 예정** |
+| Ansible FAIL 28 | ✅ **10/10 노드 PASS** (9/30 SSM — sshd 3설정·드롭인·실패 마커 없음) · PR #80 + #94·#110 |
+| AWS-0038 · 0052 · 0011 | 🔄 코드 조치 머지 (#103 · #93 · #97) — 재스캔 미확인 |
 
 ### 🆕 ① State 백엔드 상세 (09-16 갱신)
 
@@ -1258,6 +1325,13 @@ aws s3api head-object --bucket jangin-infra-s3-tfstate \
 ---
 
 ## 변경 이력
+
+**10-06 (프로젝트 종료판 — 9/28~10/6 경과 · 종료 절차)**
+- 🆕 상단 「10-06 현재 상태」 블록 · 「10/6 해소·정정」 표 · 「9/28~10/6 실제 경과」 · 「10/6 상태」 소절
+- ✅ 막힌 항목 **24·28 해소/종결** · **26·29 상태 갱신** · 🆕 **30**(GuardDuty·Security Hub 끄는 방법) · **31**(백업 경보 불일치) · **32**(HA 시험 미실행) · **33**(GPU 기본값)
+- 🆕 **규칙 32**(user-data 비 ASCII 금지) · **33**(노드 수는 CLI, 코드는 `-target`) · **34**(콘솔 선반영 → 같은 날 PR) · 규칙 9 에 종료 시점 해제(PR #150) 표기
+- 🆕 검수 체크리스트 **25~27** · 검수 10 에 해제 표기
+- 🔴 **정정**: Redis AOF 는 EBS 저장(노드 로컬 아님) · 9/27판의 "Ansible FAIL 28 은 PR #80 으로 해소 예정" → 실제로는 #94·#110 수정 후 해소
 
 **09-28 (PR #83~#85 · 클러스터 SG · 역할 재분배 · `.example` 함정 제거)**
 - 🆕 상단 「09-28 현재 상태」 블록 · 「9/28 해소·정정」 표 — 일정(마감 10/2)·역할 재분배(다정님 9/27 문서) 반영
